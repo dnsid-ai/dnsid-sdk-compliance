@@ -1,0 +1,147 @@
+suite: txt-record-generation
+cases:
+  - id: create-txt-record-draft01
+    description: creation emits the numbered draft selector and signs the exact canonical bytes with the entity key
+    spec_ref: "sdk-design/01-core-identity-manager.md §CreateTxtRecord"
+    tags: [required, security]
+    op: create_txt_record
+    input:
+      config:
+        domain: agent.example.com
+        governanceId: example.com
+        logRef: microledger:abc123
+        statusUrl: https://agent.example.com/status
+        ekUrl: https://example.com/entity-keys.json
+        kuUrl: https://agent.example.com/jwks.json
+      entityKey:
+        kid: entity-1
+        seed: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE
+        x: iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w
+      operationalKey:
+        kid: operational-1
+        seed: AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI
+        x: gTl3Dqh9F19Wo1Rmw0x-zMuNipG07jeiXfYPW4_Js5Q
+    expect:
+      ok: true
+      record:
+        v: dnsid-draft-01
+        gi: example.com
+        ek: https://example.com/entity-keys.json
+        ku: https://agent.example.com/jwks.json
+        lr: microledger:abc123
+        su: https://agent.example.com/status
+        sg: DL3QZjpgZpeHldJWUG_F7pyHkmn8CNX_Nv5e8R0kawTGGFkRHWZBgA3e-W7sJW2NSj-IFMv40L8SM3PmnLARBA
+      signedPayload: "ek=https://example.com/entity-keys.json;gi=example.com;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;v=dnsid-draft-01"
+      signatureSource: entity
+      signatureVerified: true
+
+  - id: create-txt-record-optional-tags
+    description: optional publication fields are included in both the generated record and signed canonical payload
+    spec_ref: "sdk-design/01-core-identity-manager.md §CreateTxtRecord"
+    tags: [required]
+    op: create_txt_record
+    input:
+      config:
+        domain: agent.example.com
+        governanceId: example.com
+        logRef: microledger:abc123
+        statusUrl: https://agent.example.com/status
+        ekUrl: https://example.com/entity-keys.json
+        kuUrl: https://agent.example.com/jwks.json
+        policyFlags: mtls,logchk
+        maxKeyAge: 30d
+        capabilitiesUrl: https://agent.example.com/agents.md
+      entityKey:
+        kid: entity-1
+        seed: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE
+        x: iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w
+      operationalKey:
+        kid: operational-1
+        seed: AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI
+        x: gTl3Dqh9F19Wo1Rmw0x-zMuNipG07jeiXfYPW4_Js5Q
+    expect:
+      ok: true
+      record:
+        fl: mtls,logchk
+        ka: 30d
+        cu: https://agent.example.com/agents.md
+        sg: X0KlqvSaPRRbtPlQiqjtzbiYtW0A20eVesU_qpjfpwo1dUcOC7sf5ygbxY6UGgfTmejOScP4vSqCX6VlkrutAg
+      signedPayload: "cu=https://agent.example.com/agents.md;ek=https://example.com/entity-keys.json;fl=mtls,logchk;gi=example.com;ka=30d;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;v=dnsid-draft-01"
+      signatureSource: entity
+      signatureVerified: true
+
+  - id: create-txt-record-rejects-dnsid1-publication
+    description: pre-RFC DNSid1 is accepted for verification but never emitted as a publication selector
+    spec_ref: "sdk-design/README.md §Draft Version Contract"
+    tags: [required, security]
+    op: create_txt_record
+    input:
+      config:
+        domain: agent.example.com
+        governanceId: example.com
+        logRef: microledger:abc123
+        statusUrl: https://agent.example.com/status
+        ekUrl: https://example.com/entity-keys.json
+        kuUrl: https://agent.example.com/jwks.json
+        publishProfile: DNSid1
+      entityKey:
+        kid: entity-1
+        seed: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE
+        x: iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w
+      operationalKey:
+        kid: operational-1
+        seed: AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI
+        x: gTl3Dqh9F19Wo1Rmw0x-zMuNipG07jeiXfYPW4_Js5Q
+    expect:
+      ok: false
+      error: ArgumentError
+      error_contains: unsupported DNSid publish profile
+
+  - id: create-txt-record-rejects-shared-key-role
+    description: the entity record-signing key must be distinct from the operational application key
+    spec_ref: "sdk-design/README.md §Shared Profile Contracts"
+    tags: [required, security]
+    op: create_txt_record
+    input:
+      sameKey: true
+      config:
+        domain: agent.example.com
+        governanceId: example.com
+        logRef: microledger:abc123
+        statusUrl: https://agent.example.com/status
+        ekUrl: https://example.com/entity-keys.json
+        kuUrl: https://agent.example.com/jwks.json
+      entityKey:
+        kid: entity-1
+        seed: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE
+        x: iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w
+      operationalKey:
+        kid: operational-1
+        seed: AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI
+        x: gTl3Dqh9F19Wo1Rmw0x-zMuNipG07jeiXfYPW4_Js5Q
+    expect:
+      ok: false
+      error: ArgumentError
+      error_contains: distinct
+
+  - id: create-txt-record-requires-entity-provider
+    description: draft 01 publication fails when the accountable-entity signing provider is absent
+    spec_ref: "sdk-design/01-core-identity-manager.md §CreateTxtRecord"
+    tags: [required, security]
+    op: create_txt_record
+    input:
+      config:
+        domain: agent.example.com
+        governanceId: example.com
+        logRef: microledger:abc123
+        statusUrl: https://agent.example.com/status
+        ekUrl: https://example.com/entity-keys.json
+        kuUrl: https://agent.example.com/jwks.json
+      operationalKey:
+        kid: operational-1
+        seed: AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI
+        x: gTl3Dqh9F19Wo1Rmw0x-zMuNipG07jeiXfYPW4_Js5Q
+    expect:
+      ok: false
+      error: ArgumentError
+      error_contains: entity

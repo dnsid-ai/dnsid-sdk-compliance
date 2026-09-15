@@ -1,0 +1,234 @@
+name: SDK Compliance (reusable)
+
+# Called by each SDK repo's PR CI to gate on cross-SDK compliance. The harness
+# and fixtures are the source of truth here in dnsid-sdk-compliance; the caller passes which
+# SDK it is and the head/base commits to compare.
+#
+# Gate: the check goes red only if the PR *raises* the failure count vs the base
+# branch (a regression). Pre-existing failures do not block — they show in the
+# summary as the current compliance %. If base-ref is omitted, the gate is
+# simply "zero failures".
+#
+# Caller (in dnsid-<sdk>/.github/workflows/compliance.yaml):
+#   jobs:
+#     compliance:
+#       uses: dnsid-ai/dnsid-sdk-compliance/.github/workflows/sdk-compliance.yaml@main
+#       secrets: inherit          # needs GH_PAT only while this repo and the SDK
+#                                 # repos are private; every token use below falls
+#                                 # back to github.token, so once the repos are
+#                                 # public the callers can drop `secrets: inherit`
+#       with:
+#         sdk: py
+#         ref: ${{ github.event.pull_request.head.sha }}
+#         base-ref: ${{ github.event.pull_request.base.sha }}
+#         pr-number: ${{ github.event.pull_request.number }}
+
+on:
+  workflow_call:
+    inputs:
+      sdk:
+        description: "go | ts | py"
+        required: true
+        type: string
+      ref:
+        description: "SDK commit under test (PR head)"
+        required: true
+        type: string
+      base-ref:
+        description: "Base commit to ratchet against; omit to require zero failures"
+        required: false
+        type: string
+        default: ""
+      pr-number:
+        description: "Pull request number to comment on when this reusable workflow is run from PR CI"
+        required: false
+        type: string
+        default: ""
+      pr-repository:
+        description: "owner/repo for the pull request; defaults to the caller repository"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  compliance:
+    runs-on: ubuntu-latest
+    steps:
+      # The harness and fixtures live in this compliance repository, not the caller's.
+      - name: Check out compliance harness
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: dnsid-ai/dnsid-sdk-compliance
+          token: ${{ secrets.GH_PAT || github.token }}
+
+      - name: Check out SDK (head)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: dnsid-ai/dnsid-${{ inputs.sdk }}
+          ref: ${{ inputs.ref }}
+          token: ${{ secrets.GH_PAT || github.token }}
+          path: sdk-head
+
+      - name: Check out SDK (base)
+        if: inputs.base-ref != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: dnsid-ai/dnsid-${{ inputs.sdk }}
+          ref: ${{ inputs.base-ref }}
+          token: ${{ secrets.GH_PAT || github.token }}
+          path: sdk-base
+
+      - if: inputs.sdk == 'go'
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.26"
+      - if: inputs.sdk == 'ts'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0 (no floating major tag published)
+
+      - name: Run suite (head)
+        run: ci/run-one.sh "${{ inputs.sdk }}" "$GITHUB_WORKSPACE/sdk-head" report-head.md
+
+      - name: Run suite (base)
+        if: inputs.base-ref != ''
+        run: ci/run-one.sh "${{ inputs.sdk }}" "$GITHUB_WORKSPACE/sdk-base" report-base.md
+
+      - name: Gate and summarize
+        id: compliance_summary
+        env:
+          SDK: ${{ inputs.sdk }}
+          PR_NUMBER: ${{ inputs.pr-number || github.event.pull_request.number || '' }}
+          PR_REPOSITORY: ${{ inputs.pr-repository || github.repository }}
+        run: |
+          set -euo pipefail
+
+          # Pull "<pass> <rej> <xfail> <fail> <total>" from a report summary row:
+          # | <sdk> | pass | rej | xfail | fail | total | compliance |
+          counts() {
+            awk -F'|' -v s=" $SDK " '$2==s {for (i=3; i<=7; i++) gsub(/ /,"",$i); print $3, $4, $5, $6, $7}' "$1"
+          }
+          pct() { awk -v n="$1" -v d="$2" 'BEGIN { if (d == 0) printf "0.0"; else printf "%.1f", (n * 100 / d) }'; }
+          # Failing case ids for this SDK, from the "### `id` — <sdk>" headings.
+          failing() { grep -E "^### \`[^\`]+\` — $SDK$" "$1" 2>/dev/null | sed -E 's/^### `([^`]+)`.*/\1/' | sort || true; }
+          # XPASS case ids: known_bug markers that now pass and should be removed.
+          xpassing() { grep -E "^- \`[^\`]+\` \($SDK\): .*now passes, remove the known_bug marker" "$1" 2>/dev/null | sed -E 's/^- `([^`]+)`.*/\1/' | sort || true; }
+
+          read head_pass head_rej head_xfail head_fail total < <(counts report-head.md)
+          head_ok=$((head_pass + head_rej))
+          head_pct=$(pct "$head_ok" "$total")
+          failing report-head.md > head.txt
+          xpassing report-head.md > xpass.txt
+
+          {
+            echo "## Compliance: dnsid-$SDK"
+            echo
+            echo "| Ref | Compliant | Pass | Rejected unsupported | Known bugs | Fail |"
+            echo "|-----|-----------|------|----------------------|------------|------|"
+            echo "| PR/head | $head_ok/$total ($head_pct%) | $head_pass | $head_rej | $head_xfail | $head_fail |"
+          } > summary.md
+
+          regressed=false
+          strict_fail=false
+          stale_known_bug=false
+          if [ -f report-base.md ]; then
+            read base_pass base_rej base_xfail base_fail _ < <(counts report-base.md)
+            base_ok=$((base_pass + base_rej))
+            base_pct=$(pct "$base_ok" "$total")
+            failing report-base.md > base.txt
+            new=$(comm -23 head.txt base.txt || true)
+            {
+              echo "| Base | $base_ok/$total ($base_pct%) | $base_pass | $base_rej | $base_xfail | $base_fail |"
+              echo
+              echo "Base branch: $base_fail failing → PR: $head_fail failing."
+              if [ -n "$new" ]; then
+                echo
+                echo "New failures introduced by this PR:"
+                echo "$new" | sed 's/^/- `/;s/$/`/'
+              fi
+              if [ -s xpass.txt ]; then
+                echo
+                echo "Known bugs that now pass — remove their \`known_bug\` markers:"
+                sed 's/^/- `/;s/$/`/' xpass.txt
+              fi
+            } >> summary.md
+
+            if [ -s xpass.txt ]; then
+              stale_known_bug=true
+              echo "::error::dnsid-$SDK has known_bug markers for cases that now pass; remove the stale markers"
+            fi
+
+            if [ "$head_fail" -gt "$base_fail" ]; then
+              regressed=true
+              echo "::error::dnsid-$SDK compliance regressed: $base_fail → $head_fail failing"
+            fi
+          else
+            if [ "$head_fail" -gt 0 ]; then
+              strict_fail=true
+              echo "::error::dnsid-$SDK has $head_fail compliance failures (no base to ratchet against)"
+              sed 's/^/  /' head.txt
+            fi
+            if [ -s xpass.txt ]; then
+              stale_known_bug=true
+              echo "::error::dnsid-$SDK has known_bug markers for cases that now pass; remove the stale markers"
+              sed 's/^/  /' xpass.txt
+              {
+                echo
+                echo "Known bugs that now pass — remove their \`known_bug\` markers:"
+                sed 's/^/- `/;s/$/`/' xpass.txt
+              } >> summary.md
+            fi
+          fi
+
+          cat summary.md >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "<!-- dnsid-compliance:$SDK -->"
+            cat summary.md
+          } > comment.md
+
+          echo "regressed=$regressed" >> "$GITHUB_OUTPUT"
+          echo "strict_fail=$strict_fail" >> "$GITHUB_OUTPUT"
+          echo "stale_known_bug=$stale_known_bug" >> "$GITHUB_OUTPUT"
+          echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "pr_repository=$PR_REPOSITORY" >> "$GITHUB_OUTPUT"
+
+      - name: Comment compliance summary on PR
+        if: always() && steps.compliance_summary.outputs.pr_number != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
+          PR_NUMBER: ${{ steps.compliance_summary.outputs.pr_number }}
+          PR_REPOSITORY: ${{ steps.compliance_summary.outputs.pr_repository }}
+          SDK: ${{ inputs.sdk }}
+        run: |
+          set -euo pipefail
+          marker="<!-- dnsid-compliance:$SDK -->"
+          comment_id=$(gh api "repos/$PR_REPOSITORY/issues/$PR_NUMBER/comments" --paginate \
+            --jq ".[] | select(.body | contains(\"$marker\")) | .id" | head -n1 || true)
+          if [ -n "$comment_id" ]; then
+            gh api --method PATCH "repos/$PR_REPOSITORY/issues/comments/$comment_id" \
+              -f body="$(cat comment.md)" >/dev/null
+          else
+            gh api --method POST "repos/$PR_REPOSITORY/issues/$PR_NUMBER/comments" \
+              -f body="$(cat comment.md)" >/dev/null
+          fi
+
+      - name: Fail on compliance gate
+        if: steps.compliance_summary.outputs.regressed == 'true' || steps.compliance_summary.outputs.strict_fail == 'true' || steps.compliance_summary.outputs.stale_known_bug == 'true'
+        run: exit 1
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: compliance-report-${{ inputs.sdk }}
+          path: report-head.md
+          if-no-files-found: ignore

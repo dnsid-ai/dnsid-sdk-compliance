@@ -1,0 +1,32 @@
+{
+  "format": "dnsid-c2sp-generation@v1",
+  "domain": "agent.example.com",
+  "governance_id": "example.com",
+  "lr": "c2sp-tlog:public:https://log.example#EREREREREREREREREREREQ",
+  "keys": {
+    "entity": {
+      "kid": "entity-1",
+      "ed25519_seed_byte": 1
+    },
+    "operational_initial": {
+      "kid": "operational-1",
+      "ed25519_seed_byte": 2
+    },
+    "operational_rotated": {
+      "kid": "operational-2",
+      "ed25519_seed_byte": 3
+    }
+  },
+  "events": {
+    "issuance": {
+      "type": "ISSUANCE",
+      "timestamp": 1782172800
+    },
+    "rotation": {
+      "type": "KEY_ROTATION",
+      "timestamp": 1782259200
+    }
+  },
+  "golden_bundle": "c2sp-stream-bundle-logical-v1.json",
+  "method_revision": "d5a65d06f76eff4db81e50f8767a600d2ca7fc2a"
+}

@@ -1,0 +1,359 @@
+{
+  "format": "dnsid-sdk-lifecycle-transitions-v2",
+  "domain": "agent.example",
+  "eventFixtures": {
+    "issuance-primary": {
+      "type": "ISSUANCE",
+      "domain": "agent.example",
+      "governanceId": "example",
+      "initialEntityPublicKey": "jwk:entity-1",
+      "initialEntityThumbprint": "entity-1",
+      "initialOperationalPublicKey": "jwk:op-1",
+      "initialOperationalThumbprint": "op-1",
+      "timestamp": "2026-01-01T00:00:00Z"
+    },
+    "issuance-replacement": {
+      "type": "ISSUANCE",
+      "domain": "agent.example",
+      "governanceId": "example",
+      "initialEntityPublicKey": "jwk:entity-2",
+      "initialEntityThumbprint": "entity-2",
+      "initialOperationalPublicKey": "jwk:op-9",
+      "initialOperationalThumbprint": "op-9",
+      "timestamp": "2026-02-01T00:00:00Z"
+    },
+    "issuance-other-domain": {
+      "type": "ISSUANCE",
+      "domain": "other.example",
+      "governanceId": "example",
+      "initialEntityPublicKey": "jwk:entity-1",
+      "initialEntityThumbprint": "entity-1",
+      "initialOperationalPublicKey": "jwk:op-1",
+      "initialOperationalThumbprint": "op-1",
+      "timestamp": "2026-01-01T00:00:00Z"
+    },
+    "issuance-same-role-key": {
+      "type": "ISSUANCE",
+      "domain": "agent.example",
+      "governanceId": "example",
+      "initialEntityPublicKey": "jwk:op-1",
+      "initialEntityThumbprint": "op-1",
+      "initialOperationalPublicKey": "jwk:op-1",
+      "initialOperationalThumbprint": "op-1",
+      "timestamp": "2026-01-01T00:00:00Z"
+    },
+    "issuance-missing-entity-key": {
+      "type": "ISSUANCE",
+      "domain": "agent.example",
+      "governanceId": "example",
+      "initialEntityPublicKey": "",
+      "initialEntityThumbprint": "",
+      "initialOperationalPublicKey": "jwk:op-1",
+      "initialOperationalThumbprint": "op-1",
+      "timestamp": "2026-01-01T00:00:00Z"
+    },
+    "issuance-missing-operational-key": {
+      "type": "ISSUANCE",
+      "domain": "agent.example",
+      "governanceId": "example",
+      "initialEntityPublicKey": "jwk:entity-1",
+      "initialEntityThumbprint": "entity-1",
+      "initialOperationalPublicKey": "",
+      "initialOperationalThumbprint": "",
+      "timestamp": "2026-01-01T00:00:00Z"
+    },
+    "rotation-op1-op2": {
+      "type": "KEY_ROTATION",
+      "domain": "agent.example",
+      "previousOperationalThumbprint": "op-1",
+      "newOperationalPublicKey": "jwk:op-2",
+      "newOperationalThumbprint": "op-2",
+      "timestamp": "2026-01-02T00:00:00Z"
+    },
+    "rotation-op2-op3": {
+      "type": "KEY_ROTATION",
+      "domain": "agent.example",
+      "previousOperationalThumbprint": "op-2",
+      "newOperationalPublicKey": "jwk:op-3",
+      "newOperationalThumbprint": "op-3",
+      "timestamp": "2026-01-03T00:00:00Z"
+    },
+    "rotation-stale-op1-op3": {
+      "type": "KEY_ROTATION",
+      "domain": "agent.example",
+      "previousOperationalThumbprint": "op-1",
+      "newOperationalPublicKey": "jwk:op-3",
+      "newOperationalThumbprint": "op-3",
+      "timestamp": "2026-01-03T00:00:00Z"
+    },
+    "rotation-op1-op1": {
+      "type": "KEY_ROTATION",
+      "domain": "agent.example",
+      "previousOperationalThumbprint": "op-1",
+      "newOperationalPublicKey": "jwk:op-1",
+      "newOperationalThumbprint": "op-1",
+      "timestamp": "2026-01-02T00:00:00Z"
+    },
+    "rotation-op1-op2-wrong-thumbprint": {
+      "type": "KEY_ROTATION",
+      "domain": "agent.example",
+      "previousOperationalThumbprint": "op-1",
+      "newOperationalPublicKey": "jwk:op-2",
+      "newOperationalThumbprint": "op-9",
+      "timestamp": "2026-01-02T00:00:00Z"
+    },
+    "rotation-op1-op2-missing-thumbprint": {
+      "type": "KEY_ROTATION",
+      "domain": "agent.example",
+      "previousOperationalThumbprint": "op-1",
+      "newOperationalPublicKey": "jwk:op-2",
+      "newOperationalThumbprint": "",
+      "timestamp": "2026-01-02T00:00:00Z"
+    },
+    "rotation-future-op1-op2": {
+      "type": "KEY_ROTATION",
+      "domain": "agent.example",
+      "previousOperationalThumbprint": "op-1",
+      "newOperationalPublicKey": "jwk:op-2",
+      "newOperationalThumbprint": "op-2",
+      "timestamp": "2026-01-04T00:00:00Z"
+    },
+    "revocation": {
+      "type": "REVOCATION",
+      "domain": "agent.example",
+      "reason": "keyCompromise",
+      "timestamp": "2026-01-03T00:00:00Z"
+    },
+    "revocation-invalid-reason": {
+      "type": "REVOCATION",
+      "domain": "agent.example",
+      "reason": "ownerRequest",
+      "timestamp": "2026-01-03T00:00:00Z"
+    },
+    "retirement": {
+      "type": "RETIREMENT",
+      "domain": "agent.example",
+      "timestamp": "2026-01-03T00:00:00Z"
+    },
+    "delegation": {
+      "type": "DELEGATION",
+      "domain": "agent.example",
+      "delegatee": "delegate.example",
+      "scope": "orders:read",
+      "expiry": "2026-02-01T00:00:00Z",
+      "timestamp": "2026-01-02T12:00:00Z"
+    },
+    "migration-a-b": {
+      "type": "MIGRATION",
+      "domain": "agent.example",
+      "previousLog": "method-a:stream-1",
+      "newLog": "method-b:stream-1",
+      "finalEntryRef": "method-a:entry-10",
+      "bindingVerified": true,
+      "timestamp": "2026-01-02T12:00:00Z"
+    },
+    "migration-same-log": {
+      "type": "MIGRATION",
+      "domain": "agent.example",
+      "previousLog": "method-a:stream-1",
+      "newLog": "method-a:stream-1",
+      "finalEntryRef": "method-a:entry-10",
+      "bindingVerified": true,
+      "timestamp": "2026-01-02T12:00:00Z"
+    },
+    "unsupported-event": {
+      "type": "FUTURE_EVENT",
+      "domain": "agent.example",
+      "timestamp": "2026-01-02T12:00:00Z"
+    }
+  },
+  "cases": [
+    {
+      "id": "issuance-establishes-active",
+      "operation": "reduce",
+      "events": ["issuance-primary"],
+      "expected": {"valid": true, "identityState": "ACTIVE", "activeOperationalThumbprint": "op-1", "governanceId": "example", "keyBoundAt": 1767225600}
+    },
+    {
+      "id": "rotation-before-genesis-rejected",
+      "operation": "reduce",
+      "events": ["rotation-op1-op2"],
+      "expected": {"valid": false, "failingEventIndex": 0, "errorCategory": "GENESIS_REQUIRED"}
+    },
+    {
+      "id": "issuance-without-key-role-separation-rejected",
+      "operation": "reduce",
+      "events": ["issuance-same-role-key"],
+      "expected": {"valid": false, "failingEventIndex": 0, "errorCategory": "INVALID_ISSUANCE"}
+    },
+    {
+      "id": "issuance-without-entity-key-rejected",
+      "operation": "reduce",
+      "events": ["issuance-missing-entity-key"],
+      "expected": {"valid": false, "failingEventIndex": 0, "errorCategory": "INVALID_ISSUANCE"}
+    },
+    {
+      "id": "issuance-without-operational-key-rejected",
+      "operation": "reduce",
+      "events": ["issuance-missing-operational-key"],
+      "expected": {"valid": false, "failingEventIndex": 0, "errorCategory": "INVALID_ISSUANCE"}
+    },
+    {
+      "id": "migration-before-genesis-rejected",
+      "operation": "reduce",
+      "events": ["migration-a-b"],
+      "expected": {"valid": false, "failingEventIndex": 0, "errorCategory": "GENESIS_REQUIRED"}
+    },
+    {
+      "id": "second-issuance-in-active-history-rejected",
+      "operation": "reduce",
+      "events": ["issuance-primary", "issuance-replacement"],
+      "expected": {"valid": false, "failingEventIndex": 1, "errorCategory": "DUPLICATE_ISSUANCE"}
+    },
+    {
+      "id": "single-rotation-preserves-active",
+      "operation": "reduce",
+      "events": ["issuance-primary", "rotation-op1-op2"],
+      "expected": {"valid": true, "identityState": "ACTIVE", "activeOperationalThumbprint": "op-2"}
+    },
+    {
+      "id": "multiple-rotations-preserve-continuity",
+      "operation": "reduce",
+      "events": ["issuance-primary", "rotation-op1-op2", "rotation-op2-op3"],
+      "expected": {"valid": true, "identityState": "ACTIVE", "activeOperationalThumbprint": "op-3"}
+    },
+    {
+      "id": "stale-previous-key-rejected",
+      "operation": "reduce",
+      "events": ["issuance-primary", "rotation-op1-op2", "rotation-stale-op1-op3"],
+      "expected": {"valid": false, "failingEventIndex": 2, "errorCategory": "KEY_CONTINUITY"}
+    },
+    {
+      "id": "rotation-to-same-key-rejected",
+      "operation": "reduce",
+      "events": ["issuance-primary", "rotation-op1-op1"],
+      "expected": {"valid": false, "failingEventIndex": 1, "errorCategory": "KEY_CONTINUITY"}
+    },
+    {
+      "id": "rotation-with-mismatched-new-thumbprint-rejected",
+      "operation": "reduce",
+      "events": ["issuance-primary", "rotation-op1-op2-wrong-thumbprint"],
+      "expected": {"valid": false, "failingEventIndex": 1, "errorCategory": "KEY_CONTINUITY"}
+    },
+    {
+      "id": "rotation-without-new-thumbprint-rejected",
+      "operation": "reduce",
+      "events": ["issuance-primary", "rotation-op1-op2-missing-thumbprint"],
+      "expected": {"valid": false, "failingEventIndex": 1, "errorCategory": "KEY_CONTINUITY"}
+    },
+    {
+      "id": "wrong-domain-applied-event-rejected",
+      "operation": "reduce",
+      "events": ["issuance-other-domain"],
+      "expected": {"valid": false, "failingEventIndex": 0, "errorCategory": "DOMAIN_MISMATCH"}
+    },
+    {
+      "id": "delegation-does-not-change-core-state",
+      "operation": "reduce",
+      "events": ["issuance-primary", "delegation"],
+      "expected": {"valid": true, "identityState": "ACTIVE", "activeOperationalThumbprint": "op-1"}
+    },
+    {
+      "id": "stitched-migration-does-not-change-identity-state",
+      "operation": "reduce",
+      "events": ["issuance-primary", "migration-a-b", "rotation-op1-op2"],
+      "expected": {"valid": true, "identityState": "ACTIVE", "activeOperationalThumbprint": "op-2"}
+    },
+    {
+      "id": "migration-to-same-log-rejected",
+      "operation": "reduce",
+      "events": ["issuance-primary", "migration-same-log"],
+      "expected": {"valid": false, "failingEventIndex": 1, "errorCategory": "INVALID_MIGRATION"}
+    },
+    {
+      "id": "unsupported-event-rejected",
+      "operation": "reduce",
+      "events": ["issuance-primary", "unsupported-event"],
+      "expected": {"valid": false, "failingEventIndex": 1, "errorCategory": "UNSUPPORTED_EVENT"}
+    },
+    {
+      "id": "valid-revocation-is-terminal",
+      "operation": "reduce",
+      "events": ["issuance-primary", "revocation"],
+      "expected": {"valid": true, "identityState": "REVOKED", "activeOperationalThumbprint": "op-1"}
+    },
+    {
+      "id": "invalid-revocation-reason-rejected",
+      "operation": "reduce",
+      "events": ["issuance-primary", "revocation-invalid-reason"],
+      "expected": {"valid": false, "failingEventIndex": 1, "errorCategory": "INVALID_REVOCATION_REASON"}
+    },
+    {
+      "id": "valid-retirement-is-terminal",
+      "operation": "reduce",
+      "events": ["issuance-primary", "retirement"],
+      "expected": {"valid": true, "identityState": "RETIRED", "activeOperationalThumbprint": "op-1"}
+    },
+    {
+      "id": "reissuance-after-revocation-in-same-history-rejected",
+      "operation": "reduce",
+      "events": ["issuance-primary", "revocation", "issuance-replacement"],
+      "expected": {"valid": false, "failingEventIndex": 2, "errorCategory": "TERMINAL_STATE"}
+    },
+    {
+      "id": "rotation-after-retirement-rejected",
+      "operation": "reduce",
+      "events": ["issuance-primary", "retirement", "rotation-op1-op2"],
+      "expected": {"valid": false, "failingEventIndex": 2, "errorCategory": "TERMINAL_STATE"}
+    },
+    {
+      "id": "replacement-is-valid-only-as-fresh-history",
+      "operation": "reduce",
+      "historyId": "replacement-history",
+      "events": ["issuance-replacement"],
+      "expected": {"valid": true, "identityState": "ACTIVE", "activeOperationalThumbprint": "op-9", "inheritedEventCount": 0}
+    },
+    {
+      "id": "snapshot-before-rotation-uses-issued-key",
+      "operation": "snapshot",
+      "events": ["issuance-primary", "rotation-op1-op2"],
+      "at": "2026-01-01T12:00:00Z",
+      "expected": {"valid": true, "identityState": "ACTIVE", "activeOperationalThumbprint": "op-1", "eventCount": 1, "governanceId": "example", "keyBoundAt": 1767225600}
+    },
+    {
+      "id": "snapshot-at-rotation-includes-rotation",
+      "operation": "snapshot",
+      "events": ["issuance-primary", "rotation-op1-op2"],
+      "at": "2026-01-02T00:00:00Z",
+      "expected": {"valid": true, "identityState": "ACTIVE", "activeOperationalThumbprint": "op-2", "eventCount": 2, "governanceId": "example", "keyBoundAt": 1767312000}
+    },
+    {
+      "id": "snapshot-before-genesis-rejected",
+      "operation": "snapshot",
+      "events": ["issuance-primary"],
+      "at": "2025-12-31T23:59:59Z",
+      "expected": {"valid": false, "errorCategory": "SNAPSHOT_EMPTY"}
+    },
+    {
+      "id": "snapshot-non-prefix-boundary-rejected",
+      "operation": "snapshot",
+      "events": ["issuance-primary", "rotation-future-op1-op2", "delegation"],
+      "at": "2026-01-03T00:00:00Z",
+      "expected": {"valid": false, "failingEventIndex": 2, "errorCategory": "SNAPSHOT_NON_PREFIX"}
+    },
+    {
+      "id": "historical-snapshot-before-revocation-remains-active",
+      "operation": "snapshot",
+      "events": ["issuance-primary", "rotation-op1-op2", "revocation"],
+      "at": "2026-01-02T12:00:00Z",
+      "expected": {"valid": true, "identityState": "ACTIVE", "activeOperationalThumbprint": "op-2", "eventCount": 2}
+    },
+    {
+      "id": "snapshot-at-revocation-is-revoked",
+      "operation": "snapshot",
+      "events": ["issuance-primary", "rotation-op1-op2", "revocation"],
+      "at": "2026-01-03T00:00:00Z",
+      "expected": {"valid": true, "identityState": "REVOKED", "activeOperationalThumbprint": "op-2", "eventCount": 3}
+    }
+  ]
+}

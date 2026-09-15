@@ -1,0 +1,210 @@
+# Malformed TXT records that every conforming parser MUST reject.
+# error_contains is only asserted where all three SDKs share a substring
+# (matching is case-insensitive); otherwise only the error class is asserted.
+suite: parse-invalid
+cases:
+  - id: parse-invalid-v-not-first
+    description: v= tag must be the first tag
+    spec_ref: "draft-ihsanullah-dnsid-01 §Record Format (record MUST begin with v=)"
+    tags: [required, security]
+    op: parse
+    input:
+      raw: "gi=example.com;v=dnsid-draft-01;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
+    expect:
+      ok: false
+      error: ParseError
+      error_contains: first
+
+  - id: parse-invalid-missing-v
+    description: Record with no v= tag at all is rejected
+    spec_ref: "draft-ihsanullah-dnsid-01 §Record Format"
+    tags: [required]
+    op: parse
+    input:
+      raw: "gi=example.com;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
+    expect:
+      ok: false
+      error: ParseError
+
+  - id: parse-invalid-empty-string
+    description: Empty input is rejected
+    spec_ref: "draft-ihsanullah-dnsid-01 §Record Format"
+    tags: [required, edge-case]
+    op: parse
+    input:
+      raw: ""
+    expect:
+      ok: false
+      error: ParseError
+
+  - id: parse-invalid-duplicate-required-tag
+    description: Duplicate tag names MUST be rejected
+    spec_ref: "draft-ihsanullah-dnsid-01 §Record Format (MUST NOT contain duplicate tag names)"
+    tags: [required, security]
+    version: dnsid-draft-01
+    op: parse
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;gi=other.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
+    expect:
+      ok: false
+      error: ParseError
+      error_contains: duplicate
+
+  - id: parse-invalid-duplicate-unknown-tag
+    description: Duplicate unknown tag names are also rejected
+    spec_ref: "draft-ihsanullah-dnsid-01 §Record Format (MUST NOT contain duplicate tag names)"
+    tags: [required, security, edge-case]
+    version: dnsid-draft-01
+    op: parse
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;zz=1;zz=2;sg=AAAA"
+    expect:
+      ok: false
+      error: ParseError
+      error_contains: duplicate
+
+  - id: parse-invalid-element-missing-equals
+    description: A tag element without '=' is rejected
+    spec_ref: "draft-ihsanullah-dnsid-01 §Record Format (dnsid-tag ABNF)"
+    tags: [required]
+    version: dnsid-draft-01
+    op: parse
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;bogus;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
+    expect:
+      ok: false
+      error: ParseError
+      error_contains: "="
+    sdk:
+      go:
+        note: "dnsid-go error says 'invalid tag-value pair' without a literal '=' character"
+        expect:
+          error_contains: tag-value pair
+
+  - id: parse-invalid-empty-interior-element
+    description: Double semicolon (empty non-trailing element) is rejected
+    spec_ref: "draft-ihsanullah-dnsid-01 §Record Format (only one optional trailing ;)"
+    tags: [required, edge-case]
+    version: dnsid-draft-01
+    op: parse
+    input:
+      raw: "v=dnsid-draft-01;;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
+    expect:
+      ok: false
+      error: ParseError
+      error_contains: empty
+
+  - id: parse-invalid-tag-name-leading-digit
+    description: Tag names must start with ALPHA
+    spec_ref: "draft-ihsanullah-dnsid-01 §Record Format (dnsid-tag-name ABNF)"
+    tags: [required]
+    version: dnsid-draft-01
+    op: parse
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;1x=foo;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
+    expect:
+      ok: false
+      error: ParseError
+      error_contains: tag name
+
+  - id: parse-invalid-tag-name-hyphen
+    description: Hyphen is not permitted in tag names (only ALPHA / DIGIT / _)
+    spec_ref: "draft-ihsanullah-dnsid-01 §Record Format (dnsid-tag-name ABNF)"
+    tags: [required]
+    version: dnsid-draft-01
+    op: parse
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;a-b=foo;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
+    expect:
+      ok: false
+      error: ParseError
+      error_contains: tag name
+
+  - id: parse-invalid-space-inside-value
+    description: Space (0x20) is not permitted inside a tag value
+    spec_ref: "draft-ihsanullah-dnsid-01 §Record Format (%x21-3A / %x3C-7E)"
+    tags: [required, security]
+    version: dnsid-draft-01
+    op: parse
+    input:
+      raw: "v=dnsid-draft-01;gi=exam ple.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
+    expect:
+      ok: false
+      error: ParseError
+      error_contains: tag value
+
+  - id: parse-invalid-non-ascii-value
+    description: Non-ASCII bytes are not permitted in tag values
+    spec_ref: "draft-ihsanullah-dnsid-01 §Record Format (printable ASCII only)"
+    tags: [required, security]
+    version: dnsid-draft-01
+    op: parse
+    input:
+      raw: "v=dnsid-draft-01;gi=exämple.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
+    expect:
+      ok: false
+      error: ParseError
+      error_contains: tag value
+
+  - id: parse-invalid-missing-required-lr
+    description: Missing required lr tag is rejected
+    spec_ref: "draft-ihsanullah-dnsid-01 §Tag Definitions (MUST reject missing REQUIRED tag)"
+    tags: [required]
+    version: dnsid-draft-01
+    op: parse
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;su=https://agent.example.com/status;sg=AAAA"
+    expect:
+      ok: false
+      error: ParseError
+      error_contains: lr
+
+  - id: parse-invalid-missing-required-ek
+    description: The submitted profile requires an accountable-entity key endpoint
+    spec_ref: "draft-ihsanullah-dnsid-01 §Tag Definitions (ek is REQUIRED)"
+    tags: [required, security]
+    version: dnsid-draft-01
+    op: parse
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
+    expect:
+      ok: false
+      error: ParseError
+      error_contains: ek
+
+  - id: parse-invalid-missing-sg
+    description: Missing required sg tag is rejected by parse
+    spec_ref: "draft-ihsanullah-dnsid-01 §Tag Definitions"
+    tags: [required]
+    version: dnsid-draft-01
+    op: parse
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status"
+    expect:
+      ok: false
+      error: ParseError
+      error_contains: sg
+
+  - id: parse-invalid-empty-required-tag
+    description: A REQUIRED tag with an empty value MUST be rejected
+    spec_ref: "draft-ihsanullah-dnsid-01 §Tag Definitions (or in which a REQUIRED tag has an empty value)"
+    tags: [required, security]
+    version: dnsid-draft-01
+    op: parse
+    input:
+      raw: "v=dnsid-draft-01;gi=;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
+    expect:
+      ok: false
+      error: ParseError
+      error_contains: gi
+
+  - id: parse-invalid-semicolon-only
+    description: A record consisting of a lone semicolon is rejected
+    spec_ref: "draft-ihsanullah-dnsid-01 §Record Format"
+    tags: [edge-case]
+    op: parse
+    input:
+      raw: ";"
+    expect:
+      ok: false
+      error: ParseError

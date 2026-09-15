@@ -1,0 +1,79 @@
+# Round-trip: parse -> serialize -> parse must preserve all semantic content.
+# Wire tag emission order after v= is implementation-defined, so expectations
+# assert the reparsed record fields, not the serialized string.
+suite: roundtrip
+cases:
+  - id: roundtrip-minimal
+    description: Required tags survive a serialize/parse round trip
+    spec_ref: "draft-ihsanullah-dnsid-01 §Record Format"
+    tags: [required]
+    version: dnsid-draft-01
+    op: roundtrip
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
+    expect:
+      ok: true
+      record:
+        v: dnsid-draft-01
+        gi: example.com
+        ek: https://example.com/entity-keys.json
+        ku: https://agent.example.com/jwks.json
+        lr: microledger:abc123
+        su: https://agent.example.com/status
+        sg: AAAA
+
+  - id: roundtrip-optional-tags
+    description: Optional tags survive a round trip
+    spec_ref: "draft-ihsanullah-dnsid-01 §Tag Definitions"
+    tags: [required]
+    version: dnsid-draft-01
+    op: roundtrip
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;fl=mtls,logchk;ka=7d;cu=https://agent.example.com/agents.md;sg=AAAA"
+    expect:
+      ok: true
+      record:
+        fl: mtls,logchk
+        ka: 7d
+        cu: https://agent.example.com/agents.md
+
+  - id: roundtrip-unknown-tags
+    description: Unknown tags survive a round trip (forward compatibility)
+    spec_ref: "draft-ihsanullah-dnsid-01 §Record Format (unknown tags MUST be ignored, not dropped)"
+    tags: [required, forward-compat]
+    version: dnsid-draft-01
+    op: roundtrip
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;zz=keepme;sg=AAAA"
+    expect:
+      ok: true
+      record:
+        unknown: {zz: keepme}
+
+  - id: roundtrip-draft00
+    description: draft-00 record (oi tag) round-trips
+    spec_ref: "draft-ihsanullah-dnsid-00 §Tag Definitions (oi governance tag; ek not defined)"
+    tags: [version-specific]
+    version: dnsid-draft-00
+    op: roundtrip
+    input:
+      raw: "v=dnsid-draft-00;oi=example.com;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=EdDSA:AAAA"
+    expect:
+      ok: true
+      record:
+        v: dnsid-draft-00
+        oi: example.com
+
+  - id: roundtrip-two-key-profile
+    description: 20260527 two-key record (ek tag) round-trips
+    spec_ref: "retired dnsid-draft-01-20260527 snapshot: ek/ku two-key split, submitted as draft-ihsanullah-dnsid-01"
+    tags: [version-specific]
+    version: dnsid-draft-01-20260527
+    op: roundtrip
+    input:
+      raw: "v=dnsid-draft-01-20260527;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=EdDSA:AAAA"
+    expect:
+      ok: true
+      record:
+        v: dnsid-draft-01-20260527
+        ek: https://example.com/entity-keys.json

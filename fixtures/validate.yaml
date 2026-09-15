@@ -1,0 +1,199 @@
+# Semantic validation of a parsed record against the agent identity FQDN:
+# gi domain hierarchy, ku host binding, HTTPS scheme enforcement, ka values.
+suite: validate
+cases:
+  - id: validate-gi-equals-agent
+    description: gi equal to the agent FQDN is valid
+    spec_ref: "draft-ihsanullah-dnsid-01 §GI Tag (subdomain of or equal to)"
+    tags: [required, happy-path]
+    version: dnsid-draft-01
+    op: validate
+    input:
+      raw: "v=dnsid-draft-01;gi=agent.example.com;ek=https://agent.example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
+      identity_fqdn: agent.example.com
+    expect:
+      ok: true
+
+  - id: validate-gi-parent-domain
+    description: Agent FQDN as a subdomain of gi is valid
+    spec_ref: "draft-ihsanullah-dnsid-01 §GI Tag"
+    tags: [required, happy-path]
+    version: dnsid-draft-01
+    op: validate
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
+      identity_fqdn: agent.example.com
+    expect:
+      ok: true
+
+  - id: validate-gi-unrelated-domain
+    description: A delegated gi outside the agent hierarchy is syntactically valid; VerifyDomain must later require bilateral ISSUANCE evidence
+    spec_ref: "draft-ihsanullah-dnsid-01 §GI Tag (delegated DNSid)"
+    tags: [required, security]
+    version: dnsid-draft-01
+    op: validate
+    input:
+      raw: "v=dnsid-draft-01;gi=other.com;ek=https://other.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
+      identity_fqdn: agent.example.com
+    expect:
+      ok: true
+
+  - id: validate-gi-suffix-not-parent
+    description: A delegated gi outside the agent hierarchy is not accepted by string suffix; it requires bilateral ISSUANCE evidence outside record validation
+    spec_ref: "draft-ihsanullah-dnsid-01 §GI Tag (delegated DNSid)"
+    tags: [required, security]
+    version: dnsid-draft-01
+    op: validate
+    input:
+      raw: "v=dnsid-draft-01;gi=ample.com;ek=https://ample.com/entity-keys.json;ku=https://example.com/jwks.json;lr=microledger:abc123;su=https://example.com/status;sg=AAAA"
+      identity_fqdn: example.com
+    expect:
+      ok: true
+
+  - id: validate-gi-non-domain-rejected
+    description: A non-domain gi is rejected by the submitted base profile
+    spec_ref: "draft-ihsanullah-dnsid-01 §GI Tag (MUST be a lowercase ASCII domain)"
+    tags: [version-specific]
+    version: dnsid-draft-01
+    op: validate
+    input:
+      raw: "v=dnsid-draft-01;gi=microledger:someorgaddr;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
+      identity_fqdn: agent.example.com
+    expect:
+      ok: false
+      error: ValidationError
+
+  - id: validate-ku-host-mismatch
+    description: ku host that is not the agent FQDN is rejected
+    spec_ref: "draft-ihsanullah-dnsid-01 §KU endpoint (ku URI host MUST be the agent FQDN)"
+    tags: [required, security]
+    version: dnsid-draft-01
+    op: validate
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://other.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
+      identity_fqdn: agent.example.com
+    expect:
+      ok: false
+      error: ValidationError
+      error_contains: ku
+
+  - id: validate-ku-http-scheme
+    description: ku over plain http is rejected
+    spec_ref: "draft-ihsanullah-dnsid-01 §KU endpoint (MUST be served over HTTPS)"
+    tags: [required, security]
+    version: dnsid-draft-01
+    op: validate
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=http://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
+      identity_fqdn: agent.example.com
+    expect:
+      ok: false
+      error: ValidationError
+      error_contains: https
+
+  - id: validate-su-http-scheme
+    description: su over plain http is rejected
+    spec_ref: "draft-ihsanullah-dnsid-01 §SU endpoint (HTTPS with valid TLS certificate)"
+    tags: [required, security]
+    version: dnsid-draft-01
+    op: validate
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=http://agent.example.com/status;sg=AAAA"
+      identity_fqdn: agent.example.com
+    expect:
+      ok: false
+      error: ValidationError
+      error_contains: https
+
+  - id: validate-cu-http-scheme
+    description: cu over plain http is rejected
+    spec_ref: "draft-ihsanullah-dnsid-01 §CU Tag"
+    tags: [security]
+    version: dnsid-draft-01
+    op: validate
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;cu=http://agent.example.com/agents.md;sg=AAAA"
+      identity_fqdn: agent.example.com
+    expect:
+      ok: false
+      error: ValidationError
+      error_contains: https
+
+  - id: validate-ka-invalid-value
+    description: ka outside the defined set (24h/7d/30d/90d) MUST fail
+    spec_ref: "draft-ihsanullah-dnsid-01 §KA Tag (unknown values MUST be treated as a verification failure)"
+    tags: [required, security]
+    version: dnsid-draft-01
+    op: validate
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;ka=12h;sg=AAAA"
+      identity_fqdn: agent.example.com
+    expect:
+      ok: false
+      error: ValidationError
+      error_contains: ka
+
+  - id: validate-ka-valid-90d
+    description: ka=90d is a defined value
+    spec_ref: "draft-ihsanullah-dnsid-01 §KA Tag"
+    tags: [happy-path]
+    version: dnsid-draft-01
+    op: validate
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;ka=90d;sg=AAAA"
+      identity_fqdn: agent.example.com
+    expect:
+      ok: true
+
+  - id: validate-fqdn-case-and-trailing-dot
+    description: Agent FQDN is normalized (case, one trailing dot) before comparison
+    spec_ref: "draft-ihsanullah-dnsid-01 §Owner Name Convention / FQDN normalization"
+    tags: [required, edge-case]
+    version: dnsid-draft-01
+    op: validate
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
+      identity_fqdn: "Agent.Example.COM."
+    expect:
+      ok: true
+
+  - id: validate-gi-mixed-case
+    description: gi must already be lowercase ASCII A-label form
+    spec_ref: "draft-ihsanullah-dnsid-01 §GI Tag (MUST be lowercase ASCII)"
+    tags: [edge-case]
+    version: dnsid-draft-01
+    op: validate
+    input:
+      raw: "v=dnsid-draft-01;gi=Example.COM;ek=https://Example.COM/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
+      identity_fqdn: agent.example.com
+    expect:
+      ok: false
+      error: ValidationError
+
+  - id: validate-fqdn-exceeds-246-octets
+    description: Agent FQDN longer than 246 octets is rejected
+    spec_ref: "draft-ihsanullah-dnsid-01 §Owner Name Convention (MUST NOT exceed 246 octets)"
+    tags: [required, edge-case]
+    version: dnsid-draft-01
+    op: validate
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
+      identity_fqdn: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com"
+      identity_fqdn_note: "4x63-octet labels + example.com = 251 octets"
+    expect:
+      ok: false
+      error: ValidationError
+
+  - id: validate-lr-malformed
+    description: lr without a method:entryRef separator
+    spec_ref: "draft-ihsanullah-dnsid-01 §LR Tag"
+    tags: [deviation]
+    version: dnsid-draft-01
+    op: validate
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=not-a-log-ref;su=https://agent.example.com/status;sg=AAAA"
+      identity_fqdn: agent.example.com
+    expect:
+      ok: false
+      error: ValidationError
+      error_contains: malformed

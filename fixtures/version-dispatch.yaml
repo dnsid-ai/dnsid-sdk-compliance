@@ -1,0 +1,181 @@
+# Version dispatch: which version strings each SDK accepts, per-version
+# required/prohibited tags, and rejection of unknown versions.
+#
+# Cases carry a `version:` key naming the draft profile the record targets.
+# When an SDK does not support that profile, the harness asserts the SDK
+# REJECTS the record as an unsupported version (fail-closed), rather than
+# skipping the case. See CAPABILITIES in harness/run.py.
+#
+# Selectors of the form dnsid-draft-01-<date> are retired pre-submission
+# working snapshots taken between draft-ihsanullah-dnsid-00 and -01. They were
+# never published, so their spec_ref states the retired rule inline instead of
+# citing a document. Nothing verifies those rules today: every SDK must reject
+# these selectors, and that rejection is what these cases assert. The record
+# shapes are kept so the fail-closed path is exercised against realistic input.
+suite: version-dispatch
+cases:
+  - id: version-draft00-minimal
+    description: draft-00 record uses oi (not gi) and has no ek
+    spec_ref: "draft-ihsanullah-dnsid-00 §Tag Definitions (oi governance tag; ek not defined)"
+    tags: [version-specific]
+    version: dnsid-draft-00
+    op: parse
+    input:
+      raw: "v=dnsid-draft-00;oi=example.com;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=EdDSA:AAAA"
+    expect:
+      ok: true
+      record:
+        v: dnsid-draft-00
+        oi: example.com
+        gi: null
+        ek: null
+
+  - id: version-20260504-minimal
+    description: draft-01-20260504 single-key profile (gi, no ek)
+    spec_ref: "retired dnsid-draft-01-20260504 snapshot: single-key gi profile, ek not defined; superseded by draft-ihsanullah-dnsid-01"
+    tags: [version-specific]
+    version: dnsid-draft-01-20260504
+    op: parse
+    input:
+      raw: "v=dnsid-draft-01-20260504;gi=example.com;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=EdDSA:AAAA"
+    expect:
+      ok: true
+      record:
+        v: dnsid-draft-01-20260504
+        gi: example.com
+        ek: null
+
+  - id: version-20260527-minimal
+    description: draft-01-20260527 two-key profile requires ek
+    spec_ref: "retired dnsid-draft-01-20260527 snapshot: ek first required alongside ku, submitted as draft-ihsanullah-dnsid-01"
+    tags: [version-specific]
+    version: dnsid-draft-01-20260527
+    op: parse
+    input:
+      raw: "v=dnsid-draft-01-20260527;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=EdDSA:AAAA"
+    expect:
+      ok: true
+      record:
+        v: dnsid-draft-01-20260527
+        ek: https://example.com/entity-keys.json
+
+  - id: version-20260626-minimal
+    description: draft-01-20260626 domain-governance profile parses (same wire tags as 20260527)
+    spec_ref: "retired dnsid-draft-01-20260626 snapshot: domain-governance semantics, wire tags unchanged from 20260527"
+    tags: [version-specific]
+    version: dnsid-draft-01-20260626
+    op: parse
+    input:
+      raw: "v=dnsid-draft-01-20260626;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=EdDSA:AAAA"
+    expect:
+      ok: true
+      record:
+        v: dnsid-draft-01-20260626
+
+  - id: version-draft01-submitted-minimal
+    description: Submitted draft-01 record (two-key profile with ek)
+    spec_ref: "draft-ihsanullah-dnsid-01 §Tag Definitions"
+    tags: [version-specific]
+    version: dnsid-draft-01
+    op: parse
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
+    expect:
+      ok: true
+      record:
+        v: dnsid-draft-01
+        ek: https://example.com/entity-keys.json
+
+  - id: version-reject-unknown
+    description: An unknown version string MUST be rejected by every SDK
+    spec_ref: "draft-ihsanullah-dnsid-01 §Record Format (version transition)"
+    tags: [required, security]
+    op: parse
+    input:
+      raw: "v=dnsid-draft-99;gi=example.com;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=EdDSA:AAAA"
+    expect:
+      ok: false
+      error: ParseError
+      error_contains: unsupported
+
+  - id: version-accept-spec-literal-dnsid1
+    description: >
+      DNSid1 selects the latest submitted draft fully supported by the SDK. For
+      the current release, it parse-selects the two-key draft-01 behavior. Full
+      signature and lifecycle verification are tested separately; this case is
+      op:parse only.
+    spec_ref: "docs/sdk-design/07-protocol-data-types.md §Identity Record Behavior Profiles"
+    tags: [required, version-specific]
+    op: parse
+    input:
+      raw: "v=DNSid1;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
+    expect:
+      ok: true
+      record:
+        v: DNSid1
+        ek: https://example.com/entity-keys.json
+
+  - id: version-draft00-rejects-gi
+    description: gi is not a valid tag on a draft-00 record (uses oi)
+    spec_ref: "draft-ihsanullah-dnsid-00 §Tag Definitions (oi is the draft-00 governance tag; gi is not defined)"
+    tags: [version-specific, security]
+    version: dnsid-draft-00
+    op: parse
+    input:
+      raw: "v=dnsid-draft-00;oi=example.com;gi=example.com;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=EdDSA:AAAA"
+    expect:
+      ok: false
+      error: ValidationError
+
+  - id: version-draft00-missing-oi
+    description: draft-00 record without oi is rejected
+    spec_ref: "draft-ihsanullah-dnsid-00 §Tag Definitions (oi is required)"
+    tags: [version-specific]
+    version: dnsid-draft-00
+    op: parse
+    input:
+      raw: "v=dnsid-draft-00;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=EdDSA:AAAA"
+    expect:
+      ok: false
+      error: ValidationError
+      error_contains: oi
+
+  - id: version-20260504-rejects-oi
+    description: oi is the draft-00 governance tag, replaced by gi in draft-01; a draft-01 record carrying oi MUST be rejected
+    spec_ref: "draft-ihsanullah-dnsid-01 §Tag Definitions (gi replaced draft-00 oi; oi is not defined from draft-01 onward)"
+    tags: [version-specific, security]
+    version: dnsid-draft-01-20260504
+    op: parse
+    input:
+      raw: "v=dnsid-draft-01-20260504;gi=example.com;oi=example.com;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=EdDSA:AAAA"
+    expect:
+      ok: false
+
+  - id: version-20260504-rejects-ek
+    description: ek is not defined for the 20260504 single-key profile; a 20260504 record carrying ek MUST be rejected
+    spec_ref: "retired dnsid-draft-01-20260504 snapshot: ek is not defined until the 20260527 two-key profile"
+    tags: [version-specific, security]
+    version: dnsid-draft-01-20260504
+    op: parse
+    input:
+      raw: "v=dnsid-draft-01-20260504;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=EdDSA:AAAA"
+    expect:
+      ok: false
+
+  - id: version-20260527-missing-ek
+    description: ek is REQUIRED from the 20260527 profile onward
+    spec_ref: "retired dnsid-draft-01-20260527 snapshot: ek is REQUIRED from this profile onward"
+    tags: [version-specific]
+    version: dnsid-draft-01-20260527
+    op: parse
+    input:
+      raw: "v=dnsid-draft-01-20260527;gi=example.com;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=EdDSA:AAAA"
+    expect:
+      ok: false
+      error: ParseError
+      error_contains: ek
+    sdk:
+      go:
+        note: "dnsid-go classifies a missing version-specific tag (ek) as ValidationError (dnsid-go#172); ts/py use ParseError"
+        expect:
+          error: ValidationError

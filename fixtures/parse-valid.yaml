@@ -1,0 +1,148 @@
+# Valid TXT record parsing. Core cases use v=dnsid-draft-01, the one version
+# string all three SDKs accept, so every SDK is compared on identical input.
+suite: parse-valid
+cases:
+  - id: parse-valid-minimal
+    description: Minimal valid record with all required tags, no optional tags
+    spec_ref: "draft-ihsanullah-dnsid-01 §Record Format"
+    tags: [required, happy-path]
+    version: dnsid-draft-01
+    op: parse
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
+    expect:
+      ok: true
+      record:
+        v: dnsid-draft-01
+        gi: example.com
+        ek: https://example.com/entity-keys.json
+        ku: https://agent.example.com/jwks.json
+        lr: microledger:abc123
+        su: https://agent.example.com/status
+        sg: AAAA
+        fl: null
+        ka: null
+        cu: null
+        unknown: {}
+
+  - id: parse-valid-all-optional
+    description: Record with all optional tags (fl, ka, cu) populated
+    spec_ref: "draft-ihsanullah-dnsid-01 §Tag Definitions"
+    tags: [required, happy-path]
+    version: dnsid-draft-01
+    op: parse
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;fl=mtls,logchk;ka=24h;cu=https://agent.example.com/agents.md;sg=AAAA"
+    expect:
+      ok: true
+      record:
+        fl: mtls,logchk
+        ka: 24h
+        cu: https://agent.example.com/agents.md
+
+  - id: parse-valid-unknown-tag
+    description: Unknown tag is preserved for forward compatibility
+    spec_ref: "draft-ihsanullah-dnsid-01 §Record Format (unknown tags MUST be ignored)"
+    tags: [required, forward-compat]
+    version: dnsid-draft-01
+    op: parse
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;zz=custom-value;sg=AAAA"
+    expect:
+      ok: true
+      record:
+        unknown: {zz: custom-value}
+
+  - id: parse-valid-unknown-tag-value-contains-equals
+    description: Tag value may contain '=' (0x3D is in the allowed value range); split on first '='
+    spec_ref: "draft-ihsanullah-dnsid-01 §Record Format (dnsid-tag-value ABNF)"
+    tags: [edge-case]
+    version: dnsid-draft-01
+    op: parse
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;zz=a=b;sg=AAAA"
+    expect:
+      ok: true
+      record:
+        unknown: {zz: a=b}
+
+  - id: parse-valid-trailing-semicolon
+    description: Trailing semicolon is permitted by the grammar
+    spec_ref: "draft-ihsanullah-dnsid-01 §Record Format (dnsid-record ABNF, [ \";\" ])"
+    tags: [required, edge-case]
+    version: dnsid-draft-01
+    op: parse
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA;"
+    expect:
+      ok: true
+      record:
+        gi: example.com
+        sg: AAAA
+
+  - id: parse-valid-space-after-semicolon
+    description: A single space after each semicolon is permitted (SP? in ABNF)
+    spec_ref: "draft-ihsanullah-dnsid-01 §Record Format"
+    tags: [required, edge-case]
+    version: dnsid-draft-01
+    op: parse
+    input:
+      raw: "v=dnsid-draft-01; gi=example.com; ek=https://example.com/entity-keys.json; ku=https://agent.example.com/jwks.json; lr=microledger:abc123; su=https://agent.example.com/status; sg=AAAA"
+    expect:
+      ok: true
+      record:
+        gi: example.com
+        su: https://agent.example.com/status
+
+  - id: parse-valid-value-symbol-characters
+    description: Tag values accept full printable-ASCII range minus space and semicolon
+    spec_ref: "draft-ihsanullah-dnsid-01 §Record Format (%x21-3A / %x3C-7E)"
+    tags: [edge-case]
+    version: dnsid-draft-01
+    op: parse
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;zz=!$%&()*+,-./:<>?@[]^_{|}~;sg=AAAA"
+    expect:
+      ok: true
+      record:
+        unknown: {zz: "!$%&()*+,-./:<>?@[]^_{|}~"}
+
+  - id: parse-valid-empty-optional-tag
+    description: Optional tag with an empty value parses; normalized to absent
+    spec_ref: "draft-ihsanullah-dnsid-01 §Record Format (dnsid-tag-value permits empty)"
+    tags: [edge-case]
+    version: dnsid-draft-01
+    op: parse
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;fl=;sg=AAAA"
+    expect:
+      ok: true
+      record:
+        fl: null
+
+  - id: parse-valid-unknown-tag-name-underscore-digit
+    description: Tag name with underscore and digit after leading alpha is valid
+    spec_ref: "draft-ihsanullah-dnsid-01 §Record Format (dnsid-tag-name ABNF)"
+    tags: [edge-case]
+    version: dnsid-draft-01
+    op: parse
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;a_1=x;sg=AAAA"
+    expect:
+      ok: true
+      record:
+        unknown: {a_1: x}
+
+  - id: parse-valid-tag-names-case-sensitive
+    description: Tag names are case-sensitive; GI is an unknown tag, not gi
+    spec_ref: "draft-ihsanullah-dnsid-01 §Record Format (tag names are case-sensitive)"
+    tags: [required, edge-case]
+    version: dnsid-draft-01
+    op: parse
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;GI=other.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
+    expect:
+      ok: true
+      record:
+        gi: example.com
+        unknown: {GI: other.com}

@@ -1,0 +1,90 @@
+{
+  "format": "dnsid-sdk-c2sp-lifecycle-selection-v1",
+  "domain": "agent.example",
+  "candidateFixtures": {
+    "issuance": {"effectId": "issuance-1", "type": "ISSUANCE", "domain": "agent.example", "valid": true},
+    "issuance-byte-identical": {"effectId": "issuance-1", "type": "ISSUANCE", "domain": "agent.example", "valid": true, "completeEntryIdentical": true},
+    "issuance-resigned": {"effectId": "issuance-1", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": true, "completeEntryIdentical": false, "failureScope": "authenticated-transition"},
+    "second-issuance": {"effectId": "issuance-2", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "authenticated-transition"},
+    "rotation": {"effectId": "rotation-1", "type": "KEY_ROTATION", "domain": "agent.example", "valid": true},
+    "revocation": {"effectId": "revocation-1", "type": "REVOCATION", "domain": "agent.example", "valid": true},
+    "other-domain-issuance": {"effectId": "other-issuance", "type": "ISSUANCE", "domain": "other.example", "valid": true},
+    "malformed-candidate": {"effectId": "malformed-1", "domain": "agent.example", "valid": false, "authenticated": false, "failureScope": "candidate-encoding"},
+    "bad-signature-revocation": {"effectId": "revocation-bad-signature", "type": "REVOCATION", "domain": "agent.example", "valid": false, "authenticated": false, "failureScope": "candidate-signature"},
+    "bad-chain-rotation": {"effectId": "rotation-bad-chain", "type": "KEY_ROTATION", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "authenticated-chain"},
+    "bad-proof-revocation": {"effectId": "revocation-bad-proof", "type": "REVOCATION", "domain": "agent.example", "valid": false, "authenticated": false, "failureScope": "candidate-inclusion"},
+    "inbound-migration": {"effectId": "migration-in-1", "type": "MIGRATION", "domain": "agent.example", "valid": true, "direction": "inbound"}
+  },
+  "cases": [
+    {
+      "id": "unrelated-and-malformed-candidates-do-not-poison-domain",
+      "candidates": ["other-domain-issuance", "malformed-candidate", "issuance"],
+      "expected": {"valid": true, "appliedEffectIds": ["issuance-1"], "ignoredCandidateIndexes": [0, 1]}
+    },
+    {
+      "id": "byte-identical-complete-entry-is-applied-once",
+      "candidates": ["issuance", "issuance-byte-identical", "rotation"],
+      "expected": {"valid": true, "appliedEffectIds": ["issuance-1", "rotation-1"], "ignoredCandidateIndexes": [1]}
+    },
+    {
+      "id": "authenticated-additional-issuance-is-fatal",
+      "candidates": ["issuance", "second-issuance", "rotation"],
+      "expected": {"valid": false, "failingCandidateIndex": 1, "errorCategory": "DUPLICATE_ISSUANCE"}
+    },
+    {
+      "id": "resigned-event-is-not-byte-identical-deduplication",
+      "candidates": ["issuance", "issuance-resigned", "rotation"],
+      "expected": {"valid": false, "failingCandidateIndex": 1, "errorCategory": "DUPLICATE_ISSUANCE"}
+    },
+    {
+      "id": "pre-genesis-non-genesis-candidate-is-ignored",
+      "candidates": ["rotation", "issuance"],
+      "expected": {"valid": true, "appliedEffectIds": ["issuance-1"], "ignoredCandidateIndexes": [0]}
+    },
+    {
+      "id": "authenticated-post-terminal-candidate-is-fatal",
+      "candidates": ["issuance", "revocation", "rotation"],
+      "expected": {"valid": false, "failingCandidateIndex": 2, "errorCategory": "TERMINAL_STATE"}
+    },
+    {
+      "id": "authenticated-invalid-chain-candidate-is-fatal",
+      "candidates": ["issuance", "bad-chain-rotation"],
+      "expected": {"valid": false, "failingCandidateIndex": 1, "errorCategory": "CHAIN_CONTINUITY"}
+    },
+    {
+      "id": "invalid-signature-candidate-is-ignored",
+      "candidates": ["issuance", "bad-signature-revocation", "rotation"],
+      "expected": {"valid": true, "appliedEffectIds": ["issuance-1", "rotation-1"], "ignoredCandidateIndexes": [1]}
+    },
+    {
+      "id": "invalid-candidate-inclusion-proof-is-ignored",
+      "candidates": ["issuance", "bad-proof-revocation"],
+      "expected": {"valid": true, "appliedEffectIds": ["issuance-1"], "ignoredCandidateIndexes": [1]}
+    },
+    {
+      "id": "invalid-accepted-checkpoint-is-fatal",
+      "candidates": ["issuance"],
+      "checkpointAccepted": false,
+      "expected": {"valid": false, "errorCategory": "INVALID_EVIDENCE"}
+    },
+    {
+      "id": "incomplete-current-state-view-is-fatal",
+      "candidates": ["issuance"],
+      "completeThroughCheckpoint": false,
+      "expected": {"valid": false, "errorCategory": "INCOMPLETE_STREAM"}
+    },
+    {
+      "id": "verified-inbound-migration-stitches-prior-history",
+      "candidates": ["inbound-migration", "rotation"],
+      "priorHistoryVerified": true,
+      "priorAppliedEffectIds": ["issuance-prior"],
+      "expected": {"valid": true, "appliedEffectIds": ["migration-in-1", "rotation-1"], "stitchedEffectIds": ["issuance-prior", "migration-in-1", "rotation-1"]}
+    },
+    {
+      "id": "inbound-migration-without-verifiable-prior-history-is-fatal",
+      "candidates": ["inbound-migration"],
+      "priorHistoryVerified": false,
+      "expected": {"valid": false, "failingCandidateIndex": 0, "errorCategory": "INVALID_MIGRATION"}
+    }
+  ]
+}

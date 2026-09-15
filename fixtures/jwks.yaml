@@ -1,0 +1,201 @@
+# Common JWK/JWKS behavior exposed by all three SDKs. These are pure-data
+# operations: no DNS, HTTPS, cache, status, or VerifyDomain behavior is involved.
+suite: jwks
+cases:
+  - id: jwks-validate-ed25519
+    description: A single Ed25519 signing key with kid and alg is valid
+    spec_ref: "sdk-design/07-protocol-data-types.md §JWKS"
+    tags: [required, happy-path]
+    op: jwks_validate
+    input:
+      jwks:
+        keys:
+          - {kty: OKP, crv: Ed25519, x: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE, kid: okp-1, alg: EdDSA, use: sig}
+    expect: {ok: true}
+
+  - id: jwks-validate-derived-ed25519-alg
+    description: An older-profile Ed25519 key may derive EdDSA when alg is absent
+    spec_ref: "sdk-design/07-protocol-data-types.md §JWKS (older profiles may derive alg)"
+    tags: [required, happy-path]
+    op: jwks_validate
+    input:
+      jwks:
+        keys:
+          - {kty: OKP, crv: Ed25519, x: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE, kid: okp-1}
+    expect: {ok: true}
+
+  - id: jwks-validate-derived-p256-alg
+    description: An older-profile P-256 key may derive ES256 when alg is absent
+    spec_ref: "sdk-design/07-protocol-data-types.md §JWKS (older profiles may derive alg)"
+    tags: [required, happy-path]
+    op: jwks_validate
+    input:
+      jwks:
+        keys:
+          - {kty: EC, crv: P-256, x: axfR8uEsQkf4vOblY6RA8ncDfYEt6zOg9KE5RdiYwpY, y: T-NC4v4af5uO5-tKfA-eFivOM1drMV7Oy7ZAaDe_UfU, kid: ec-1}
+    expect: {ok: true}
+
+  - id: jwks-reject-missing-kid
+    description: A JWKS with no kid on any signing key is unusable
+    spec_ref: "sdk-design/07-protocol-data-types.md §JWKS"
+    tags: [required, security]
+    op: jwks_validate
+    input:
+      jwks:
+        keys:
+          - {kty: OKP, crv: Ed25519, x: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE, alg: EdDSA}
+    expect: {ok: false}
+
+  - id: jwks-reject-empty
+    description: An empty JWKS has no usable signing key
+    spec_ref: "sdk-design/07-protocol-data-types.md §JWKS"
+    tags: [required, security]
+    op: jwks_validate
+    input:
+      jwks: {keys: []}
+    expect: {ok: false}
+
+  - id: jwks-reject-encryption-only
+    description: A JWKS containing only use=enc keys has no signing key
+    spec_ref: "RFC 7517 §4.2; sdk-design/07-protocol-data-types.md §JWKS"
+    tags: [required, security]
+    op: jwks_validate
+    input:
+      jwks:
+        keys:
+          - {kty: OKP, crv: Ed25519, x: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE, kid: enc-1, alg: EdDSA, use: enc}
+    expect: {ok: false}
+
+  - id: jwks-reject-inconsistent-alg
+    description: Ed25519 key material cannot declare alg=ES256
+    spec_ref: "sdk-design/07-protocol-data-types.md §JWKS"
+    tags: [required, security]
+    op: jwks_validate
+    input:
+      jwks:
+        keys:
+          - {kty: OKP, crv: Ed25519, x: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE, kid: bad-alg, alg: ES256}
+    expect: {ok: false}
+
+  - id: jwks-reject-unsupported-only
+    description: An unsupported symmetric key does not make a usable DNSid signing set
+    spec_ref: "sdk-design/07-protocol-data-types.md §JWKS"
+    tags: [required, security]
+    op: jwks_validate
+    input:
+      jwks:
+        keys:
+          - {kty: oct, k: c2VjcmV0, kid: sym-1}
+    expect: {ok: false}
+
+  - id: jwks-ignore-unsupported-alongside-valid
+    description: An unsupported key does not invalidate a separate valid signing key
+    spec_ref: "RFC 7517 §5; sdk-design/07-protocol-data-types.md §JWKS"
+    tags: [edge-case, forward-compat]
+    op: jwks_validate
+    input:
+      jwks:
+        keys:
+          - {kty: oct, k: c2VjcmV0, kid: sym-1}
+          - {kty: OKP, crv: Ed25519, x: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE, kid: okp-1, alg: EdDSA}
+    expect: {ok: true}
+
+  - id: jwks-reject-duplicate-kid
+    description: Duplicate kid values are rejected so key selection is unambiguous
+    spec_ref: "sdk-design/07-protocol-data-types.md §JWKS KeyById"
+    tags: [required, security]
+    op: jwks_validate
+    input:
+      jwks:
+        keys:
+          - {kty: OKP, crv: Ed25519, x: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE, kid: duplicate, alg: EdDSA}
+          - {kty: OKP, crv: Ed25519, x: AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI, kid: duplicate, alg: EdDSA}
+    expect: {ok: false}
+
+  - id: jwks-signing-keys-filter-use
+    description: SigningKeys includes absent and sig use but excludes enc
+    spec_ref: "RFC 7517 §4.2; sdk-design/07-protocol-data-types.md §JWKS"
+    tags: [required, security]
+    op: jwks_signing_keys
+    input:
+      jwks:
+        keys:
+          - {kty: OKP, crv: Ed25519, x: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE, kid: sig-key, alg: EdDSA, use: sig}
+          - {kty: OKP, crv: Ed25519, x: AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI, kid: no-use, alg: EdDSA}
+          - {kty: OKP, crv: Ed25519, x: BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ, kid: enc-key, alg: EdDSA, use: enc}
+    expect:
+      ok: true
+      value: [sig-key, no-use]
+
+  - id: jwks-key-by-id-found
+    description: KeyById returns the key matching kid
+    spec_ref: "sdk-design/07-protocol-data-types.md §JWKS"
+    tags: [required, happy-path]
+    op: jwks_key_by_id
+    input:
+      jwks:
+        keys:
+          - {kty: OKP, crv: Ed25519, x: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE, kid: okp-1, alg: EdDSA}
+          - {kty: OKP, crv: Ed25519, x: AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI, kid: okp-2, alg: EdDSA}
+      kid: okp-2
+    expect: {ok: true, value: okp-2}
+
+  - id: jwks-key-by-id-not-found
+    description: KeyById returns no key when kid is absent
+    spec_ref: "sdk-design/07-protocol-data-types.md §JWKS"
+    tags: [required, edge-case]
+    op: jwks_key_by_id
+    input:
+      jwks:
+        keys:
+          - {kty: OKP, crv: Ed25519, x: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE, kid: okp-1, alg: EdDSA}
+      kid: absent
+    expect: {ok: true, value: null}
+
+  - id: jwks-key-by-id-is-unfiltered
+    description: KeyById can retrieve an encryption key even though SigningKeys excludes it
+    spec_ref: "sdk-design/07-protocol-data-types.md §JWKS"
+    tags: [required, edge-case]
+    op: jwks_key_by_id
+    input:
+      jwks:
+        keys:
+          - {kty: OKP, crv: Ed25519, x: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE, kid: enc-key, alg: EdDSA, use: enc}
+      kid: enc-key
+    expect: {ok: true, value: enc-key}
+
+  - id: jwk-alg-ed25519-explicit
+    description: Ed25519 with alg=EdDSA reports EdDSA
+    spec_ref: "sdk-design/07-protocol-data-types.md §JWKS JWK.SignatureAlg"
+    tags: [required, happy-path]
+    op: jwk_signature_alg
+    input:
+      jwk: {kty: OKP, crv: Ed25519, x: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE, kid: key-1, alg: EdDSA}
+    expect: {ok: true, value: EdDSA}
+
+  - id: jwk-alg-ed25519-derived
+    description: Ed25519 without alg derives EdDSA for older profiles
+    spec_ref: "sdk-design/07-protocol-data-types.md §JWKS JWK.SignatureAlg"
+    tags: [required, happy-path]
+    op: jwk_signature_alg
+    input:
+      jwk: {kty: OKP, crv: Ed25519, x: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE, kid: key-1}
+    expect: {ok: true, value: EdDSA}
+
+  - id: jwk-alg-p256-derived
+    description: P-256 without alg derives ES256 for older profiles
+    spec_ref: "sdk-design/07-protocol-data-types.md §JWKS JWK.SignatureAlg"
+    tags: [required, happy-path]
+    op: jwk_signature_alg
+    input:
+      jwk: {kty: EC, crv: P-256, x: axfR8uEsQkf4vOblY6RA8ncDfYEt6zOg9KE5RdiYwpY, y: T-NC4v4af5uO5-tKfA-eFivOM1drMV7Oy7ZAaDe_UfU, kid: key-1}
+    expect: {ok: true, value: ES256}
+
+  - id: jwk-alg-reject-inconsistent
+    description: A declared algorithm inconsistent with kty and crv is rejected
+    spec_ref: "sdk-design/07-protocol-data-types.md §JWKS JWK.SignatureAlg"
+    tags: [required, security]
+    op: jwk_signature_alg
+    input:
+      jwk: {kty: OKP, crv: Ed25519, x: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE, kid: key-1, alg: ES256}
+    expect: {ok: false}

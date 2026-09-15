@@ -1,0 +1,168 @@
+{
+  "schemaVersion": 1,
+  "description": "Language-neutral RFC 9421 signature-base and constrained-component vectors.",
+  "cases": [
+    {
+      "id": "httpsig-base-required-request-components",
+      "description": "Build the DNSid request profile's canonical minimum signature base.",
+      "specRef": "RFC 9421 section 2.5; SDK design 02 Signature-base construction",
+      "request": {
+        "method": "POST",
+        "url": "https://api.example/items?x=1",
+        "headers": {
+          "content-digest": "sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:"
+        }
+      },
+      "signatureInput": "sig1=(\"@method\" \"@authority\" \"@target-uri\" \"content-digest\");keyid=\"agent.example#k1\";alg=\"ed25519\";created=1618884473;nonce=\"abc\"",
+      "label": "sig1",
+      "expectedBase": "\"@method\": POST\n\"@authority\": api.example\n\"@target-uri\": https://api.example/items?x=1\n\"content-digest\": sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:\n\"@signature-params\": (\"@method\" \"@authority\" \"@target-uri\" \"content-digest\");keyid=\"agent.example#k1\";alg=\"ed25519\";created=1618884473;nonce=\"abc\""
+    },
+    {
+      "id": "httpsig-base-query-param-reserved-characters",
+      "description": "Form-decode and canonically re-encode an RFC 9421 query parameter name and value.",
+      "specRef": "RFC 9421 section 2.2.8",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example/search?a!=v!",
+        "headers": {}
+      },
+      "signatureInput": "sig1=(\"@query-param\";name=\"a%21\");created=1",
+      "label": "sig1",
+      "expectedBase": "\"@query-param\";name=\"a%21\": v%21\n\"@signature-params\": (\"@query-param\";name=\"a%21\");created=1"
+    },
+    {
+      "id": "httpsig-base-dictionary-key-member",
+      "description": "Select and serialize one Signature-Agent dictionary member with the key component parameter.",
+      "specRef": "RFC 9421 section 2.1.2; SDK design 02 supported component forms",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example/",
+        "headers": {
+          "signature-agent": "sig1=\"https://agent.example\";type=directory, backup=\"https://backup.example\";type=directory"
+        }
+      },
+      "signatureInput": "sig1=(\"signature-agent\";key=\"sig1\");created=1",
+      "label": "sig1",
+      "expectedBase": "\"signature-agent\";key=\"sig1\": \"https://agent.example\";type=directory\n\"@signature-params\": (\"signature-agent\";key=\"sig1\");created=1"
+    },
+    {
+      "id": "httpsig-base-canonicalizes-signature-extension-boolean",
+      "description": "Parse and canonically serialize an unknown valid signature parameter instead of reusing raw wire spelling.",
+      "specRef": "RFC 9421 section 2.5; RFC 8941 section 4.1.1.2",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example/",
+        "headers": {}
+      },
+      "signatureInput": "sig1=(\"@method\");created=1;extension=?1",
+      "label": "sig1",
+      "expectedBase": "\"@method\": GET\n\"@signature-params\": (\"@method\");created=1;extension"
+    },
+    {
+      "id": "httpsig-base-preserves-unknown-signature-parameter-order",
+      "description": "Preserve the parsed order of multiple unknown signature parameters while canonically serializing their values.",
+      "specRef": "RFC 9421 section 2.3; RFC 8941 section 4.1.1.2",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example/",
+        "headers": {}
+      },
+      "signatureInput": "sig1=(\"@method\");created=1;zeta=\"last\";alpha=?1",
+      "label": "sig1",
+      "expectedBase": "\"@method\": GET\n\"@signature-params\": (\"@method\");created=1;zeta=\"last\";alpha"
+    },
+    {
+      "id": "httpsig-base-selects-one-of-multiple-complete-members",
+      "description": "Select the requested signature member while preserving RFC 9421 coexistence with another complete signature.",
+      "specRef": "RFC 9421 sections 4.3 and 7.2.6; SDK design 02 Parsing and serialization",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example/resource",
+        "headers": {}
+      },
+      "signatureInput": "proxy=(\"@method\");keyid=\"proxy.example#k1\";created=1, sig1=(\"@method\" \"@authority\" \"@target-uri\");keyid=\"agent.example#k1\";created=2",
+      "label": "sig1",
+      "expectedBase": "\"@method\": GET\n\"@authority\": api.example\n\"@target-uri\": https://api.example/resource\n\"@signature-params\": (\"@method\" \"@authority\" \"@target-uri\");keyid=\"agent.example#k1\";created=2"
+    },
+    {
+      "id": "httpsig-reject-duplicate-signature-input-label",
+      "description": "Reject duplicate Signature-Input dictionary labels instead of silently selecting the last member.",
+      "specRef": "SDK design 02 Parsing and serialization",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example/",
+        "headers": {}
+      },
+      "signatureInput": "sig1=(\"@method\");created=1, sig1=(\"@path\");created=2",
+      "label": "sig1",
+      "expectedError": "duplicate"
+    },
+    {
+      "id": "httpsig-reject-duplicate-known-signature-parameter",
+      "description": "Reject a repeated known Signature-Input parameter before Structured Field map semantics erase the occurrence.",
+      "specRef": "SDK design 02 SignatureParams",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example/",
+        "headers": {}
+      },
+      "signatureInput": "sig1=(\"@method\");created=1;created=2",
+      "label": "sig1",
+      "expectedError": "duplicate"
+    },
+    {
+      "id": "httpsig-reject-unknown-component-parameter",
+      "description": "Reject a component parameter whose extraction semantics are unknown.",
+      "specRef": "RFC 9421 section 2.1; SDK design 02 supported component forms",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example/",
+        "headers": {}
+      },
+      "signatureInput": "sig1=(\"@method\";unknown);created=1",
+      "label": "sig1",
+      "expectedError": "unsupported component parameter"
+    },
+    {
+      "id": "httpsig-reject-req-on-request",
+      "description": "Reject req on a request signature because no originating request context exists.",
+      "specRef": "RFC 9421 section 2.4; SDK design 02 supported component forms",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example/",
+        "headers": {}
+      },
+      "signatureInput": "sig1=(\"@authority\";req);created=1",
+      "label": "sig1",
+      "expectedError": "request context"
+    },
+    {
+      "id": "httpsig-reject-duplicate-equivalent-components",
+      "description": "Reject duplicate covered component identifiers.",
+      "specRef": "RFC 9421 section 2.5; SDK design 02 ComponentIdentifier",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example/",
+        "headers": {}
+      },
+      "signatureInput": "sig1=(\"@method\" \"@method\");created=1",
+      "label": "sig1",
+      "expectedError": "duplicate"
+    },
+    {
+      "id": "httpsig-reject-explicit-sf-component-parameter",
+      "description": "Reject explicit sf because it is outside the first-release constrained profile.",
+      "specRef": "SDK design 02 supported component forms",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example/",
+        "headers": {
+          "example-dict": "a=1"
+        }
+      },
+      "signatureInput": "sig1=(\"example-dict\";sf);created=1",
+      "label": "sig1",
+      "expectedError": "unsupported component parameter"
+    }
+  ]
+}

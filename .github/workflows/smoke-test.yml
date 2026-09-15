@@ -1,0 +1,33 @@
+name: Smoke test (manual)
+
+# Manually exercises the sdk-compliance reusable workflow from this repo's
+# Actions tab, without involving any SDK repo's CI. Checks out the chosen SDK
+# at the chosen ref and runs the suite with the strict gate (no base-ref, so
+# zero failures required). Verifies the Actions-layer plumbing end to end:
+# self-checkout, private SDK checkout via GH_PAT, shim build, harness run.
+
+on:
+  workflow_dispatch:
+    inputs:
+      sdk:
+        description: "SDK to test"
+        type: choice
+        options: [py, go, ts]
+        default: py
+      ref:
+        description: "SDK ref to test"
+        type: string
+        default: main
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  smoke:
+    uses: ./.github/workflows/sdk-compliance.yaml
+    secrets: inherit
+    with:
+      sdk: ${{ inputs.sdk }}
+      ref: ${{ inputs.ref }}

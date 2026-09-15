@@ -1,0 +1,147 @@
+# Pure-data protocol status validation and the acceptance decision used by
+# interactive verification. Network fetching, TLS, freshness, and caching are
+# intentionally outside this operation.
+suite: agent-status
+cases:
+  - id: status-pending-valid-but-not-accepted
+    description: PENDING is a valid status document but not a verified identity
+    spec_ref: "sdk-design/07-protocol-data-types.md §AgentStatus"
+    tags: [required, state-machine]
+    op: agent_status_evaluate
+    input: {status: {state: PENDING, lastTransitionAt: "2026-01-01T00:00:00Z"}}
+    expect: {ok: true, state: PENDING, verificationAccepted: false}
+
+  - id: status-provisioning-valid-but-not-accepted
+    description: PROVISIONING is valid but cannot establish an active identity
+    spec_ref: "sdk-design/07-protocol-data-types.md §AgentStatus"
+    tags: [required, state-machine]
+    op: agent_status_evaluate
+    input: {status: {state: PROVISIONING, lastTransitionAt: "2026-01-01T00:00:00Z"}}
+    expect: {ok: true, state: PROVISIONING, verificationAccepted: false}
+
+  - id: status-verifying-valid-but-not-accepted
+    description: VERIFYING is valid but cannot establish an active identity
+    spec_ref: "sdk-design/07-protocol-data-types.md §AgentStatus"
+    tags: [required, state-machine]
+    op: agent_status_evaluate
+    input: {status: {state: VERIFYING, lastTransitionAt: "2026-01-01T00:00:00Z"}}
+    expect: {ok: true, state: VERIFYING, verificationAccepted: false}
+
+  - id: status-active-is-accepted
+    description: ACTIVE is the only protocol status accepted by interactive verification
+    spec_ref: "sdk-design/01-core-identity-manager.md §VerifyDomain step 8"
+    tags: [required, happy-path, state-machine]
+    op: agent_status_evaluate
+    input: {status: {state: ACTIVE, lastTransitionAt: "2026-01-01T00:00:00Z"}}
+    expect: {ok: true, state: ACTIVE, verificationAccepted: true}
+
+  - id: status-retired-valid-but-not-accepted
+    description: RETIRED is valid and terminal but cannot establish an active identity
+    spec_ref: "sdk-design/07-protocol-data-types.md §AgentStatus"
+    tags: [required, state-machine]
+    op: agent_status_evaluate
+    input: {status: {state: RETIRED, lastTransitionAt: "2026-01-01T00:00:00Z"}}
+    expect: {ok: true, state: RETIRED, verificationAccepted: false}
+
+  - id: status-revoked-valid-but-not-accepted
+    description: REVOKED with a valid reason is valid and terminal but not accepted
+    spec_ref: "sdk-design/07-protocol-data-types.md §AgentStatus"
+    tags: [required, security, state-machine]
+    op: agent_status_evaluate
+    input: {status: {state: REVOKED, lastTransitionAt: "2026-01-01T00:00:00Z", revocationReason: keyCompromise}}
+    expect: {ok: true, state: REVOKED, verificationAccepted: false}
+
+  - id: status-revoked-requires-reason
+    description: REVOKED without a reason is invalid
+    spec_ref: "sdk-design/07-protocol-data-types.md §AgentStatus.Validate"
+    tags: [required, security]
+    op: agent_status_evaluate
+    input: {status: {state: REVOKED, lastTransitionAt: "2026-01-01T00:00:00Z"}}
+    expect: {ok: false, error: ValidationError, error_contains: revocationReason}
+
+  - id: status-revoked-rejects-unknown-reason
+    description: REVOKED accepts only the protocol revocation reason vocabulary
+    spec_ref: "sdk-design/07-protocol-data-types.md §AgentStatus.Validate"
+    tags: [required, security]
+    op: agent_status_evaluate
+    input: {status: {state: REVOKED, lastTransitionAt: "2026-01-01T00:00:00Z", revocationReason: ownerRequest}}
+    expect: {ok: false, error: ValidationError, error_contains: revocationReason}
+
+  - id: status-rejects-unknown-state
+    description: Unknown protocol states fail closed
+    spec_ref: "sdk-design/07-protocol-data-types.md §AgentStatus.Validate"
+    tags: [required, security]
+    op: agent_status_evaluate
+    input: {status: {state: READY, lastTransitionAt: "2026-01-01T00:00:00Z"}}
+    expect: {ok: false, error: ValidationError, error_contains: state}
+
+  - id: status-rejects-published-workflow-state
+    description: Registry publication workflow state must not become protocol ACTIVE
+    spec_ref: "sdk-design/06-log-bindings.md §Implemented lifecycle interpretation"
+    tags: [required, security, state-machine]
+    op: agent_status_evaluate
+    input: {status: {state: PUBLISHED, lastTransitionAt: "2026-01-01T00:00:00Z"}}
+    expect: {ok: false, error: ValidationError, error_contains: state}
+
+  - id: status-rejects-ready-for-publication-workflow-state
+    description: Registry readiness must not become protocol ACTIVE
+    spec_ref: "sdk-design/06-log-bindings.md §Implemented lifecycle interpretation"
+    tags: [required, security, state-machine]
+    op: agent_status_evaluate
+    input: {status: {state: READY_FOR_PUBLICATION, lastTransitionAt: "2026-01-01T00:00:00Z"}}
+    expect: {ok: false, error: ValidationError, error_contains: state}
+
+  - id: status-rejects-verified-workflow-state
+    description: Registry verification workflow state is not a protocol status value
+    spec_ref: "sdk-design/06-log-bindings.md §Implemented lifecycle interpretation"
+    tags: [required, state-machine]
+    op: agent_status_evaluate
+    input: {status: {state: VERIFIED, lastTransitionAt: "2026-01-01T00:00:00Z"}}
+    expect: {ok: false, error: ValidationError, error_contains: state}
+
+  - id: status-rejects-publishing-workflow-state
+    description: Registry publication progress is not a protocol status value
+    spec_ref: "sdk-design/06-log-bindings.md §Implemented lifecycle interpretation"
+    tags: [required, state-machine]
+    op: agent_status_evaluate
+    input: {status: {state: PUBLISHING, lastTransitionAt: "2026-01-01T00:00:00Z"}}
+    expect: {ok: false, error: ValidationError, error_contains: state}
+
+  - id: status-rejects-lowercase-state
+    description: Protocol status enum values are exact and case-sensitive
+    spec_ref: "sdk-design/07-protocol-data-types.md §AgentStatus.Validate"
+    tags: [required, security]
+    op: agent_status_evaluate
+    input: {status: {state: active, lastTransitionAt: "2026-01-01T00:00:00Z"}}
+    expect: {ok: false, error: ValidationError, error_contains: state}
+
+  - id: status-rejects-whitespace-padded-state
+    description: Protocol status enum values are not whitespace-normalized
+    spec_ref: "sdk-design/07-protocol-data-types.md §AgentStatus.Validate"
+    tags: [required, security]
+    op: agent_status_evaluate
+    input: {status: {state: " ACTIVE ", lastTransitionAt: "2026-01-01T00:00:00Z"}}
+    expect: {ok: false, error: ValidationError, error_contains: state}
+
+  - id: status-requires-transition-time
+    description: A status without lastTransitionAt is invalid
+    spec_ref: "sdk-design/07-protocol-data-types.md §AgentStatus.Validate"
+    tags: [required]
+    op: agent_status_evaluate
+    input: {status: {state: ACTIVE}}
+    expect: {ok: false, error: ValidationError, error_contains: lastTransitionAt}
+
+  - id: status-rejects-zero-transition-time
+    description: The zero timestamp does not establish a lifecycle transition
+    spec_ref: "sdk-design/07-protocol-data-types.md §AgentStatus.Validate"
+    tags: [required]
+    op: agent_status_evaluate
+    input: {status: {state: ACTIVE, lastTransitionAt: "0001-01-01T00:00:00Z"}}
+    expect: {ok: false, error: ValidationError, error_contains: lastTransitionAt}
+  - id: status-rejects-malformed-transition-time
+    description: lastTransitionAt must be a timestamp
+    spec_ref: "sdk-design/07-protocol-data-types.md §AgentStatus.Validate"
+    tags: [required]
+    op: agent_status_evaluate
+    input: {status: {state: ACTIVE, lastTransitionAt: not-a-time}}
+    expect: {ok: false, error: ValidationError, error_contains: lastTransitionAt}

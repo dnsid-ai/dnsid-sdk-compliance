@@ -1,0 +1,131 @@
+# Agent FQDN normalization: IDNA A-label form, lowercase, exactly one trailing
+# dot stripped, 63-octet label limit, 246-octet total limit (DNSid agent limit).
+# Error classes differ across SDKs, so error cases assert only rejection.
+suite: fqdn
+cases:
+  - id: fqdn-passthrough
+    description: Already-normalized name is unchanged
+    spec_ref: "draft-ihsanullah-dnsid-01 §Owner Name Convention"
+    tags: [happy-path]
+    op: normalize_fqdn
+    input:
+      name: example.com
+    expect:
+      ok: true
+      value: example.com
+
+  - id: fqdn-uppercase
+    description: ASCII names are lowercased
+    spec_ref: "draft-ihsanullah-dnsid-01 §GI Tag (lowercase ASCII)"
+    tags: [required]
+    op: normalize_fqdn
+    input:
+      name: EXAMPLE.COM
+    expect:
+      ok: true
+      value: example.com
+
+  - id: fqdn-trailing-dot
+    description: Exactly one trailing root dot is stripped
+    spec_ref: "draft-ihsanullah-dnsid-01 §Owner Name Convention"
+    tags: [required]
+    op: normalize_fqdn
+    input:
+      name: example.com.
+    expect:
+      ok: true
+      value: example.com
+
+  - id: fqdn-double-trailing-dot
+    description: Two trailing dots are invalid (only one root dot may be stripped)
+    spec_ref: "draft-ihsanullah-dnsid-01 §Owner Name Convention"
+    tags: [edge-case, security]
+    op: normalize_fqdn
+    input:
+      name: example.com..
+    expect:
+      ok: false
+
+  - id: fqdn-idn-unicode
+    description: IDN U-labels convert to lowercase A-label (punycode) form
+    spec_ref: "draft-ihsanullah-dnsid-01 §GI Tag (lowercase A-label form, RFC 5890)"
+    tags: [required, idn]
+    op: normalize_fqdn
+    input:
+      name: "München.de"
+    expect:
+      ok: true
+      value: xn--mnchen-3ya.de
+
+  - id: fqdn-ideographic-full-stop
+    description: U+3002 ideographic full stop is treated as a label separator by IDNA
+    spec_ref: "RFC 5895 / UTS46 mapping"
+    tags: [edge-case, idn]
+    op: normalize_fqdn
+    input:
+      name: "example.com。"
+    expect:
+      ok: true
+      value: example.com
+
+  - id: fqdn-63-octet-label
+    description: A 63-octet label is the maximum and is accepted
+    spec_ref: "RFC 1035 §2.3.4"
+    tags: [edge-case]
+    op: normalize_fqdn
+    input:
+      name: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com"
+    expect:
+      ok: true
+      value: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com"
+
+  - id: fqdn-64-octet-label
+    description: A 64-octet label exceeds the DNS label limit
+    spec_ref: "RFC 1035 §2.3.4"
+    tags: [edge-case]
+    op: normalize_fqdn
+    input:
+      name: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com"
+    expect:
+      ok: false
+
+  - id: fqdn-246-octets-exact
+    description: A 246-octet agent FQDN is exactly at the DNSid limit and is accepted
+    spec_ref: "draft-ihsanullah-dnsid-01 §Owner Name Convention (MUST NOT exceed 246 octets)"
+    tags: [edge-case]
+    op: normalize_fqdn
+    input:
+      name: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    expect:
+      ok: true
+      value: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+  - id: fqdn-247-octets
+    description: A 247-octet agent FQDN exceeds the DNSid limit
+    spec_ref: "draft-ihsanullah-dnsid-01 §Owner Name Convention (MUST NOT exceed 246 octets)"
+    tags: [required, edge-case]
+    op: normalize_fqdn
+    input:
+      name: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    expect:
+      ok: false
+
+  - id: fqdn-leading-hyphen-label
+    description: A label starting with a hyphen violates LDH rules (RFC 5890)
+    spec_ref: "RFC 5890 §2.3.1 (LDH label)"
+    tags: [edge-case, security]
+    op: normalize_fqdn
+    input:
+      name: "-foo.example.com"
+    expect:
+      ok: false
+
+  - id: fqdn-empty
+    description: Empty input is rejected
+    spec_ref: "draft-ihsanullah-dnsid-01 §Owner Name Convention"
+    tags: [edge-case]
+    op: normalize_fqdn
+    input:
+      name: ""
+    expect:
+      ok: false

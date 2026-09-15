@@ -1,0 +1,30 @@
+THIRD-PARTY SOFTWARE NOTICES
+dnsid-sdk-compliance
+Copyright 2026 Identity Digital Inc.
+
+This repository is a test kit. It is not published as a package,
+produces no compiled or packaged artifact, and therefore distributes
+no third-party software to users. No third-party license text is
+reproduced here.
+
+The harness requires the components below at development and CI time
+only. They are fetched into a local virtual environment or module
+cache by the operator, are never redistributed as part of this
+repository, and are listed for transparency only.
+
+  PyYAML          MIT License
+  cryptography    Apache License 2.0 (elected; dual-licensed with BSD 3-Clause)
+  dnsid-go        Apache License 2.0
+  dnsid-ts        Apache License 2.0
+  dnsid-py        Apache License 2.0
+
+Test expectations in fixtures/ are derived from the IETF Internet-Draft
+draft-ihsanullah-dnsid and from the referenced RFCs (7638, 9421, 7519,
+7523) and C2SP specifications. Each case cites its originating clause
+in its spec_ref field. IETF and C2SP documents are governed by their
+own respective terms.
+
+If this repository ever begins distributing a packaged artifact, every
+component that ships within it must be listed here with its full
+license text reproduced, following the format used by the DNSid SDK
+notice files.

@@ -1,0 +1,92 @@
+# Canonical form (the signed content). Strictly specified: all tags except sg
+# sorted alphabetically by tag name, joined with ';', no
+# whitespace, US-ASCII. Expected values are exact strings.
+suite: canonical
+cases:
+  - id: canonical-basic
+    description: all tags alphabetical, sg excluded
+    spec_ref: "draft-ihsanullah-dnsid-01 §Signature Generation (step 1)"
+    tags: [required]
+    version: dnsid-draft-01
+    op: canonical
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
+    expect:
+      ok: true
+      value: "ek=https://example.com/entity-keys.json;gi=example.com;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;v=dnsid-draft-01"
+
+  - id: canonical-optional-tag-ordering
+    description: Optional tags interleave alphabetically (cu < ek < fl < gi < ka < ku < lr < su < v)
+    spec_ref: "draft-ihsanullah-dnsid-01 §Signature Generation (alphabetical order by tag name)"
+    tags: [required]
+    version: dnsid-draft-01
+    op: canonical
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;fl=mtls;ka=24h;cu=https://agent.example.com/agents.md;sg=AAAA"
+    expect:
+      ok: true
+      value: "cu=https://agent.example.com/agents.md;ek=https://example.com/entity-keys.json;fl=mtls;gi=example.com;ka=24h;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;v=dnsid-draft-01"
+
+  - id: canonical-unknown-tags-included
+    description: Unknown tags are included in the canonical string (they are signed)
+    spec_ref: "draft-ihsanullah-dnsid-01 §Record Format (unknown tags included in canonical record string)"
+    tags: [required, forward-compat]
+    version: dnsid-draft-01
+    op: canonical
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;zz=2;aa=1;sg=AAAA"
+    expect:
+      ok: true
+      value: "aa=1;ek=https://example.com/entity-keys.json;gi=example.com;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;v=dnsid-draft-01;zz=2"
+
+  - id: canonical-input-order-irrelevant
+    description: Canonical form is independent of the wire tag order
+    spec_ref: "draft-ihsanullah-dnsid-01 §Signature Generation"
+    tags: [required]
+    version: dnsid-draft-01
+    op: canonical
+    input:
+      raw: "v=dnsid-draft-01;su=https://agent.example.com/status;lr=microledger:abc123;ku=https://agent.example.com/jwks.json;gi=example.com;ek=https://example.com/entity-keys.json;sg=AAAA"
+    expect:
+      ok: true
+      value: "ek=https://example.com/entity-keys.json;gi=example.com;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;v=dnsid-draft-01"
+
+  - id: canonical-whitespace-stripped
+    description: Spaces after semicolons in the wire form do not appear in canonical output
+    spec_ref: "draft-ihsanullah-dnsid-01 §Signature Generation (no whitespace)"
+    tags: [required]
+    version: dnsid-draft-01
+    op: canonical
+    input:
+      raw: "v=dnsid-draft-01; gi=example.com; ek=https://example.com/entity-keys.json; ku=https://agent.example.com/jwks.json; lr=microledger:abc123; su=https://agent.example.com/status; sg=AAAA"
+    expect:
+      ok: true
+      value: "ek=https://example.com/entity-keys.json;gi=example.com;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;v=dnsid-draft-01"
+
+  - id: canonical-empty-unknown-tag-preserved
+    description: An unknown tag with an empty value stays in the canonical string
+    spec_ref: "draft-ihsanullah-dnsid-01 §Record Format (unknown tags included in canonical)"
+    tags: [edge-case]
+    version: dnsid-draft-01
+    op: canonical
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;xx=;sg=AAAA"
+    expect:
+      ok: true
+      value: "ek=https://example.com/entity-keys.json;gi=example.com;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;v=dnsid-draft-01;xx="
+
+  - id: canonical-dnsid1-v-sorts-alphabetically
+    description: >
+      §Signature Generation step 1 sorts ALL tags except sg alphabetically by
+      tag name for the canonical signing string, so for v=DNSid1 the version tag
+      sorts LAST (v is not special-cased first; that rule applies only to wire
+      order, §Tag Definitions). All three SDKs sort v correctly (dnsid-go#177,
+      dnsid-py#117, dnsid-ts). See dnsid#1406.
+    spec_ref: "draft-ihsanullah-dnsid-01 §Signature Generation (step 1: alphabetical order by tag name)"
+    tags: [deviation]
+    op: canonical
+    input:
+      raw: "v=DNSid1;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
+    expect:
+      ok: true
+      value: "ek=https://example.com/entity-keys.json;gi=example.com;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;v=DNSid1"

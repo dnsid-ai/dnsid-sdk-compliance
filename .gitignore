@@ -1,0 +1,6 @@
+__pycache__/
+.venv/
+report*.md
+shims/go/dnsid-shim
+shims/go/go.work
+shims/go/go.work.sum
