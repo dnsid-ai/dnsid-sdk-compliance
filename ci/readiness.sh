@@ -60,8 +60,9 @@ hits=$(lib_rg -o 'https?://[a-zA-Z0-9._-]+' | sed -E 's#.*https?://##' | sort -u
 [ -z "$hits" ] && ok "network destinations" "only first-party/spec/RFC 2606 hosts in library source" || warn "network destinations" "unlisted hosts, add to COM-003 inventory or allowlist: $(echo "$hits" | tr '\n' ' ')"
 
 # --- test fixtures ----------------------------------------------------------------
-hits=$(rg -oIN --no-heading '\b[a-z0-9-]+\.(com|net|org|io|ai|dev|co)\b' -g '*_test.go' -g '*.test.ts' -g 'tests/**' -g 'test/**' -g '!node_modules/**' . 2>/dev/null \
-  | grep -vE '(^|\.)(example\.(com|net|org)|github\.com|dnsid\.(ai|dev)|c2sp\.org|ietf\.org|w3\.org|golang\.org|npmjs\.com|pypi\.org|rfc-editor\.org)$' | sort -u || true)
+# Match a full hostname so `registry.dev.dnsid.test` is not misread as `registry.dev`.
+hits=$(rg -oIN --no-heading '\b[a-z0-9.-]+\.(com|net|org|io|ai|dev|co)\b(?![a-z0-9.-])' --pcre2 -g '*_test.go' -g '*.test.ts' -g 'tests/**' -g 'test/**' -g '!node_modules/**' . 2>/dev/null \
+  | grep -vE '(^|\.)example\.|(^|\.)(github\.com|dnsid\.(ai|dev)|c2sp\.org|ietf\.org|w3\.org|golang\.org|npmjs\.com|pypi\.org|rfc-editor\.org)$' | sort -u || true)
 [ -z "$hits" ] && ok "test fixtures: RFC 2606 domains only" "" || warn "test fixtures: RFC 2606 domains only" "registrable placeholders: $(echo "$hits" | tr '\n' ' ') (Legal §6)"
 
 # --- GitHub settings (needs token) -----------------------------------------------------
