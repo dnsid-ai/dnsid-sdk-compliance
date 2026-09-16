@@ -1,0 +1,103 @@
+name: SDK Release Readiness (reusable)
+
+# Called by each SDK repo's CI. Runs ci/readiness.sh — the mechanically
+# verifiable rows of the InfoSec checklist and OSS legal review form — against
+# the SDK checkout and the SDK repo's GitHub settings, then comments the table
+# on the PR and uploads it as an artifact. Fails on any ❌.
+#
+# Caller (in dnsid-<sdk>/.github/workflows/readiness.yaml):
+#   on:
+#     pull_request:
+#     schedule: [{cron: "0 6 * * 1"}]
+#   jobs:
+#     readiness:
+#       uses: dnsid-ai/dnsid-sdk-compliance/.github/workflows/sdk-release-readiness.yaml@main
+#       secrets: inherit
+#       with:
+#         sdk: go
+#         ref: ${{ github.event.pull_request.head.sha || github.sha }}
+#         pr-number: ${{ github.event.pull_request.number }}
+
+on:
+  workflow_call:
+    inputs:
+      sdk:
+        description: "go | ts | py"
+        required: true
+        type: string
+      ref:
+        description: "SDK commit to check"
+        required: true
+        type: string
+      pr-number:
+        description: "PR to comment on (optional)"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+env:
+  GITLEAKS_VERSION: 8.30.1
+
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out compliance repo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: dnsid-ai/dnsid-sdk-compliance
+          token: ${{ secrets.GH_PAT || github.token }}
+
+      - name: Check out SDK (full history for gitleaks)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: dnsid-ai/dnsid-${{ inputs.sdk }}
+          ref: ${{ inputs.ref }}
+          token: ${{ secrets.GH_PAT || github.token }}
+          path: sdk
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin gitleaks
+
+      - name: Run readiness checks
+        id: run
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
+        run: ci/readiness.sh "${{ inputs.sdk }}" "$GITHUB_WORKSPACE/sdk" readiness.md
+
+      - name: Summarize
+        run: cat readiness.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment on PR
+        if: inputs.pr-number != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
+          PR: ${{ inputs.pr-number }}
+          REPO: dnsid-ai/dnsid-${{ inputs.sdk }}
+          MARKER: "<!-- dnsid-readiness:${{ inputs.sdk }} -->"
+        run: |
+          set -euo pipefail
+          { echo "$MARKER"; cat readiness.md; } > comment.md
+          id=$(gh api "repos/$REPO/issues/$PR/comments" --paginate \
+            --jq ".[] | select(.body | contains(\"$MARKER\")) | .id" | head -n1 || true)
+          if [ -n "$id" ]; then gh api --method PATCH "repos/$REPO/issues/comments/$id" -F body=@comment.md >/dev/null
+          else gh api --method POST "repos/$REPO/issues/$PR/comments" -F body=@comment.md >/dev/null; fi
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: readiness-${{ inputs.sdk }}
+          path: readiness.md
+
+      - name: Fail on readiness gate
+        if: steps.run.outcome == 'failure'
+        run: exit 1
