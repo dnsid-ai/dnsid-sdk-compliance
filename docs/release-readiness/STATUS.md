@@ -162,6 +162,52 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
 14. **Publish `dnsid-sdk-compliance`?** See "This repo's own review". Needed only if conformance claims
     are made publicly and should be independently reproducible.
 15. **DeepSource** (`.deepsource.toml`) — company-held account or leftover? Legal §12 row 3.
+16. **Security-process numbers** — needed to finish `SECURITY-fixes-section.draft.md` (then it goes into
+    canonical SECURITY.md and propagates). Legal §8 row 5, §9 rows 2–4, §12 row 4; VIR-003/004/009, OSS-019/021, SSD-009.
+    - **16a** fix-time targets by severity (proposed Critical 7d / High 30d / Medium 90d)
+    - **16b** security-update support period (CRA: ≥5 years or a stated shorter lifetime; proposed 5y from 1.0 or 2y from last release)
+    - **16c** pre-1.0 support stance (proposed: latest minor only)
+    - **16d** end-of-life notice period (proposed 6 months)
+    - **16e** is there, or will there be, paid support? (changes the support sentence and confirms CRA manufacturer in #4)
+    - Also record as deliberate: existing "acknowledge in 3 business days / assess in 14 days" commitment (Legal §9 row 2).
+17. **IETF participation obligations** (Legal §3 rows 3, 6). The protocol is `draft-ihsanullah-dnsid`. IETF BCP 79
+    puts IPR-disclosure duties on participants personally; the Note Well covers competition-law conduct. Confirm the
+    draft authors/contributors have done the IPR disclosure (or that there is nothing to disclose) and know the rules.
+18. **Trade secret / patent position** (Legal §1 row 5, §3 row 5). Is anything in the SDKs relied on as confidential
+    know-how? Any filed or intended patent that reads on the published implementation? Publication creates prior art.
+19. **Funding and restrictive agreements** (Legal §2 rows 3, 5). Was any of this customer- or grant-funded? Does
+    any customer/partner/exclusivity agreement restrict publication? Adjacent to #2 (the old evaluation-agreement license).
+20. **Sanctions position** (Legal §11, all four rows). Legal to record: (a) publication of OSS vs. provision of the
+    hosted service are different acts; (b) gated components = `api.dnsid.ai` accounts, handled under service terms;
+    (c) GitHub/npm/PyPI/Go proxy enforce their own sanctions posture; (d) contributions from restricted jurisdictions —
+    accept / refuse / case-by-case.
+21. **Destination-market crypto import restrictions** (Legal §4 row 6). One line from legal: any market where we
+    distribute or operate that restricts import/use of signature cryptography?
+22. **Governance statement** (Legal §12 row 1). Mechanism exists (CODEOWNERS + ruleset = who merges). Missing: who may
+    speak for the project publicly, and a sentence that issue-thread statements by maintainers are not company
+    commitments. Half a page in CONTRIBUTING or a `GOVERNANCE.md`; needs the owner from #7.
+23. **Open source policy** (Legal §1 row 16). Does the company have one? If not, the form says this review *is* the
+    policy for this release — record that.
+24. **Third-party service accounts** (Legal §12 row 3). GitHub org `dnsid-ai`, npm `@dnsid-ai`, PyPI, DeepSource (#15),
+    any CI/SaaS — who accepted the terms, is each held by a company account, and what happens when that person leaves.
+
+## Recorded as satisfied (no action, just so the form has an answer)
+
+| Row | Answer |
+|---|---|
+| Legal §1 row 7 — patent grant | Apache-2.0 §3: express patent grant, with defensive termination. Intended. |
+| Legal §3 row 2 — no trademark rights in license | Apache-2.0 §6 withholds trademark rights. Usage guidance still needed (#10). |
+| Legal §4 row 3 — export notification | N/A: standard published algorithms only, no notification owed (post-2021 rule). |
+| Legal §4 row 4 — binaries assessed separately | SDKs ship no binaries or images. CLI (#13) and witness image are separate assessments. |
+| Legal §5 row 6 — installer scripts | None. Install is `go get` / `npm install` / `pip install`. |
+| Legal §2 row 6 — non-code assets | SDK repos contain no fonts, logos, images, or datasets. Test keys are disposable, generated. Docs site is #11. |
+| Legal §6 row 3 — personal data via public repos | Standard GitHub: commit metadata, issue authors. Permanent and public; deletion requests route to GitHub's process. |
+| Legal §7 row 6 — naming consistency | Packages `dnsid-go`, `@dnsid-ai/*`, `dnsid`; ts renamed `core→protocol` before publish. Standard name "DNSid" reserved for the protocol. |
+| InfoSec COM-007 — acceptance criteria | `ci/readiness.sh` is the release acceptance gate; ❌ blocks. |
+| InfoSec OSS-022 — reproducible builds | Go module builds are reproducible by default (`-trimpath`, module proxy). ts/py: not evaluated; Should/P2. |
+| InfoSec IDT-009 — fail-secure | Unknown version, expired evidence, revoked/suspended status, unverifiable signature all reject. Harness `REJ` cases exercise version dispatch fail-closed. |
+| InfoSec IDT-012 — replay | JWT `exp`/`iat`/`jti`, RFC 9421 `created`/`expires`/`nonce`; documented in per-SDK ops docs. |
+| InfoSec DAT-005 — retention | Nothing retained beyond process lifetime except integrator-created `~/.dnsid` (INVENTORY.md). |
 
 ## Working agreement (user ↔ agent)
 
