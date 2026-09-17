@@ -108,7 +108,7 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
 | 3 | Secret scanning / push protection / private vuln reporting | ⏸ GHAS or public repo required; readiness flips 🟡→❌ automatically when public |
 | 4 | Org 2FA requirement | ⏸ **enterprise team enabling**. All 16 members have 2FA. `members_can_create_public_repositories=false` ✅ done |
 | 5 | Registry account ownership | 🟡 npm org `@dnsid-ai` exists, owner unverified (no npm login on this machine); PyPI `dnsid`, `dnsid-sdk`, `dnsid-ai`, `dnsid_ai`, `dnsidai` all unclaimed — **Ben setting up PyPI** |
-| 6 | CODE_OF_CONDUCT.md | ⏸ **question sent to legal**: Contributor Covenant 2.1, contact `idil-bugreport@identity.digital`, enforcement ladder OK? Plan: `policy/CODE_OF_CONDUCT.md` byte-checked like SECURITY.md |
+| 6 | CODE_OF_CONDUCT.md | ⏸ **question sent to legal** (Contributor Covenant 2.1 unmodified; enforcement ladder as written?). Not answered directly, but the thread it triggered settled the contact: use **`report@dnsid.ai`** (misconduct-report alias, being created — see #18), not `idil-bugreport@identity.digital`. Enforcement-ladder question still open. Plan: `policy/CODE_OF_CONDUCT.md` byte-checked like SECURITY.md |
 | 7 | SBOM in release.yml | ✅ in PRs |
 | 8 | Signing / provenance for go + ts | ⏭ **skipped by decision**. ts blocked on npmjs-vs-GitHub-Packages cutover (`--provenance` needs npmjs) |
 | 9 | Dep vuln scan in CI | ✅ in PRs |
@@ -120,11 +120,15 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
 | 15 | CONTRIBUTING: "adding any encryption primitive → export re-review" | ⏭ next |
 | 16 | `THREAT_MODEL.md` (shared, this repo) | ⏭ next — impersonation, DNS spoofing, key theft, malicious fork, dep confusion, compromised maintainer/CI |
 | 17 | Data + network-destination inventory tables (this repo) | ⏭ next |
+| 18 | Public contact aliases | ⏸ **IT setting up, needed by 9/22.** Legal position: public-facing contacts must not expose the `identity.digital` domain; split by product URL. Aliases: `security@dnsid.ai` (requested; `security@knownsystems.ai` exists), `report@dnsid.ai` + `report@knownsystems.ai` (misconduct/AUP reports), `legal@dnsid.ai` + `legal@knownsystems.ai`. All route to the ID legal alias plus the security group; 4 SDK maintainers named as owners. **Our follow-ups once live:** (a) `policy/SECURITY.md` contact → `security@dnsid.ai` (one edit, byte-check propagates to all 3 SDKs); (b) CoC contact → `report@dnsid.ai`; (c) same two addresses go in `security.txt` (#14) and the README section (#11); (d) `security@dnsid.ai` is the natural CRA reporting contact (decision #4) |
 
 ## Human decisions (nobody can grep these)
 
-1. **Publishing entity** — three names in use: "Identity Digital Inc." (NOTICE), "Identity Digital
-   Innovation Labs" (SECURITY.md), "Known Services" (legal form); GitHub org `dnsid-ai`. Pick one, align.
+1. **Publishing entity** — names in use: "Identity Digital Inc." (NOTICE), "Identity Digital
+   Innovation Labs" (SECURITY.md), "Known Services" (legal form), `knownsystems.ai` (email aliases);
+   GitHub org `dnsid-ai`. Pick one, align. **New constraint from legal**: public-facing surfaces
+   (contacts, and by extension probably README/SECURITY.md prose) should not present as "Identity
+   Digital". Current SECURITY.md and NOTICE both do — needs an explicit answer on the copyright line.
 2. **History** — old tags (through v0.24.0 in go) carry the former evaluation-agreement license.
    Keep history or publish clean snapshot. Local clones show 5–11 commits; confirm against origin.
 3. **CLA / DCO / neither** (Apache §5 default).
@@ -158,7 +162,9 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
    repos — `secrets: inherit` already passes `GH_PAT`, which the workflow prefers when present.
 2. **#11** README section — agent proposes text first.
 3. **#15, #16, #17** → one PR to this repo (+ CONTRIBUTING line per SDK).
-4. When legal answers **#6**: add `policy/CODE_OF_CONDUCT.md`, byte-check in `readiness.sh`, copy to SDKs.
+4. When aliases go live (**#18**, by 9/22): update `policy/SECURITY.md` contact, then CoC (**#6**) with
+   `report@dnsid.ai` once the enforcement-ladder question is answered. Draft README/security.txt
+   with the new addresses now; don't publish until the aliases resolve.
 5. Then review `dnsid-sdk-compliance` itself and `dnsid-cookbook` (Legal §7 "what a conformance
    pass asserts" lives in the harness).
 
