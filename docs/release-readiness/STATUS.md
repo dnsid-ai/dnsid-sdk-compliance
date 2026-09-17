@@ -199,7 +199,7 @@ actions SHA-pinned. Via API: description replaced ("welcome to the TLOG party").
 
 | # | Item | Needs |
 |---|---|---|
-| W1 | `build-image.yml` publishes infra detail: AWS account ID, IAM role ARN, ECR repo, region; runs `on: push` for every branch with OIDC. Legal §1 row 2 names this exactly. Already in all 11 commits of history | Move deploy to a private repo; decision #2 (history vs clean snapshot) for this repo |
+| W1 | `build-image.yml` publishes infra detail: AWS account ID, IAM role ARN, ECR repo, region; runs `on: push` for every branch with OIDC. Legal §1 row 2 names this exactly. Already in all 11 commits of history | **Handed off** — see `witness-image-pipeline-brief.md`. Decision #2 (history vs clean snapshot) for this repo |
 | W2 | **Org + Go module path** `github.com/Identity-Digital/c2sp-ledger-witness`. Import path is effectively permanent once public; SDKs live in `dnsid-ai` | Decision #1 **before** publish |
 | W3 | No `NOTICE` — deps Tessera/transparency-dev (Apache-2.0), klog (Apache-2.0), yaml.v3 (MIT+Apache), `filippo.io/mldsa` | Copyright entity (#1); then a NOTICE like the SDKs' |
 | W4 | No CODEOWNERS; branch protection is classic: 1 review, no code-owner review, no signed commits, **admins bypass** (SSD-002, OSS-006/008) | Which team owns it? Then convert to a ruleset matching the SDKs |
