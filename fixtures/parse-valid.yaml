@@ -140,9 +140,9 @@ cases:
     version: dnsid-draft-01
     op: parse
     input:
-      raw: "v=dnsid-draft-01;gi=example.com;GI=other.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
+      raw: "v=dnsid-draft-01;gi=example.com;GI=other.example;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
     expect:
       ok: true
       record:
         gi: example.com
-        unknown: {GI: other.com}
+        unknown: {GI: other.example}
