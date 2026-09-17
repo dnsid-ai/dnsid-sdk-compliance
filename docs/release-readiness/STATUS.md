@@ -44,6 +44,7 @@ All under `github.com/dnsid-ai`, cloned at `~/`. All **private** today.
 | `dnsid-ts` | TS SDK v0.19.1, 11 pkgs `@dnsid-ai/*` (GitHub Packages today) | `release-readiness` | #9 | pushed |
 | `dnsid-py` | Python SDK v0.19.1, PyPI `dnsid` | `release-readiness` | #4 | pushed |
 | `dnsid-cookbook` | Recipes | — | — | **not yet reviewed** |
+| `Identity-Digital/c2sp-ledger-witness` (`~/c2sp-ledger-witness`) | **Service**: C2SP tlog witness partners operate | `release-readiness` | — | committed locally, **not pushed** — see section below |
 | `Identity-Digital/dnsid` (`~/dnsid`) | Platform monorepo: server, console, deploy, **CLI (`cmd/cli`)** | — | — | **out of scope** for the SDK review — hosted-service repo, separate org. See decision #13 |
 
 Merge order matters: SDK callers reference `sdk-release-readiness.yaml@main` in this repo.
@@ -179,6 +180,33 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
    `report@dnsid.ai` once the enforcement-ladder question is answered. Draft README/security.txt
    with the new addresses now; don't publish until the aliases resolve.
 5. ~~Review `dnsid-sdk-compliance` itself~~ **done** (see below). Then `dnsid-cookbook`.
+
+## c2sp-ledger-witness review
+
+A deployable service, not a library: API-*/DAT-*/LOG-* rows apply to it as shipped; the operator is a
+partner. `PARTNER_HOSTING_REQUIREMENTS.md` already covers COM-001/002/003, DAT-001, IDT-005, VIR-005.
+
+**Passing**: gitleaks clean; **secret scanning + push protection enabled** (the `Identity-Digital` org
+has GHAS — `dnsid-ai` does not, relevant to fix #3); Dependabot gomod/docker/actions + security updates;
+signature-only crypto (Ed25519, ML-DSA-44) — same export determination; **no outbound network calls, no
+telemetry** (OTel is an unused indirect dep of Tessera); RFC 2606 hosts only; keygen `O_EXCL` `0600`.
+
+**Fixed on `release-readiness` (`caf588f`)**: `LICENSE.txt` (Apache-2.0, same file as SDKs); `SECURITY.md`
+(canonical copy); `CONTRIBUTING.md`; `ci.yml` — build/vet/race/tidy/`govulncheck`, pinned; `build-image.yml`
+actions SHA-pinned. Via API: description replaced ("welcome to the TLOG party").
+
+**Blocked on decisions**
+
+| # | Item | Needs |
+|---|---|---|
+| W1 | `build-image.yml` publishes infra detail: AWS account ID, IAM role ARN, ECR repo, region; runs `on: push` for every branch with OIDC. Legal §1 row 2 names this exactly. Already in all 11 commits of history | Move deploy to a private repo; decision #2 (history vs clean snapshot) for this repo |
+| W2 | **Org + Go module path** `github.com/Identity-Digital/c2sp-ledger-witness`. Import path is effectively permanent once public; SDKs live in `dnsid-ai` | Decision #1 **before** publish |
+| W3 | No `NOTICE` — deps Tessera/transparency-dev (Apache-2.0), klog (Apache-2.0), yaml.v3 (MIT+Apache), `filippo.io/mldsa` | Copyright entity (#1); then a NOTICE like the SDKs' |
+| W4 | No CODEOWNERS; branch protection is classic: 1 review, no code-owner review, no signed commits, **admins bypass** (SSD-002, OSS-006/008) | Which team owns it? Then convert to a ruleset matching the SDKs |
+| W5 | No public distribution: image → private ECR only, no tags/releases. Partner doc says `docker run` — from where? (OSS-003/010/011/012, OSS-021, VIR-009) | Public image (GHCR) or build-from-source; cosign + SBOM + provenance; version/support statement |
+| W6 | Provenance: authors under `cadena.ai` and gmail addresses, **2 commits by `copilot-swe-agent[bot]`** (Legal §2 rows 1, 4) | Extend decision #6 to this repo |
+| W7 | `$DNSID_TEAM` placeholders in partner doc; "C2SP" (third-party spec body) in the repo name (Legal §3 row 1) | #1; one-line trademark note |
+| W8 | CODE_OF_CONDUCT | #6 |
 
 ## This repo's own review (dnsid-sdk-compliance)
 
