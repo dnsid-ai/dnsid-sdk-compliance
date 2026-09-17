@@ -113,7 +113,7 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
 | 8 | Signing / provenance for go + ts | ⏭ **skipped by decision**. ts blocked on npmjs-vs-GitHub-Packages cutover (`--provenance` needs npmjs) |
 | 9 | Dep vuln scan in CI | ✅ in PRs |
 | 10 | RFC 2606 fixture domains | ✅ in PRs; go/ts (815)/py (1285) suites green |
-| 11 | README "Security & trust" section | ⏭ **next** — official channels + verify-a-release; "software ≠ identity"; runtime network / no telemetry; downstream privacy-notice line |
+| 11 | README "Security & trust" section | ✅ committed on all 3 `release-readiness` branches (go `141ed87`, ts `5699e6a`, py `e291c95`), **not pushed**. Identical section before `## License`; per-SDK fills for package registry, opt-in endpoints, logging. Finding: none of the 3 SDKs emit logs (py declares a `dnsid` logger, never calls it). Says "DNSid-operated" not "Identity Digital" pending decision #1. Contact deferred to SECURITY.md so the #18 alias swap is one edit |
 | 12 | — | (merged into 11) |
 | 13 | Reserve PyPI confusable names | ⏸ Ben |
 | 14 | `security.txt` on dnsid.ai / docs.dnsid.ai | ⏸ need the site repo location |
