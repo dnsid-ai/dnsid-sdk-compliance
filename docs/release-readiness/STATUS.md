@@ -128,6 +128,11 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
 
 ## Human decisions (nobody can grep these)
 
+> Presentation copy for decision-makers: **`DECISIONS.md`** (grouped by owner, proposed defaults, blocks; no
+> names). Cross-walk STATUS# → DECISIONS: 1→L1, 2→M2, 3→L5, 4→L7, 5→L6, 6→L2, 7→M4+M9, 8→M5, 9→L10, 10→L11,
+> 11→L14, 12→M6, 13→M3, 14→M7, 15→E6, 16→L8, 17→L13, 18→L3, 19→L4, 20→L9, 21→L6, 22→M8, 23→L15, 24→E6;
+> fix-list 3/4→E4, 5/13→E2, 8→E5, 14→E7, 18→E1, CoC alias→L12. Update both when an answer lands.
+
 1. **Publishing entity** — names in use: "Identity Digital Inc." (NOTICE), "Identity Digital
    Innovation Labs" (SECURITY.md), "Known Services" (legal form), `knownsystems.ai` (email aliases);
    GitHub org `dnsid-ai`. Pick one, align. **New constraint from legal**: public-facing surfaces
