@@ -122,7 +122,7 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
 | 13 | Reserve PyPI confusable names | ⏸ Ben |
 | 14 | `security.txt` on dnsid.ai / docs.dnsid.ai | ⏸ need the site repo location |
 | 15 | CONTRIBUTING: "adding any encryption primitive → export re-review" | ⏭ **deferred by decision** — not in source docs; `readiness.sh` primitive grep already trips on it |
-| 16 | `THREAT_MODEL.md` (shared, this repo) | ⏸ **deferred** — required by COM-005, OSS-023, Legal §9 (false-pass); none exists. Ops docs (`go/OPERATIONS.md`, `ts|py/docs/security.md`) hold mitigations only |
+| 16 | `THREAT_MODEL.md` (shared, this repo) | ✅ `docs/release-readiness/THREAT_MODEL.md` — trust boundaries (COM-001), can/cannot (COM-002), 9 protocol + 3 key-handling + 7 supply-chain threats with cited mitigations and residuals (COM-005, OSS-023, VIR-007), false-pass row (Legal §9), fork-cannot-inherit-trust argument (OSS-015/016/017). Surfaced: single-approver merges on trust-path files → added to decision #7 |
 | 17 | Data + network-destination inventory | ✅ `docs/release-readiness/INVENTORY.md` — network table (9 destinations, default vs opt-in), data table, `~/.dnsid` file properties, in-memory caches. Surfaced **decision #12** (plaintext local keys) |
 | 18 | Public contact aliases | ⏸ **IT setting up, needed by 9/22.** Legal position: public-facing contacts must not expose the `identity.digital` domain; split by product URL. Aliases: `security@dnsid.ai` (requested; `security@knownsystems.ai` exists), `report@dnsid.ai` + `report@knownsystems.ai` (misconduct/AUP reports), `legal@dnsid.ai` + `legal@knownsystems.ai`. All route to the ID legal alias plus the security group; 4 SDK maintainers named as owners. **Our follow-ups once live:** (a) `policy/SECURITY.md` contact → `security@dnsid.ai` (one edit, byte-check propagates to all 3 SDKs); (b) CoC contact → `report@dnsid.ai`; (c) same two addresses go in `security.txt` (#14) and the README section (#11); (d) `security@dnsid.ai` is the natural CRA reporting contact (decision #4) |
 
@@ -146,6 +146,8 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
    confirm employment/assignment. Repos contain `AGENTS.md`/`CLAUDE.md` → confirm AI-assisted-code policy.
 7. **Named security owner + engineering owner** (COM-004). Team today: `@dnsid-ai/sdk-maintainers` =
    winder, jmelloy, barnjamin, wolfgangmeyers, JasonWeathersby, starlightromero, gabrielkuettel.
+   Also: ruleset requires **1** approving review today. Threat model C5 suggests 2 for trust-path files
+   (crypto, DNS, verification, release workflows) — accept 1, or raise?
 8. **Pentest** — required for a library, or does conformance harness + review suffice? (SSD-012)
 9. **API ToS** for `api.dnsid.ai` / `log.dnsid.ai` (license doesn't cover hosted endpoints).
 10. **Trademark guidance** for "DNSid" + brand approval.
@@ -225,7 +227,7 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
    section says "token lacks access", `github.token` can't read `security_and_analysis` on private
    repos — `secrets: inherit` already passes `GH_PAT`, which the workflow prefers when present.
 2. **#11** README section — agent proposes text first.
-3. **#16** threat model when un-deferred; **#17** done, **#15** dropped.
+3. ~~#16 threat model~~ done; **#17** done, **#15** dropped.
 4. When aliases go live (**#18**, by 9/22): update `policy/SECURITY.md` contact. When entity name is
    confirmed (**#1**): NOTICE + SECURITY.md prose pass across all repos. CoC done (#6).
 5. ~~Review `dnsid-sdk-compliance` itself~~ **done** (see below). Then `dnsid-cookbook`.
