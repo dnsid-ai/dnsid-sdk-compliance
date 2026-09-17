@@ -154,6 +154,9 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
     Legal §4 (binaries assessed separately) and §5 (installer script) apply to it even with source private.
     It also writes the `~/.dnsid` files the SDKs read, so decision #12 must hold for both. `dnsid-ts/README.md`
     references the CLI. Question for mgmt: public download, or internal-only at launch?
+14. **Publish `dnsid-sdk-compliance`?** See "This repo's own review". Needed only if conformance claims
+    are made publicly and should be independently reproducible.
+15. **DeepSource** (`.deepsource.toml`) — company-held account or leftover? Legal §12 row 3.
 
 ## Working agreement (user ↔ agent)
 
@@ -175,8 +178,25 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
 4. When aliases go live (**#18**, by 9/22): update `policy/SECURITY.md` contact, then CoC (**#6**) with
    `report@dnsid.ai` once the enforcement-ladder question is answered. Draft README/security.txt
    with the new addresses now; don't publish until the aliases resolve.
-5. Then review `dnsid-sdk-compliance` itself and `dnsid-cookbook` (Legal §7 "what a conformance
-   pass asserts" lives in the harness).
+5. ~~Review `dnsid-sdk-compliance` itself~~ **done** (see below). Then `dnsid-cookbook`.
+
+## This repo's own review (dnsid-sdk-compliance)
+
+Fixed on `release-readiness`: CODEOWNERS pointed at `@Identity-Digital/…` (wrong org — code-owner
+review gate had no owner to require); `codeql.yml` actions SHA-pinned; fixtures `other.com`/`ample.com`
+→ `.example` (harness 193/193 all SDKs); README "What a compliant result means" — the Legal §7 row 1
+representation, plus a note that the SDK PR gate is regression-only so green ≠ conformant. Via API:
+description/homepage set, Dependabot alerts + security updates enabled.
+
+Passing by design: shim crash or result-count mismatch aborts the run (never a false PASS); `REJ`,
+`XFAIL`, `XPASS` distinct; divergence appendix (Legal §7 rows 2–3). Ruleset has no bypass actors.
+Reusable workflows are `on: pull_request`, so fork PRs never receive `GH_PAT`. N/A: SBOM, signing,
+registry — no released artifact (NOTICE records this).
+
+Open — decision **#14 publish this repo?** Reusable workflows work from a private repo (org access
+setting). If public: `docs/release-readiness/` and `WORKING_UPDATES.md` (internal tracker, agent
+notes, file:line SDK divergences) must move out first. Decision **#15**: `.deepsource.toml` — is the
+DeepSource account company-held, or delete? Advisory: harness deps installed unpinned by `make`.
 
 ## Commands
 
