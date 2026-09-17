@@ -24,13 +24,40 @@ lib_rg() { rg -n -i --no-heading "$@" \
 cd "$dir"
 
 # --- files --------------------------------------------------------------------
-for f in LICENSE* NOTICE.txt CONTRIBUTING.md CODE_OF_CONDUCT.md .github/CODEOWNERS .github/dependabot.yml; do
+for f in LICENSE* NOTICE.txt CONTRIBUTING.md .github/CODEOWNERS .github/dependabot.yml; do
   if compgen -G "$f" >/dev/null; then ok "file: $f" "present"; else fail "file: $f" "missing (Legal §1/§12, OSS-018)"; fi
 done
+# canonical policy files: byte-identical to policy/ in this repo
 if [ -f SECURITY.md ]; then
   if cmp -s SECURITY.md "$root/policy/SECURITY.md"; then ok "SECURITY.md" "matches policy/SECURITY.md"
   else fail "SECURITY.md" "differs from dnsid-sdk-compliance/policy/SECURITY.md (VIR-009, OSS-021)"; fi
 else fail "SECURITY.md" "missing (VIR-001)"; fi
+if [ -f CODE_OF_CONDUCT.md ]; then
+  if cmp -s CODE_OF_CONDUCT.md "$root/policy/CODE_OF_CONDUCT.md"; then ok "CODE_OF_CONDUCT.md" "matches policy/CODE_OF_CONDUCT.md"
+  else fail "CODE_OF_CONDUCT.md" "differs from dnsid-sdk-compliance/policy/CODE_OF_CONDUCT.md (Legal §12)"; fi
+else fail "CODE_OF_CONDUCT.md" "missing (Legal §12, OSS-018)"; fi
+
+# --- dependency licenses (Legal §1, OSS-002) -------------------------------------------
+# Permissive allowlist; anything else (GPL/AGPL/unknown) fails. Own workspace packages excluded.
+lic_ok=""
+case $sdk in
+  go) if command -v go >/dev/null; then
+        err=$(go run github.com/google/go-licenses@v1.6.0 check ./... \
+          --allowed_licenses=Apache-2.0,MIT,BSD-2-Clause,BSD-3-Clause,ISC,MPL-2.0 2>&1 >/dev/null); rc=$?
+        lic_ok="$(grep -v '^W' <<<"$err") rc=$rc"; fi ;;
+  ts) if [ -d node_modules ] || npm ci --ignore-scripts >/dev/null 2>&1; then
+        bad=$(npm ls --all --omit=dev --parseable -ws --include-workspace-root 2>/dev/null | grep node_modules | sort -u | while read -r d; do
+          [ -f "$d/package.json" ] && jq -r 'select((.name|startswith("@dnsid-ai/"))|not) | "\(.name) \(.license // "UNKNOWN")"' "$d/package.json"; done \
+          | grep -vE ' (Apache-2\.0|MIT|BSD-[23]-Clause|ISC|0BSD|MPL-2\.0|BlueOak-1\.0\.0|CC0-1\.0|Python-2\.0|\(MIT OR [A-Za-z0-9.-]+\))$' || true)
+        lic_ok="$bad rc=$([ -z "$bad" ] && echo 0 || echo 1)"; fi ;;
+  py) if command -v uv >/dev/null; then
+        uv venv -q --clear /tmp/lic && uv pip install -q -p /tmp/lic . pip-licenses 2>/dev/null &&
+        lic_ok=$(/tmp/lic/bin/pip-licenses --ignore-packages dnsid pip-licenses --partial-match \
+          --allow-only 'Apache;MIT;BSD;ISC;MPL;Mozilla;PSF;Python Software Foundation' 2>&1 >/dev/null; echo "rc=$?"); fi ;;
+esac
+if [ -z "$lic_ok" ]; then warn "dependency licenses" "tool unavailable; skipped"
+elif [[ $lic_ok == *rc=0 ]]; then ok "dependency licenses" "all runtime deps permissive (Apache/MIT/BSD/ISC/MPL)"
+else fail "dependency licenses" "$(echo "$lic_ok" | sed 's/ *rc=[0-9]*$//' | head -3 | tr '\n' ';') (Legal §1, OSS-002)"; fi
 
 # --- release pipeline -----------------------------------------------------------
 rel=.github/workflows/release.yml

@@ -62,6 +62,16 @@ jobs:
           path: sdk
           fetch-depth: 0
 
+      # toolchains for the dependency-license check (go-licenses / npm ls / pip-licenses)
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        if: inputs.sdk == 'go'
+        with: { go-version-file: sdk/go.mod, cache: false }
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: inputs.sdk == 'ts'
+        with: { node-version: 22 }
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        if: inputs.sdk == 'py'
+
       - name: Install gitleaks
         run: |
           curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
