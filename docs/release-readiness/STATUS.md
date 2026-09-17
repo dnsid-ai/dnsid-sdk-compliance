@@ -44,6 +44,7 @@ All under `github.com/dnsid-ai`, cloned at `~/`. All **private** today.
 | `dnsid-ts` | TS SDK v0.19.1, 11 pkgs `@dnsid-ai/*` (GitHub Packages today) | `release-readiness` | #9 | pushed |
 | `dnsid-py` | Python SDK v0.19.1, PyPI `dnsid` | `release-readiness` | #4 | pushed |
 | `dnsid-cookbook` | Recipes | — | — | **not yet reviewed** |
+| `Identity-Digital/dnsid` (`~/dnsid`) | Platform monorepo: server, console, deploy, **CLI (`cmd/cli`)** | — | — | **out of scope** for the SDK review — hosted-service repo, separate org. See decision #13 |
 
 Merge order matters: SDK callers reference `sdk-release-readiness.yaml@main` in this repo.
 
@@ -148,6 +149,11 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
     is plaintext JWK, `0600`, no passphrase option, all 3 SDKs + CLI. Options: (a) accept and document
     "local provider = dev/single-host; KMS for production" — same as ssh/aws/gcloud; (b) add optional
     passphrase encryption (new crypto primitive → re-opens export review #5). Proposed: (a).
+13. **CLI release status.** The CLI lives in the private platform monorepo and ships as goreleaser
+    binaries. If those are a public download at launch, OSS-010/011/012 (signing, hashes, provenance),
+    Legal §4 (binaries assessed separately) and §5 (installer script) apply to it even with source private.
+    It also writes the `~/.dnsid` files the SDKs read, so decision #12 must hold for both. `dnsid-ts/README.md`
+    references the CLI. Question for mgmt: public download, or internal-only at launch?
 
 ## Working agreement (user ↔ agent)
 
