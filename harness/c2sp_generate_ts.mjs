@@ -1,5 +1,6 @@
 import { createPrivateKey, createPublicKey, sign as signEd25519 } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -13,10 +14,9 @@ const c2sp = await import(pathToFileURL(join(
   sdkDir,
   'packages/log-c2sp-tlog/dist/index.js',
 )).href);
-const protocol = await import(pathToFileURL(join(
-  sdkDir,
-  'packages/core/dist/index.js',
-)).href);
+const protocolEntry = ['packages/protocol/dist/index.js', 'packages/core/dist/index.js']
+  .map((p) => join(sdkDir, p)).find((p) => existsSync(p));
+const protocol = await import(pathToFileURL(protocolEntry).href);
 const corpus = JSON.parse(await readFile(process.argv[2], 'utf8'));
 
 function fixedKey(spec) {

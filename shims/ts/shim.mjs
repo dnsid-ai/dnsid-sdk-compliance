@@ -13,9 +13,10 @@ if (!sdkDir) {
   console.error('DNSID_TS_DIR is not set');
   process.exit(2);
 }
-// Monorepo layout (@identity-digital/dnsid-protocol owns DnsIdTxtRecord and
-// normalizeFQDN) first, legacy single-package layout second.
+// Monorepo layout (@dnsid-ai/protocol owns DnsIdTxtRecord and normalizeFQDN)
+// first, then the pre-rename packages/core, then legacy single-package layout.
 const candidates = [
+  join(sdkDir, 'packages', 'protocol', 'dist', 'index.js'),
   join(sdkDir, 'packages', 'core', 'dist', 'index.js'),
   join(sdkDir, 'dist', 'index.js'),
 ];
