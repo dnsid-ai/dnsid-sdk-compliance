@@ -73,8 +73,10 @@ is squash-merge residue, safe to delete.
 - Tests — registrable placeholder domains → `.example` / `.test`. **Do not rename**
   `registry.dev.dnsid.test` in py: it is a real signed testnet checkpoint origin.
 
-Expected readiness after merge: ❌ only for `CODE_OF_CONDUCT.md` (all 3) and signing/provenance
-(go, ts — skipped by decision). GitHub security features show 🟡 while repos are private.
+Expected readiness after merge: ❌ only for signing/provenance (go, ts — skipped by decision).
+`readiness.sh` now also byte-checks `CODE_OF_CONDUCT.md` and runs a **dependency-license allowlist**
+(go-licenses / `npm ls`+jq / pip-licenses; Apache/MIT/BSD/ISC/MPL pass, anything else ❌) — Legal §1 row 9,
+OSS-002. All 3 SDKs pass today. GitHub security features show 🟡 while repos are private.
 
 ## Findings snapshot (pre-PR baseline → after PRs)
 
@@ -110,7 +112,7 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
 | 3 | Secret scanning / push protection / private vuln reporting | ⏸ GHAS or public repo required; readiness flips 🟡→❌ automatically when public |
 | 4 | Org 2FA requirement | ⏸ **enterprise team enabling**. All 16 members have 2FA. `members_can_create_public_repositories=false` ✅ done |
 | 5 | Registry account ownership | 🟡 npm org `@dnsid-ai` exists, owner unverified (no npm login on this machine); PyPI `dnsid`, `dnsid-sdk`, `dnsid-ai`, `dnsid_ai`, `dnsidai` all unclaimed — **Ben setting up PyPI** |
-| 6 | CODE_OF_CONDUCT.md | ⏸ **question sent to legal** (Contributor Covenant 2.1 unmodified; enforcement ladder as written?). Not answered directly, but the thread it triggered settled the contact: use **`report@dnsid.ai`** (misconduct-report alias, being created — see #18), not `idil-bugreport@identity.digital`. Enforcement-ladder question still open. Plan: `policy/CODE_OF_CONDUCT.md` byte-checked like SECURITY.md |
+| 6 | CODE_OF_CONDUCT.md | ✅ **Legal answered**: Contributor Covenant 2.1 as written, ladder as written, contact `report@dnsid.ai` (legal may later prefer a dedicated conduct alias — one edit in `policy/`). `policy/CODE_OF_CONDUCT.md` byte-checked in `readiness.sh`; copied to go `9bbecc0`, ts `070bea8`, py `9b6cbad`, this repo `00b058b`. Alias itself not live until #18 |
 | 7 | SBOM in release.yml | ✅ in PRs |
 | 8 | Signing / provenance for go + ts | ⏭ **skipped by decision**. ts blocked on npmjs-vs-GitHub-Packages cutover (`--provenance` needs npmjs) |
 | 9 | Dep vuln scan in CI | ✅ in PRs |
@@ -130,7 +132,9 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
    Innovation Labs" (SECURITY.md), "Known Services" (legal form), `knownsystems.ai` (email aliases);
    GitHub org `dnsid-ai`. Pick one, align. **New constraint from legal**: public-facing surfaces
    (contacts, and by extension probably README/SECURITY.md prose) should not present as "Identity
-   Digital". Current SECURITY.md and NOTICE both do — needs an explicit answer on the copyright line.
+   Digital". **Legal: yes, extends to prose — repos must present as "Known".** Exact entity name
+   pending confirmation, expected **"Known Systems AI, Inc."** Once confirmed: NOTICE copyright line,
+   `policy/SECURITY.md` lines 3/37, witness `$DNSID_TEAM` placeholders, W3 NOTICE — one pass.
 2. **History** — old tags (through v0.24.0 in go) carry the former evaluation-agreement license.
    Keep history or publish clean snapshot. Local clones show 5–11 commits; confirm against origin.
 3. **CLA / DCO / neither** (Apache §5 default).
@@ -176,9 +180,8 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
    repos — `secrets: inherit` already passes `GH_PAT`, which the workflow prefers when present.
 2. **#11** README section — agent proposes text first.
 3. **#16** threat model when un-deferred; **#17** done, **#15** dropped.
-4. When aliases go live (**#18**, by 9/22): update `policy/SECURITY.md` contact, then CoC (**#6**) with
-   `report@dnsid.ai` once the enforcement-ladder question is answered. Draft README/security.txt
-   with the new addresses now; don't publish until the aliases resolve.
+4. When aliases go live (**#18**, by 9/22): update `policy/SECURITY.md` contact. When entity name is
+   confirmed (**#1**): NOTICE + SECURITY.md prose pass across all repos. CoC done (#6).
 5. ~~Review `dnsid-sdk-compliance` itself~~ **done** (see below). Then `dnsid-cookbook`.
 
 ## c2sp-ledger-witness review
