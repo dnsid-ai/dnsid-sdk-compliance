@@ -15,9 +15,10 @@ mechanically-checkable rows so they stay answered; leave a short list of decisio
 | DNSid Agent InfoSec Checklist (Identity Digital) | `~/Downloads/DNSid_Agent_InfoSec_Checklist.docx.pdf` | ~125 controls: COM, DAT, IDT, IAM, AGN, API, SSD, LOG, VIR (common); FRE (free agent); OSS (open source). Must/Should, P1/P2. |
 | OSS Release Legal & Privacy Review Form (Known Services) | `~/Downloads/OSS Release Legal Review Form.docx.pdf` | 13 sections, ~95 items: publish approval, ownership, IP, crypto/export, runtime behavior, dev data, claims, warranties, security, EU CRA, sanctions, governance, sign-off. |
 
-A per-row filled-in review (`SDK_Release_Review.md`) was produced in session 1 and then lost;
-its findings are summarized below and can be regenerated from `ci/readiness.sh` output plus
-the "Human decisions" list. Regenerate only if an auditor wants the row-by-row form.
+Row-by-row filled forms: **`REVIEW.md`**, generated from `gen_review.py` (edit the answer tables there,
+rerun `python3 gen_review.py infosec_rows.txt > REVIEW.md`). 225 rows; every one has a status and a
+pointer to `readiness.sh`, `INVENTORY.md`, `THREAT_MODEL.md`, or a `DECISIONS.md` id. This is the §13
+sign-off attachment. Tally today: 64 ⏳ pending decisions, 56 ➖ N/A, rest answered/enforced/documented.
 
 ## Scoping conclusion (important)
 
