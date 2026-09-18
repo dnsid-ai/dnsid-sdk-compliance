@@ -10,7 +10,7 @@ and to `INVENTORY.md`; nothing here is asserted that is not in those documents o
 ```
  integrator process ──┬── SDK ── system DNS resolver ──────── authoritative DNS for <domain>
    (calls verify/sign) │         ── HTTPS ──────────────────── JWKS host, status host (chosen by domain owner)
-                       │         ── HTTPS (opt-in) ────────── api.dnsid.ai, log/witness.dnsid.ai
+                       │         ── HTTPS (opt-in) ────────── api.dnsid.ai, log.dnsid.ai
                        │         ── local files (opt-in) ──── ~/.dnsid (keys, config)
                        │         ── cloud KMS (opt-in) ────── AWS / GCP
                        └── integrator's own peer connection (TLS chain, for fl=mtls binding)
@@ -24,7 +24,7 @@ Trust boundaries, from most to least trusted by the SDK:
 | Bundled trust roots (tlog public keys, witness keys) | Authenticity of `log.dnsid.*` checkpoints | Anything else |
 | DNS answer for `_dnsid.<domain>` | Location of keys/status; record signature `sg` is verified against `ek` | Freshness beyond TTL; integrity unless DNSSEC-validated resolver injected |
 | JWKS / status hosts | Content, after TLS + host pinning + size caps | Availability; being non-malicious (they are the counterparty's) |
-| Registry / log / witness | Signed evidence, checked against bundled roots | Anything unsigned |
+| Registry / log | Signed evidence (incl. witness cosignatures inside checkpoints), checked against bundled roots | Anything unsigned |
 | Counterparty input (JWT, HTTP signature, record text) | Nothing until fully parsed, bounded, and verified | Everything |
 
 **Privileged components:** none in the SDK. Private keys live in the integrator's file system (`~/.dnsid`,

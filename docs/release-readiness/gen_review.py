@@ -19,7 +19,7 @@ NA_FRE = ("➖", "N/A — free-tier controls belong to the hosted service.")
 INFOSEC = {
  "COM-001": ("📄", f"{TM} §trust boundaries: zones, what each is trusted for, no privileged components."),
  "COM-002": ("📄", f"{TM} §can/cannot; README 'Security & trust' in each SDK."),
- "COM-003": ("📄", f"{INV} network table (9 destinations, default vs opt-in). Enforced: {R} 'network destinations' allowlist."),
+ "COM-003": ("📄", f"{INV} network table (8 destinations, default vs opt-in). Enforced: {R} 'network destinations' allowlist."),
  "COM-004": ("⏳", f"{D} M4 — named security + engineering owner."),
  "COM-005": ("📄", f"{TM} §A (impersonation, DNS, key theft, replay, DoS) — 'API abuse' and 'malicious tool use' N/A for a library."),
  "COM-006": ("⏳", "Should/P2. Not mapped. Controls in place cover SSDF PO/PS/PW/RV in substance; formal mapping deferred post-launch."),

@@ -14,7 +14,7 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 |---|---|---|---|---|
 | COM-001 | Must P1 | Document the agent security architecture, trust boundaries, deployment model, and privileged components. | 📄 | `THREAT_MODEL.md` §trust boundaries: zones, what each is trusted for, no privileged components. |
 | COM-002 | Must P1 | Document exactly what the DNSid agent can and cannot do, including autonomous actions and prohibited actions. | 📄 | `THREAT_MODEL.md` §can/cannot; README 'Security & trust' in each SDK. |
-| COM-003 | Must P1 | Inventory external services, APIs, DNS infrastructure, models, tools, packages, and network destinations used by the agent. | 📄 | `INVENTORY.md` network table (9 destinations, default vs opt-in). Enforced: `ci/readiness.sh` 'network destinations' allowlist. |
+| COM-003 | Must P1 | Inventory external services, APIs, DNS infrastructure, models, tools, packages, and network destinations used by the agent. | 📄 | `INVENTORY.md` network table (8 destinations, default vs opt-in). Enforced: `ci/readiness.sh` 'network destinations' allowlist. |
 | COM-004 | Must P1 | Assign a named security owner and engineering owner for the agent. | ⏳ | `DECISIONS.md` M4 — named security + engineering owner. |
 | COM-005 | Must P1 | Complete a threat model covering agent impersonation, credential theft, DNS manipulation, API abuse, malicious tool use, and denial of service. | 📄 | `THREAT_MODEL.md` §A (impersonation, DNS, key theft, replay, DoS) — 'API abuse' and 'malicious tool use' N/A for a library. |
 | COM-006 | Should P2 | Map secure development practices to NIST SSDF and document exceptions. | ⏳ | Should/P2. Not mapped. Controls in place cover SSDF PO/PS/PW/RV in substance; formal mapping deferred post-launch. |
