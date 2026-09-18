@@ -40,7 +40,8 @@ All under `github.com/dnsid-ai`, cloned at `~/`. All **private** today.
 
 | Repo | Role | Branch | PR | Status |
 |---|---|---|---|---|
-| `dnsid-sdk-compliance` | Conformance harness + **readiness checker** | `release-readiness` | #2 | pushed, awaiting merge — **merge first** |
+| `dnsid-sdk-compliance` | Conformance harness + **readiness checker** | `release-readiness` | #2 | workflow/policy only — **merge first** |
+| `dnsid-sdk-compliance` | Tracking docs (this directory) | `release-readiness-docs` | — | split from #2 so the workflow can merge independently; open PR after push |
 | `dnsid-go` | Go SDK v0.33.1 (`github.com/dnsid-ai/dnsid-go`, `…/key/aws`) | `release-readiness` | #11 | pushed |
 | `dnsid-ts` | TS SDK v0.19.1, 11 pkgs `@dnsid-ai/*` (GitHub Packages today) | `release-readiness` | #9 | pushed |
 | `dnsid-py` | Python SDK v0.19.1, PyPI `dnsid` | `release-readiness` | #4 | pushed |
