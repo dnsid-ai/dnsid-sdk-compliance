@@ -69,6 +69,7 @@ else fail "release: workflow" "$rel missing"; fi
 unpinned=$(rg -n '^\s*-?\s*uses:\s*[^./]\S*@' .github/workflows 2>/dev/null | grep -vE '@[0-9a-f]{40}\b|uses:\s*dnsid-ai/' || true)
 [ -z "$unpinned" ] && ok "actions SHA-pinned" "all \`uses:\` pinned" || fail "actions SHA-pinned" "unpinned: $(echo "$unpinned" | wc -l | tr -d ' ') (SSD-014)"
 rg -qi 'govulncheck|npm audit|pip-audit|osv-scanner|trivy' .github/workflows && ok "CI: dependency vuln scan" "found" || fail "CI: dependency vuln scan" "no govulncheck/npm audit/pip-audit in CI (SSD-006)"
+rg -qi 'codeql-action|semgrep|gosec|bandit' .github/workflows && ok "CI: SAST" "found" || fail "CI: SAST" "no CodeQL/semgrep/gosec/bandit in CI (SSD-005)"
 
 # --- secrets --------------------------------------------------------------------
 if command -v gitleaks >/dev/null; then
