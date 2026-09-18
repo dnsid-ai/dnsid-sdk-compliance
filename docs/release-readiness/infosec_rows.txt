@@ -1,0 +1,131 @@
+COM-001|Must P1| Document the agent security architecture, trust boundaries, deployment model, and privileged components.
+COM-002|Must P1| Document exactly what the DNSid agent can and cannot do, including autonomous actions and prohibited actions.
+COM-003|Must P1| Inventory external services, APIs, DNS infrastructure, models, tools, packages, and network destinations used by the agent.
+COM-004|Must P1| Assign a named security owner and engineering owner for the agent.
+COM-005|Must P1| Complete a threat model covering agent impersonation, credential theft, DNS manipulation, API abuse, malicious tool use, and denial of service.
+COM-006|Should P2| Map secure development practices to NIST SSDF and document exceptions.
+COM-007|Must P1| Define security acceptance criteria for external release and material changes.
+DAT-001|Must P1| Document that the agent is not designed to collect PII, PHI, PCI data, customer secrets, or customer business content.
+DAT-002|Must P1| Create a data inventory identifying all data the agent does collect, generate, transmit, cache, or log.
+DAT-003|Must P1| Minimize collection to DNSid identity, operational, security, and troubleshooting data necessary for the service.
+DAT-004|Must P1| Prevent API keys, tokens, credentials, private keys, authorization headers, and secrets from being written to logs.
+DAT-005|Must P2| Define retention and deletion periods for agent telemetry, DNS events, operational logs, and security logs.
+DAT-006|Must P1| Encrypt security-sensitive data at rest where stored and protect backups containing such data.
+DAT-007|Must P1| Require TLS for all production communications and prohibit plaintext HTTP for security-relevant transactions.
+DAT-008|Should P2| Provide a way to disable nonessential telemetry where operationally feasible.
+DAT-009|Must P2| Document collection and handling of IP addresses, device identifiers, user identifiers, and similar metadata.
+DAT-010|Must P2| Validate that sample, test, and diagnostic data do not introduce real customer-sensitive data into development environments.
+IDT-001|Must P1| Assign each deployed agent instance a unique identity or uniquely distinguishable cryptographic identity.
+IDT-002|Must P1| Prevent unrelated agents from legitimately presenting the same DNSid identity.
+IDT-003|Must P1| Securely enroll and provision DNSid identities and credentials.
+IDT-004|Must P1| Verify domain, organization, or authorized operator control before binding an agent to a trusted organizational identity.
+IDT-005|Must P1| Protect private keys and agent credentials from extraction and unauthorized export.
+IDT-006|Must P1| Do not embed production credentials, API secrets, or private keys in source code, packages, examples, images, or containers.
+IDT-007|Must P1| Support key and credential rotation without requiring agent reinstallation.
+IDT-008|Must P1| Support rapid identity and credential revocation.
+IDT-009|Must P1| Define fail-secure behavior for expired, revoked, unknown, or unverifiable identities.
+IDT-010|Must P1| Protect DNS-based trust assertions from spoofing, cache poisoning, unauthorized modification, or downgrade.
+IDT-011|Should P2| Evaluate DNSSEC validation/signing where DNS records contribute materially to trust decisions.
+IDT-012|Must P1| Protect verification or signed-request flows against replay using nonces, timestamps, request IDs, or equivalent controls.
+IDT-013|Must P1| Cryptographically bind trust assertions to the specific agent identity and authorized organization/operator.
+IDT-014|Should P2| Log identity creation, binding, modification, verification failure, rotation, suspension, and revocation events.
+IAM-001|Must P1| Require strong authentication for privileged DNSid operations.
+IAM-002|Must P1| Use scoped API tokens or credentials rather than broadly privileged credentials.
+IAM-003|Must P1| Apply least privilege to agent, service, user, and administrative permissions.
+IAM-004|Must P1| Separate human administrator identity from machine/agent identity.
+IAM-005|Must P1| Require MFA for privileged human accounts and repository/release administration.
+IAM-006|Must P1| Limit the agent to only the DNSid APIs and operations required for its intended function.
+IAM-007|Must P1| Perform authorization checks independently of authentication and never rely solely on possession of an identifier.
+IAM-008|Must P1| Prevent an agent from increasing, changing, or delegating its own privileges without authorized policy enforcement.
+IAM-009|Should P2| Use short-lived credentials and automated rotation where practical.
+IAM-010|Must P1| Prevent cross-tenant and cross-organization access to identities, credentials, telemetry, and administrative functions.
+AGN-001|Must P1| Define an explicit allowlist of tools, functions, APIs, and actions available to the agent.
+AGN-002|Must P1| Prohibit arbitrary shell or command execution unless explicitly required, isolated, and approved.
+AGN-003|Must P1| Restrict arbitrary file-system access and use dedicated working directories where local file access is required.
+AGN-004|Must P1| Restrict outbound network access to required destinations where technically feasible.
+AGN-005|Must P1| Validate tool-call arguments, file paths, URLs, identifiers, and structured inputs before execution.
+AGN-006|Must P1| Treat prompts, retrieved content, external instructions, tool output, and remote data as untrusted input.
+AGN-007|Must P1| Test prompt-injection and indirect-prompt-injection resistance if an LLM influences agent actions.
+AGN-008|Must P1| Enforce authentication, authorization, identity verification, and policy outside the LLM/model decision process.
+AGN-009|Must P1| Define maximum permissions, action scope, rate limits, and execution boundaries for autonomous operation.
+AGN-010|Should P2| Require human approval for actions that materially change identity, trust bindings, credentials, or security configuration.
+AGN-011|Should P2| Sandbox higher-risk execution paths, plugins, tools, or untrusted content processing.
+AGN-012|Must P1| Ensure model/tool failures, ambiguity, or unavailable dependencies default to a safe state rather than bypassing verification.
+API-001|Must P1| Require HTTPS/TLS for all production APIs and validate server certificates correctly.
+API-002|Must P1| Authenticate all non-public API operations and explicitly identify any intentionally public endpoints.
+API-003|Must P1| Validate request schemas, types, sizes, encodings, and allowed values.
+API-004|Must P1| Protect against command, code, template, LDAP, SQL/NoSQL, and other relevant injection attacks.
+API-005|Must P1| Protect against SSRF when URLs, network locations, callbacks, webhooks, or remote resources can be supplied externally.
+API-006|Must P1| Implement rate limiting, throttling, abuse controls, and reasonable request quotas.
+API-007|Must P2| Set request size, concurrency, execution time, retry, and timeout limits.
+API-008|Must P1| Do not expose secrets, internal stack traces, sensitive configuration, or internal topology in errors.
+API-009|Should P2| Use cryptographic request signing or equivalent integrity controls for high-trust DNSid interactions where appropriate.
+API-010|Must P1| Test API authorization for object-level, function-level, and tenant-level access control failures.
+SSD-001|Must P1| Use a defined secure development lifecycle aligned to NIST SSDF or equivalent.
+SSD-002|Must P1| Enable branch protection on production and release branches.
+SSD-003|Must P1| Require MFA for developers and maintainers with repository or release privileges.
+SSD-004|Must P1| Require peer review for code changes that affect authentication, authorization, DNS, cryptography, identity, logging, or trust logic.
+SSD-005|Must P1| Run SAST in CI/CD and triage identified vulnerabilities.
+SSD-006|Must P1| Run software composition analysis/dependency vulnerability scanning.
+SSD-007|Must P1| Run secret scanning on repositories and CI/CD workflows.
+SSD-008|Must P2| Scan containers, images, installers, and release packages where applicable.
+SSD-009|Must P1| Define release handling for critical/high vulnerabilities and require documented risk acceptance for exceptions.
+SSD-010|Must P2| Track security defects through remediation and verification.
+SSD-011|Should P2| Perform DAST/API security testing for exposed DNSid services.
+SSD-012|Must P1| Perform an independent application/API penetration test before significant external release and after material architectural changes.
+SSD-013|Should P2| Perform agent-specific abuse, adversarial, and red-team testing.
+SSD-014|Must P1| Protect CI/CD credentials, runners, signing keys, deployment tokens, and release automation from unauthorized modification.
+LOG-001|Must P1| Log authentication successes, failures, lockouts, and suspicious authentication patterns.
+LOG-002|Must P1| Log DNSid identity registration, binding, modification, suspension, and deletion.
+LOG-003|Must P1| Log credential creation, rotation, revocation, and high-risk administrative actions.
+LOG-004|Must P1| Log identity verification failures and anomalous trust-validation events.
+LOG-005|Must P1| Log anomalous or abusive API activity while avoiding storage of secrets.
+LOG-006|Must P1| Implement log redaction/filtering to prevent credentials and security secrets from entering logs.
+LOG-007|Should P2| Make high-value security events exportable to enterprise SIEM/security monitoring platforms.
+LOG-008|Should P2| Alert on abnormal identity creation, verification, revocation, credential use, and API-volume patterns.
+LOG-009|Must P2| Protect security logs from unauthorized modification and define retention appropriate to incident investigation needs.
+VIR-001|Must P1| Establish and publish a vulnerability reporting process.
+VIR-002|Must P2| Publish security.txt or equivalent security contact information.
+VIR-003|Must P1| Define vulnerability severity classification, remediation targets, exception handling, and escalation.
+VIR-004|Must P1| Maintain a process for emergency security fixes and rapid distribution of critical updates.
+VIR-005|Must P1| Maintain procedures for compromised agent credentials, private keys, signing keys, and DNSid identities.
+VIR-006|Must P1| Provide the operational ability to suspend or revoke compromised identities rapidly.
+VIR-007|Must P1| Include DNSid agent compromise, impersonation, malicious fork abuse, and trust-assertion compromise in incident response scenarios.
+VIR-008|Should P2| Coordinate CVE issuance and public security advisories for qualifying vulnerabilities.
+VIR-009|Must P2| Document security update/support expectations for customers and operators.
+FRE-001|Must P1| Define which free-agent functions are anonymous, account-authenticated, agent-authenticated, or administrator-only.
+FRE-002|Must P1| Require account/domain/organization verification before issuing trust-bearing DNSid credentials.
+FRE-003|Must P1| Implement per-user, per-agent, per-IP, and/or per-organization rate limits appropriate to abuse scenarios.
+FRE-004|Must P1| Detect and respond to automated mass registration, identity enrollment, or verification abuse.
+FRE-005|Must P1| Prevent enumeration of other customers' agents, accounts, identifiers, or non-public metadata.
+FRE-006|Must P1| Test and prevent cross-account and cross-tenant access.
+FRE-007|Must P1| Implement anti-abuse monitoring for credential stuffing, registration farms, scripted abuse, and resource exhaustion.
+FRE-008|Must P1| Provide the ability to suspend abusive agents/accounts and revoke associated credentials.
+FRE-009|Must P1| Ensure free-tier users cannot reach paid, administrative, privileged, or internal capabilities through API manipulation.
+FRE-010|Should P2| Monitor abnormal registration, verification, rotation, revocation, and API-use patterns across the free tier.
+FRE-011|Should P2| Use quotas or progressive trust controls to limit impact from newly created or low-reputation accounts where appropriate.
+FRE-012|Must P1| Define abuse escalation and reinstatement procedures so suspension decisions can be investigated and reversed when appropriate.
+OSS-001|Must P1| Clearly identify the official DNSid source repository, maintainers, distribution channels, package names, and release locations.
+OSS-002|Must P1| Publish the approved open-source license and confirm all bundled dependencies are license-compatible.
+OSS-003|Must P1| Generate and publish an SBOM for official releases.
+OSS-004|Must P1| Continuously scan third-party dependencies and release artifacts for known vulnerabilities.
+OSS-005|Must P1| Pin or otherwise control security-critical dependencies and protect dependency-resolution files from unauthorized change.
+OSS-006|Must P1| Enable branch protection and restrict direct pushes to protected branches.
+OSS-007|Must P1| Require MFA for maintainers and personnel with repository, package, or release privileges.
+OSS-008|Must P1| Require pull-request review and additional security review for trust, cryptographic, authentication, DNS, and release changes.
+OSS-009|Must P1| Restrict package publishing, release creation, CI/CD modification, and signing permissions to authorized maintainers.
+OSS-010|Must P1| Cryptographically sign official release artifacts, packages, containers, or equivalent distribution artifacts where supported.
+OSS-011|Must P1| Publish hashes, signatures, or verification instructions that let users distinguish official DNSid releases from modified artifacts.
+OSS-012|Must P1| Generate verifiable build provenance for official release artifacts and protect the build pipeline.
+OSS-013|Must P1| Clearly distinguish official DNSid builds from community forks, modified builds, and unofficial package distributions.
+OSS-014|Must P1| Never include production secrets, private keys, signing keys, privileged credentials, or internal-only configuration in the public repository.
+OSS-015|Must P1| Ensure a modified or forked agent does not automatically inherit trust associated with the official DNSid distribution.
+OSS-016|Must P1| Ensure cloning/forking the software cannot clone, export, or mint another agent's trusted DNSid identity.
+OSS-017|Must P1| Separate software authenticity (official build) from agent identity and organizational authorization in the trust model.
+OSS-018|Must P1| Define contribution requirements, code-owner review, security review, and maintainer approval for external contributions.
+OSS-019|Must P1| Define dependency update, patch, deprecation, and end-of-support processes.
+OSS-020|Must P1| Publish SECURITY.md and vulnerability reporting instructions for the open-source project.
+OSS-021|Should P2| Document supported versions, security-support lifecycle, and how users receive security fixes.
+OSS-022|Should P2| Evaluate reproducible builds or equivalent measures that improve verification of release integrity.
+OSS-023|Must P1| Threat-model malicious contributor, dependency confusion, typosquatting, compromised maintainer, and compromised CI/CD scenarios.
+OSS-024|Must P1| Protect release provenance and signing mechanisms so compromise of the public repository alone cannot silently create a trusted official release.
