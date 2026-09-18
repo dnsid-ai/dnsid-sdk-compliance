@@ -3,7 +3,8 @@
 # of the InfoSec checklist and the OSS legal review form. Human decisions (CRA,
 # CLA, owners, export record) are not here on purpose.
 #
-# Usage: readiness.sh <go|ts|py> <sdk_dir> <out.md>
+# Usage: readiness.sh <go|ts|py|cookbook> <repo_dir> <out.md>
+#        cookbook = docs/recipes repo: no published package, so release/vuln-scan/license rows are N/A.
 # Env:   GH_TOKEN (optional) enables the GitHub-settings section.
 # Exit:  1 if any check is FAIL. WARN never fails the build.
 set -uo pipefail
@@ -55,20 +56,22 @@ case $sdk in
         lic_ok=$(/tmp/lic/bin/pip-licenses --ignore-packages dnsid pip-licenses --partial-match \
           --allow-only 'Apache;MIT;BSD;ISC;MPL;Mozilla;PSF;Python Software Foundation' 2>&1 >/dev/null; echo "rc=$?"); fi ;;
 esac
-if [ -z "$lic_ok" ]; then warn "dependency licenses" "tool unavailable; skipped"
+if [ "$sdk" = cookbook ]; then ok "dependency licenses" "N/A — recipes fetch deps at run time, nothing redistributed (NOTICE.txt)"
+elif [ -z "$lic_ok" ]; then warn "dependency licenses" "tool unavailable; skipped"
 elif [[ $lic_ok == *rc=0 ]]; then ok "dependency licenses" "all runtime deps permissive (Apache/MIT/BSD/ISC/MPL)"
 else fail "dependency licenses" "$(echo "$lic_ok" | sed 's/ *rc=[0-9]*$//' | head -3 | tr '\n' ';') (Legal §1, OSS-002)"; fi
 
 # --- release pipeline -----------------------------------------------------------
 rel=.github/workflows/release.yml
-if [ -f "$rel" ]; then
+if [ "$sdk" = cookbook ]; then ok "release: pipeline" "N/A — no published artifact"
+elif [ -f "$rel" ]; then
   rg -qi 'sbom-action|syft|cyclonedx' "$rel" && ok "release: SBOM step" "found in $rel" || fail "release: SBOM step" "none in $rel (OSS-003, Legal §1 CRA driver)"
   rg -qi 'attest-build-provenance|--provenance|cosign|sigstore' "$rel" && ok "release: signing/provenance" "found in $rel" || fail "release: signing/provenance" "none in $rel (OSS-010/011/012)"
 else fail "release: workflow" "$rel missing"; fi
 # pinned = 40-hex SHA; our own reusable workflows (dnsid-ai/*) and local ./ paths are exempt
 unpinned=$(rg -n '^\s*-?\s*uses:\s*[^./]\S*@' .github/workflows 2>/dev/null | grep -vE '@[0-9a-f]{40}\b|uses:\s*dnsid-ai/' || true)
 [ -z "$unpinned" ] && ok "actions SHA-pinned" "all \`uses:\` pinned" || fail "actions SHA-pinned" "unpinned: $(echo "$unpinned" | wc -l | tr -d ' ') (SSD-014)"
-rg -qi 'govulncheck|npm audit|pip-audit|osv-scanner|trivy' .github/workflows && ok "CI: dependency vuln scan" "found" || fail "CI: dependency vuln scan" "no govulncheck/npm audit/pip-audit in CI (SSD-006)"
+[ "$sdk" = cookbook ] && ok "CI: dependency vuln scan" "N/A — Dependabot alerts cover recipe manifests" || rg -qi 'govulncheck|npm audit|pip-audit|osv-scanner|trivy' .github/workflows && ok "CI: dependency vuln scan" "found" || fail "CI: dependency vuln scan" "no govulncheck/npm audit/pip-audit in CI (SSD-006)"
 rg -qi 'codeql-action|semgrep|gosec|bandit' .github/workflows && ok "CI: SAST" "found" || fail "CI: SAST" "no CodeQL/semgrep/gosec/bandit in CI (SSD-005)"
 
 # --- secrets --------------------------------------------------------------------
@@ -81,10 +84,12 @@ else warn "gitleaks" "not installed; skipped"; fi
 hits=$(lib_rg 'InsecureSkipVerify\s*:\s*true|rejectUnauthorized:\s*false|verify\s*=\s*False|CERT_NONE' || true)
 [ -z "$hits" ] && ok "TLS verification never disabled" "" || fail "TLS verification never disabled" "$(echo "$hits" | head -3 | tr '\n' ';') (DAT-007, API-001)"
 hits=$(lib_rg 'telemetry|analytics|sentry|posthog|segment\.io|mixpanel' || true)
-[ -z "$hits" ] && ok "no telemetry" "no telemetry/analytics libraries or strings" || fail "no telemetry" "$(echo "$hits" | head -3 | tr '\n' ';') (DAT-003, Legal §5)"
+if [ -z "$hits" ]; then ok "no telemetry" "no telemetry/analytics libraries or strings"
+elif [ "$sdk" = cookbook ]; then warn "no telemetry" "recipe-level instrumentation (must be disclosed in that recipe's README, data goes to the user's own account): $(echo "$hits" | head -3 | tr '\n' ';')"
+else fail "no telemetry" "$(echo "$hits" | head -3 | tr '\n' ';') (DAT-003, Legal §5)"; fi
 hits=$(lib_rg '\baes\b|\bjwe\b|ecdh|hpke|chacha|xchacha' || true)
 [ -z "$hits" ] && ok "signature-only cryptography" "no confidentiality primitives; export classification unchanged" || fail "signature-only cryptography" "encryption primitive introduced — re-run export review (Legal §4): $(echo "$hits" | head -2 | tr '\n' ';')"
-hits=$(lib_rg -o 'https?://[a-zA-Z0-9._-]+' | sed -E 's#.*https?://##' | sort -u | grep -vE '^(docs\.dnsid\.ai|api\.dnsid\.(ai|dev)|log\.dnsid\.(ai|dev)|witness\.dnsid\.(ai|dev)|c2sp\.org|github\.com|pkg\.go\.dev|datatracker\.ietf\.org|www\.rfc-editor\.org|.*\.example(\.[a-z]+)?\.?|.*\.test|.*\.invalid|localhost|\.\.\.)$' || true)
+hits=$(lib_rg -o 'https?://[a-zA-Z0-9._-]+' | sed -E 's#.*https?://##' | sort -u | grep -vE '^(docs\.dnsid\.ai|app\.dnsid\.ai|api\.dnsid\.(ai|dev)|oidc\.dnsid\.(ai|dev)|log\.dnsid\.(ai|dev)|witness\.dnsid\.(ai|dev)|c2sp\.org|github\.com|pkg\.go\.dev|datatracker\.ietf\.org|www\.rfc-editor\.org|.*\.example(\.[a-z]+)?\.?|.*\.test|.*\.invalid|localhost|\.\.\.)$' || true)
 [ -z "$hits" ] && ok "network destinations" "only first-party/spec/RFC 2606 hosts in library source" || warn "network destinations" "unlisted hosts, add to COM-003 inventory or allowlist: $(echo "$hits" | tr '\n' ' ')"
 
 # --- test fixtures ----------------------------------------------------------------
