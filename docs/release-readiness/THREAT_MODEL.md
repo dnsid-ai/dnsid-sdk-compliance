@@ -75,8 +75,8 @@ SDK exposes but cannot make for them.
 | C1 | **Malicious fork / modified build** presented as official | Users install a backdoored SDK | Official sources named in README; SBOM per release; py provenance attestation; forks cannot inherit identity (see D) | go/ts release signing skipped (decision, fix #8). OSS-011 hashes rely on registry checksums (Go sumdb, npm/PyPI hashes) |
 | C2 | **Dependency confusion / typosquat** | Wrong package installed | Scoped npm names `@dnsid-ai/*`; Go module path is the repo URL; PyPI `dnsid` claimed (#5); confusable names to reserve (#13); README names the exact package | Reservation incomplete — #13 |
 | C3 | **Compromised dependency** | Malicious code in the trust path | Lockfiles committed; Dependabot alerts + security updates on; `govulncheck` / `npm audit` / `pip-audit` in CI; license allowlist in readiness | Zero-day in a dep until advisory. Small dep surface: go ≈15, py 12, ts 109 (mostly AWS SDK, opt-in package) |
-| C4 | **Malicious contributor** | Backdoor merged | Ruleset: PR required, CODEOWNER review, extra approval for unattributed changes, signed commits, no bypass actors; CodeQL; gitleaks; readiness gate on PR; conformance regression gate | CLA/DCO undecided (#3). Review quality is human |
-| C5 | **Compromised maintainer account** | Push/release as maintainer | All 16 org members on 2FA; signed commits required; no ruleset bypass; publish restricted to release automation (`release/next` PRs) | Org-level 2FA enforcement pending enterprise (#4). Single maintainer approval suffices today (`required_approving_review_count: 1`) |
+| C4 | **Malicious contributor** | Backdoor merged | Ruleset: PR required, CODEOWNER review, extra approval for unattributed changes, signed commits, no bypass actors; CodeQL (all repos, added in sanity pass); gitleaks; readiness gate on PR; conformance regression gate | CLA/DCO undecided (#3). Review quality is human |
+| C5 | **Compromised maintainer account** | Push/release as maintainer | Org-level 2FA enforced, 18/18 members; signed commits required; no ruleset bypass; publish restricted to release automation (`release/next` PRs) | Single maintainer approval suffices today (`required_approving_review_count: 1`) |
 | C6 | **Compromised CI / release pipeline** | Poisoned artifact with a valid-looking release | All actions SHA-pinned (readiness ❌ otherwise); reusable workflows `on: pull_request` so forks get no secrets; GitHub-hosted runners; SBOM generated in-pipeline | Repo compromise + CI compromise together could still publish — OSS-024 wants signing keys outside the repo; go/ts signing skipped (#8) |
 | C7 | **Secrets in history** | Credential leak on publish | gitleaks full history in readiness, clean on all repos; `IDT-006` grep | History-vs-snapshot decision #2 |
 
@@ -106,6 +106,5 @@ the record's own keys.
 | go/ts release signing and provenance (C1, C6) | Fix #8 (skipped by decision) |
 | Independent pentest of verification path (A8) | Decision #8 |
 | Confusable package names (C2) | Fix #13 |
-| Org-level 2FA enforcement (C5) | Fix #4 |
 | Single-approver merges (C5) | Consider `required_approving_review_count: 2` for trust-path files — not raised before; add to decision #7 |
 | Named security owner for advisory response (all) | Decision #7 |

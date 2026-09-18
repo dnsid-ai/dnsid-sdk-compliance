@@ -62,7 +62,7 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 | IAM-002 | Must P1 | Use scoped API tokens or credentials rather than broadly privileged credentials. | ➖ | N/A for SDK libraries — hosted-service control. Belongs to the registry/console review. See `STATUS.md` scoping. |
 | IAM-003 | Must P1 | Apply least privilege to agent, service, user, and administrative permissions. | ➖ | N/A for SDK libraries — hosted-service control. Belongs to the registry/console review. See `STATUS.md` scoping. |
 | IAM-004 | Must P1 | Separate human administrator identity from machine/agent identity. | ➖ | N/A for SDK libraries — hosted-service control. Belongs to the registry/console review. See `STATUS.md` scoping. |
-| IAM-005 | Must P1 | Require MFA for privileged human accounts and repository/release administration. | ⏳ | All org members on 2FA; org-level enforcement pending enterprise → `DECISIONS.md` E4. |
+| IAM-005 | Must P1 | Require MFA for privileged human accounts and repository/release administration. | ✅ | Org-level 2FA required (`two_factor_requirement_enabled=true`), 18/18 members. |
 | IAM-006 | Must P1 | Limit the agent to only the DNSid APIs and operations required for its intended function. | ➖ | N/A for SDK libraries — hosted-service control. Belongs to the registry/console review. See `STATUS.md` scoping. |
 | IAM-007 | Must P1 | Perform authorization checks independently of authentication and never rely solely on possession of an identifier. | ➖ | N/A for SDK libraries — hosted-service control. Belongs to the registry/console review. See `STATUS.md` scoping. |
 | IAM-008 | Must P1 | Prevent an agent from increasing, changing, or delegating its own privileges without authorized policy enforcement. | ➖ | N/A for SDK libraries — hosted-service control. Belongs to the registry/console review. See `STATUS.md` scoping. |
@@ -107,11 +107,11 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 |---|---|---|---|---|
 | SSD-001 | Must P1 | Use a defined secure development lifecycle aligned to NIST SSDF or equivalent. | ⏳ | Practices in place (review, CI gates, scanning, threat model); formal SDL document deferred with COM-006. |
 | SSD-002 | Must P1 | Enable branch protection on production and release branches. | 🔧 | `ci/readiness.sh` GitHub ruleset check: PR + code-owner review + signed commits + no force-push/delete, no bypass. |
-| SSD-003 | Must P1 | Require MFA for developers and maintainers with repository or release privileges. | ⏳ | Members all 2FA; org enforcement → `DECISIONS.md` E4. |
+| SSD-003 | Must P1 | Require MFA for developers and maintainers with repository or release privileges. | ✅ | Org-level 2FA required; verified via API. |
 | SSD-004 | Must P1 | Require peer review for code changes that affect authentication, authorization, DNS, cryptography, identity, logging, or trust logic. | 🔧 | CODEOWNERS on `*` + ruleset `require_code_owner_review`. Second reviewer for trust-path files → `DECISIONS.md` M9. |
-| SSD-005 | Must P1 | Run SAST in CI/CD and triage identified vulnerabilities. | ✅ | CodeQL enabled on all repos (`code_security: enabled`). |
+| SSD-005 | Must P1 | Run SAST in CI/CD and triage identified vulnerabilities. | 🔧 | CodeQL workflow (SHA-pinned) in every repo — added to SDKs in sanity pass; `ci/readiness.sh` 'CI: SAST' fails without it. |
 | SSD-006 | Must P1 | Run software composition analysis/dependency vulnerability scanning. | 🔧 | `ci/readiness.sh` 'CI: dependency vuln scan' — govulncheck / npm audit / pip-audit. 0 findings today. |
-| SSD-007 | Must P1 | Run secret scanning on repositories and CI/CD workflows. | 🔧 | gitleaks full history in `ci/readiness.sh`; GitHub secret scanning + push protection → `DECISIONS.md` E4 (needs GHAS or public). |
+| SSD-007 | Must P1 | Run secret scanning on repositories and CI/CD workflows. | 🔧 | gitleaks full history in `ci/readiness.sh`; GitHub secret scanning + push protection flip on when repos go public (fix #3). |
 | SSD-008 | Must P2 | Scan containers, images, installers, and release packages where applicable. | ➖ | No containers/installers for SDKs. Release packages covered by dep scan + SBOM. Witness image: separate review. |
 | SSD-009 | Must P1 | Define release handling for critical/high vulnerabilities and require documented risk acceptance for exceptions. | ⏳ | Severity → fix targets in `SECURITY-fixes-section.draft.md`; numbers → `DECISIONS.md` L8. |
 | SSD-010 | Must P2 | Track security defects through remediation and verification. | 📄 | GitHub Security Advisories + Dependabot alerts track findings to fixed version. |
@@ -175,7 +175,7 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 | OSS-004 | Must P1 | Continuously scan third-party dependencies and release artifacts for known vulnerabilities. | 🔧 | Dependabot alerts + security updates enabled; CI vuln scan on every PR; weekly readiness cron. |
 | OSS-005 | Must P1 | Pin or otherwise control security-critical dependencies and protect dependency-resolution files from unauthorized change. | 🔧 | Lockfiles committed (go.sum, package-lock, uv.lock); actions SHA-pinned; CODEOWNERS covers lockfiles. |
 | OSS-006 | Must P1 | Enable branch protection and restrict direct pushes to protected branches. | 🔧 | `ci/readiness.sh` ruleset check. |
-| OSS-007 | Must P1 | Require MFA for maintainers and personnel with repository, package, or release privileges. | ⏳ | → `DECISIONS.md` E4 (org-level 2FA). |
+| OSS-007 | Must P1 | Require MFA for maintainers and personnel with repository, package, or release privileges. | ✅ | Org-level 2FA required; registry-account 2FA → E2. |
 | OSS-008 | Must P1 | Require pull-request review and additional security review for trust, cryptographic, authentication, DNS, and release changes. | 🔧 | Ruleset + CODEOWNERS. Trust-path double review → `DECISIONS.md` M9. |
 | OSS-009 | Must P1 | Restrict package publishing, release creation, CI/CD modification, and signing permissions to authorized maintainers. | 📄 | Release via automation PRs merged under ruleset; registry accounts → `DECISIONS.md` E2. |
 | OSS-010 | Must P1 | Cryptographically sign official release artifacts, packages, containers, or equivalent distribution artifacts where supported. | ⏳ | py: provenance ✅. go/ts: skipped for launch → `DECISIONS.md` E5. `ci/readiness.sh` shows ❌ until done. |
@@ -360,8 +360,8 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 
 | Status | Rows |
 |---|---|
-| ✅ | 26 |
-| 🔧 | 29 |
+| ✅ | 28 |
+| 🔧 | 30 |
 | 📄 | 50 |
-| ⏳ | 64 |
+| ⏳ | 61 |
 | ➖ | 56 |
