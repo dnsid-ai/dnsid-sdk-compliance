@@ -67,6 +67,13 @@ The fixture schema and the full list of supported operations are documented in
 - We recommend setting up local signed commits before contributing. Signed commits are the target
   setup for this repository, and repository policy may enable enforcement later.
 
+## Licensing of contributions
+
+This project does not use a CLA or DCO. By submitting a contribution you agree that it is licensed
+under the [Apache License 2.0](LICENSE.txt) like the rest of the repository (Apache-2.0 §5: inbound =
+outbound). Only contribute code you wrote or have the right to license this way; do not copy code from
+sources under other licenses.
+
 ## Signed commits
 
 GitHub web UI commits are signed by GitHub automatically. Commits you create locally with the Git
