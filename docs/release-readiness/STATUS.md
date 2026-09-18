@@ -292,8 +292,8 @@ homepage, Dependabot alerts + security updates.
 and didn't say so. Disclosure note added to the recipe README (Legal §5 row 4). `readiness.sh` reports telemetry
 hits as 🟡 for the cookbook target (recipe-level instrumentation, must be disclosed) instead of ❌.
 
-**Open**: `FIXUPS.md` (migration tracker referencing `~/` checkouts), `plans/`, `CLAUDE.md` — internal working
-docs; keep, move, or delete before publish (Legal §1 row 2). CODEOWNERS team assumed same as SDKs — confirm.
+**Open**: `plans/`, `CLAUDE.md` — internal working docs; keep, move, or delete before publish (Legal §1 row 2).
+`FIXUPS.md` deleted by decision. CODEOWNERS team assumed same as SDKs — confirm.
 `.deepsource.toml` → E6. Readiness: exit 0, advisories only (vendor hosts in recipes).
 
 ## This repo's own review (dnsid-sdk-compliance)
