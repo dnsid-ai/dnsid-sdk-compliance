@@ -38,6 +38,26 @@ Legend: 🔴 blocks publish · 🟡 blocks a specific file or sign-off row · �
 | L14 ⚪ | **Docs site license and privacy notice.** License for prose at `docs.dnsid.ai`; cookie/analytics review and privacy notice for the site. | Legal §1 row 12, §6 row 2 | CC-BY-4.0 for docs; site review by whoever owns the site. | Docs site, not the SDKs |
 | L15 ⚪ | **Open source policy.** Does one exist? If not, the form itself says this review is the policy for this release. | Legal §1 row 16 | Record "no standing policy; this review serves." | — |
 
+### Legal answers received (round 1)
+
+| # | Answer | Recorded as | Follow-up |
+|---|---|---|---|
+| L1 | Name is "Known Systems AI, Inc.", final confirmation expected end of week | ✅ pending confirmation | Entity pass staged; apply on confirmation |
+| L2 | Employment covers all contributors | ✅ | **Ambiguity:** AI-assisted-code policy (Legal §2 row 4) not explicitly addressed — treat as covered by the same answer, or ask? |
+| L3 | "There is, and we are aware. No blocker." | ✅ cleared | **Ambiguity:** record *what* exists (patent filing? trade secret?) for the form row — one line from legal |
+| L4 | None | ✅ | — |
+| L5 | "Employee/contractor agreement covers all contributions" | ⚠️ answers current contributors, **not the question** | The question was intake for *external* contributors after publish: CLA / DCO / neither. Re-ask; default DCO stands |
+| L6 | Not a blocker; pending work | ⏳ legal to write the record | Nothing for engineering |
+| L7 | Not a blocker; post-launch | ⏳ deferred by legal | **Flag:** CRA reporting obligation (actively exploited vulns → ENISA) has been live since 11 Sep 2026; deferral is a recorded decision, but E3 (named reporting contact) still needs a person |
+| L8 | "Reviewed, not needed" | ⚠️ ambiguous | Either (a) the proposed defaults are accepted and no further numbers are needed, or (b) no commitments should be published at all. (b) conflicts with CRA support-period expectation and leaves §9 rows 2–4 unanswered. **Confirm (a)** — then SECURITY.md section finalizes with the defaults |
+| L9 | Geo-blocking for embargoed regions | ✅ partial | This is the hosted-service answer. Repo publication and contributions-from-restricted-jurisdictions rows still need a one-line position |
+| L10 | API ToS drafted and sent | ✅ in progress | Link from README "Hosted endpoints" paragraph once published |
+| L11 | N/A | ✅ | Read as: no trademark claimed on "DNSid", so no usage guidance needed. Legal §13 row 4 (brand approval for names) — assume satisfied by this answer |
+| L12 | Confirmed `report@dnsid.ai` | ✅ | — |
+| L13 | Confirmed | ✅ | — |
+| L14 | CC-BY-4.0 | ✅ | Docs-site owner to add the license statement; not in SDK repos |
+| L15 | Confirmed | ✅ | Read as: a policy exists (or this review serves). Nothing to do |
+
 ## Management / product
 
 | # | Question | Why | Proposed default | Blocks |

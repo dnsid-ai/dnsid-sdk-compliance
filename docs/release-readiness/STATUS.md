@@ -112,7 +112,7 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
 | 3 | Secret scanning / push protection / private vuln reporting | ⏸ GHAS or public repo required; readiness flips 🟡→❌ automatically when public |
 | 4 | Org 2FA requirement | ⏸ **enterprise team enabling**. All 16 members have 2FA. `members_can_create_public_repositories=false` ✅ done |
 | 5 | Registry account ownership | 🟡 npm org `@dnsid-ai` exists, owner unverified (no npm login on this machine); PyPI `dnsid`, `dnsid-sdk`, `dnsid-ai`, `dnsid_ai`, `dnsidai` all unclaimed — **Ben setting up PyPI** |
-| 6 | CODE_OF_CONDUCT.md | ✅ **Legal answered**: Contributor Covenant 2.1 as written, ladder as written, contact `report@dnsid.ai` (legal may later prefer a dedicated conduct alias — one edit in `policy/`). `policy/CODE_OF_CONDUCT.md` byte-checked in `readiness.sh`; copied to go `9bbecc0`, ts `070bea8`, py `9b6cbad`, this repo `00b058b`. Alias itself not live until #18 |
+| 6 | CODE_OF_CONDUCT.md | ✅ **Legal answered** (contact `report@dnsid.ai` re-confirmed L12): Contributor Covenant 2.1 as written, ladder as written, contact `report@dnsid.ai` (legal may later prefer a dedicated conduct alias — one edit in `policy/`). `policy/CODE_OF_CONDUCT.md` byte-checked in `readiness.sh`; copied to go `9bbecc0`, ts `070bea8`, py `9b6cbad`, this repo `00b058b`. Alias itself not live until #18 |
 | 7 | SBOM in release.yml | ✅ in PRs |
 | 8 | Signing / provenance for go + ts | ⏭ **skipped by decision**. ts blocked on npmjs-vs-GitHub-Packages cutover (`--provenance` needs npmjs) |
 | 9 | Dep vuln scan in CI | ✅ in PRs |
@@ -133,7 +133,7 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
 > 11→L14, 12→M6, 13→M3, 14→M7, 15→E6, 16→L8, 17→L13, 18→L3, 19→L4, 20→L9, 21→L6, 22→M8, 23→L15, 24→E6;
 > fix-list 3/4→E4, 5/13→E2, 8→E5, 14→E7, 18→E1, CoC alias→L12. Update both when an answer lands.
 
-1. **Publishing entity** — names in use: "Identity Digital Inc." (NOTICE), "Identity Digital
+1. ✅ **Publishing entity** — "Known Systems AI, Inc." (final confirmation end of week). — names in use: "Identity Digital Inc." (NOTICE), "Identity Digital
    Innovation Labs" (SECURITY.md), "Known Services" (legal form), `knownsystems.ai` (email aliases);
    GitHub org `dnsid-ai`. Pick one, align. **New constraint from legal**: public-facing surfaces
    (contacts, and by extension probably README/SECURITY.md prose) should not present as "Identity
@@ -142,21 +142,21 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
    `policy/SECURITY.md` lines 3/37, witness `$DNSID_TEAM` placeholders, W3 NOTICE — one pass.
 2. **History** — old tags (through v0.24.0 in go) carry the former evaluation-agreement license.
    Keep history or publish clean snapshot. Local clones show 5–11 commits; confirm against origin.
-3. **CLA / DCO / neither** (Apache §5 default).
-4. **CRA category** — SDK drives adoption of `api.dnsid.ai`; form itself says that's a poor fit for
+3. ⚠️ **CLA / DCO / neither** — legal's reply answered current-contributor IP, not intake; re-ask (L5). (Apache §5 default).
+4. ⏳ **CRA category** — legal: not a blocker, post-launch. Reporting obligation already live → E3 still needs a person. — SDK drives adoption of `api.dnsid.ai`; form itself says that's a poor fit for
    "steward" → likely **manufacturer**. Reporting obligations live since 11 Sep 2026; needs a named
    ENISA reporting contact and a published security-update support period.
-5. **Export classification record** — facts support decontrolled (signature-only, standard algorithms).
-6. **Contributor IP** — Ben Guidarelli and Gabriel Kuettel both committed under personal emails;
+5. ⏳ **Export classification record** — legal: pending work, not a blocker. — facts support decontrolled (signature-only, standard algorithms).
+6. ✅ **Contributor IP** — employment covers all. AI-assisted-code policy not explicitly answered (L2). — Ben Guidarelli and Gabriel Kuettel both committed under personal emails;
    confirm employment/assignment. Repos contain `AGENTS.md`/`CLAUDE.md` → confirm AI-assisted-code policy.
 7. **Named security owner + engineering owner** (COM-004). Team today: `@dnsid-ai/sdk-maintainers` =
    winder, jmelloy, barnjamin, wolfgangmeyers, JasonWeathersby, starlightromero, gabrielkuettel.
    Also: ruleset requires **1** approving review today. Threat model C5 suggests 2 for trust-path files
    (crypto, DNS, verification, release workflows) — accept 1, or raise?
 8. **Pentest** — required for a library, or does conformance harness + review suffice? (SSD-012)
-9. **API ToS** for `api.dnsid.ai` / `log.dnsid.ai` (license doesn't cover hosted endpoints).
-10. **Trademark guidance** for "DNSid" + brand approval.
-11. **Docs license** for `docs.dnsid.ai` (CC-BY-4.0 customary); docs-site cookies/privacy notice.
+9. ✅ **API ToS** — drafted and sent by legal; link from READMEs when published. for `api.dnsid.ai` / `log.dnsid.ai` (license doesn't cover hosted endpoints).
+10. ✅ **Trademark guidance** — legal: N/A (no mark claimed). for "DNSid" + brand approval.
+11. ✅ **Docs license** — CC-BY-4.0 confirmed; site owner to apply. for `docs.dnsid.ai` (CC-BY-4.0 customary); docs-site cookies/privacy notice.
 12. **Local private keys unencrypted at rest** (DAT-006 Must/P1, IDT-005). `~/.dnsid/<domain>/keys.json`
     is plaintext JWK, `0600`, no passphrase option, all 3 SDKs + CLI. Options: (a) accept and document
     "local provider = dev/single-host; KMS for production" — same as ssh/aws/gcloud; (b) add optional
@@ -169,7 +169,7 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
 14. **Publish `dnsid-sdk-compliance`?** See "This repo's own review". Needed only if conformance claims
     are made publicly and should be independently reproducible.
 15. **DeepSource** (`.deepsource.toml`) — company-held account or leftover? Legal §12 row 3.
-16. **Security-process numbers** — needed to finish `SECURITY-fixes-section.draft.md` (then it goes into
+16. ⚠️ **Security-process numbers** — legal: "reviewed, not needed"; confirm this means defaults accepted (L8). — needed to finish `SECURITY-fixes-section.draft.md` (then it goes into
     canonical SECURITY.md and propagates). Legal §8 row 5, §9 rows 2–4, §12 row 4; VIR-003/004/009, OSS-019/021, SSD-009.
     - **16a** fix-time targets by severity (proposed Critical 7d / High 30d / Medium 90d)
     - **16b** security-update support period (CRA: ≥5 years or a stated shorter lifetime; proposed 5y from 1.0 or 2y from last release)
@@ -177,14 +177,14 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
     - **16d** end-of-life notice period (proposed 6 months)
     - **16e** is there, or will there be, paid support? (changes the support sentence and confirms CRA manufacturer in #4)
     - Also record as deliberate: existing "acknowledge in 3 business days / assess in 14 days" commitment (Legal §9 row 2).
-17. **IETF participation obligations** (Legal §3 rows 3, 6). The protocol is `draft-ihsanullah-dnsid`. IETF BCP 79
+17. ✅ **IETF participation obligations** — confirmed. (Legal §3 rows 3, 6). The protocol is `draft-ihsanullah-dnsid`. IETF BCP 79
     puts IPR-disclosure duties on participants personally; the Note Well covers competition-law conduct. Confirm the
     draft authors/contributors have done the IPR disclosure (or that there is nothing to disclose) and know the rules.
-18. **Trade secret / patent position** (Legal §1 row 5, §3 row 5). Is anything in the SDKs relied on as confidential
+18. ✅ **Trade secret / patent position** — "there is, and we are aware, no blocker"; record what (L3). (Legal §1 row 5, §3 row 5). Is anything in the SDKs relied on as confidential
     know-how? Any filed or intended patent that reads on the published implementation? Publication creates prior art.
-19. **Funding and restrictive agreements** (Legal §2 rows 3, 5). Was any of this customer- or grant-funded? Does
+19. ✅ **Funding and restrictive agreements** — none. (Legal §2 rows 3, 5). Was any of this customer- or grant-funded? Does
     any customer/partner/exclusivity agreement restrict publication? Adjacent to #2 (the old evaluation-agreement license).
-20. **Sanctions position** (Legal §11, all four rows). Legal to record: (a) publication of OSS vs. provision of the
+20. ✅/partial **Sanctions position** — geo-blocking on the service; repo/contribution rows still need a line (L9). (Legal §11, all four rows). Legal to record: (a) publication of OSS vs. provision of the
     hosted service are different acts; (b) gated components = `api.dnsid.ai` accounts, handled under service terms;
     (c) GitHub/npm/PyPI/Go proxy enforce their own sanctions posture; (d) contributions from restricted jurisdictions —
     accept / refuse / case-by-case.
@@ -193,7 +193,7 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
 22. **Governance statement** (Legal §12 row 1). Mechanism exists (CODEOWNERS + ruleset = who merges). Missing: who may
     speak for the project publicly, and a sentence that issue-thread statements by maintainers are not company
     commitments. Half a page in CONTRIBUTING or a `GOVERNANCE.md`; needs the owner from #7.
-23. **Open source policy** (Legal §1 row 16). Does the company have one? If not, the form says this review *is* the
+23. ✅ **Open source policy** — confirmed. (Legal §1 row 16). Does the company have one? If not, the form says this review *is* the
     policy for this release — record that.
 24. **Third-party service accounts** (Legal §12 row 3). GitHub org `dnsid-ai`, npm `@dnsid-ai`, PyPI, DeepSource (#15),
     any CI/SaaS — who accepted the terms, is each held by a company account, and what happens when that person leaves.
