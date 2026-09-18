@@ -42,7 +42,7 @@ Legend: 🔴 blocks publish · 🟡 blocks a specific file or sign-off row · �
 
 | # | Answer | Recorded as | Follow-up |
 |---|---|---|---|
-| L1 | Name is "Known Systems AI, Inc.", final confirmation expected end of week | ✅ pending confirmation | Entity pass staged; apply on confirmation |
+| L1 | Name is "Known Systems AI, Inc.", final confirmation expected end of week | ✅ pending confirmation | **Applied** to NOTICE, SECURITY.md, package metadata, witness doc. **Open wording question:** code comments and API docs say "Identity Digital-managed DNSid logs" (~25 places) when describing who operates `log.dnsid.ai`. Replace with "Known Systems-managed" or the entity-neutral "DNSid-managed" (matches the existing function name `NewDnsidManagedVerificationRegistry`)? Proposed: **DNSid-managed** |
 | L2 | Employment covers all contributors | ✅ | **Ambiguity:** AI-assisted-code policy (Legal §2 row 4) not explicitly addressed — treat as covered by the same answer, or ask? |
 | L3 | "There is, and we are aware. No blocker." | ✅ cleared | **Ambiguity:** record *what* exists (patent filing? trade secret?) for the form row — one line from legal |
 | L4 | None | ✅ | — |
