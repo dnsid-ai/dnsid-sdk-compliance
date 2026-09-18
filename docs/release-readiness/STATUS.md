@@ -150,12 +150,12 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
    `policy/SECURITY.md` lines 3/37, witness `$DNSID_TEAM` placeholders, W3 NOTICE — one pass.
 2. **History** — old tags (through v0.24.0 in go) carry the former evaluation-agreement license.
    Keep history or publish clean snapshot. Local clones show 5–11 commits; confirm against origin.
-3. ⚠️ **CLA / DCO / neither** — legal's reply answered current-contributor IP, not intake; re-ask (L5). (Apache §5 default).
-4. ⏳ **CRA category** — legal: not a blocker, post-launch. Reporting obligation already live → E3 still needs a person. — SDK drives adoption of `api.dnsid.ai`; form itself says that's a poor fit for
+3. ✅ **CLA / DCO / neither** — **neither**; CONTRIBUTING.md "Licensing of contributions" section in every repo (L5). (Apache §5 default).
+4. ⏳ **CRA** — legal round 2: applies, deferred by decision, discuss later. E3 still recommended. — SDK drives adoption of `api.dnsid.ai`; form itself says that's a poor fit for
    "steward" → likely **manufacturer**. Reporting obligations live since 11 Sep 2026; needs a named
    ENISA reporting contact and a published security-update support period.
 5. ⏳ **Export classification record** — legal: pending work, not a blocker. — facts support decontrolled (signature-only, standard algorithms).
-6. ✅ **Contributor IP** — employment covers all. AI-assisted-code policy not explicitly answered (L2). — Ben Guidarelli and Gabriel Kuettel both committed under personal emails;
+6. ✅ **Contributor IP** — employment covers all; AI-assisted code confirmed covered (L2 round 2). — Ben Guidarelli and Gabriel Kuettel both committed under personal emails;
    confirm employment/assignment. Repos contain `AGENTS.md`/`CLAUDE.md` → confirm AI-assisted-code policy.
 7. **Named security owner + engineering owner** (COM-004). Team today: `@dnsid-ai/sdk-maintainers` =
    winder, jmelloy, barnjamin, wolfgangmeyers, JasonWeathersby, starlightromero, gabrielkuettel.
@@ -177,7 +177,7 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
 14. **Publish `dnsid-sdk-compliance`?** See "This repo's own review". Needed only if conformance claims
     are made publicly and should be independently reproducible.
 15. **DeepSource** (`.deepsource.toml`) — company-held account or leftover? Legal §12 row 3.
-16. ⚠️ **Security-process numbers** — legal: "reviewed, not needed"; confirm this means defaults accepted (L8). — needed to finish `SECURITY-fixes-section.draft.md` (then it goes into
+16. ✅ **Security-process numbers** — legal: deferred with CRA; **deliberately no commitments**. SECURITY.md finalized with process + explicit no-timeline statement (L8). Draft file removed. — needed to finish `SECURITY-fixes-section.draft.md` (then it goes into
     canonical SECURITY.md and propagates). Legal §8 row 5, §9 rows 2–4, §12 row 4; VIR-003/004/009, OSS-019/021, SSD-009.
     - **16a** fix-time targets by severity (proposed Critical 7d / High 30d / Medium 90d)
     - **16b** security-update support period (CRA: ≥5 years or a stated shorter lifetime; proposed 5y from 1.0 or 2y from last release)
@@ -188,11 +188,11 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
 17. ✅ **IETF participation obligations** — confirmed. (Legal §3 rows 3, 6). The protocol is `draft-ihsanullah-dnsid`. IETF BCP 79
     puts IPR-disclosure duties on participants personally; the Note Well covers competition-law conduct. Confirm the
     draft authors/contributors have done the IPR disclosure (or that there is nothing to disclose) and know the rules.
-18. ✅ **Trade secret / patent position** — "there is, and we are aware, no blocker"; record what (L3). (Legal §1 row 5, §3 row 5). Is anything in the SDKs relied on as confidential
+18. ✅ **Trade secret / patent position** — we hold a patent, no trade secrets (L3). ⚠️ Apache §3 outward patent grant — confirm understood. (Legal §1 row 5, §3 row 5). Is anything in the SDKs relied on as confidential
     know-how? Any filed or intended patent that reads on the published implementation? Publication creates prior art.
 19. ✅ **Funding and restrictive agreements** — none. (Legal §2 rows 3, 5). Was any of this customer- or grant-funded? Does
     any customer/partner/exclusivity agreement restrict publication? Adjacent to #2 (the old evaluation-agreement license).
-20. ✅/partial **Sanctions position** — geo-blocking on the service; repo/contribution rows still need a line (L9). (Legal §11, all four rows). Legal to record: (a) publication of OSS vs. provision of the
+20. ✅ **Sanctions position** — service geo-blocked; repo + contributions rely on GitHub/npm/PyPI platform enforcement (L9). (Legal §11, all four rows). Legal to record: (a) publication of OSS vs. provision of the
     hosted service are different acts; (b) gated components = `api.dnsid.ai` accounts, handled under service terms;
     (c) GitHub/npm/PyPI/Go proxy enforce their own sanctions posture; (d) contributions from restricted jurisdictions —
     accept / refuse / case-by-case.

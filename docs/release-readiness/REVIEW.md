@@ -113,7 +113,7 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 | SSD-006 | Must P1 | Run software composition analysis/dependency vulnerability scanning. | 🔧 | `ci/readiness.sh` 'CI: dependency vuln scan' — govulncheck / npm audit / pip-audit. 0 findings today. |
 | SSD-007 | Must P1 | Run secret scanning on repositories and CI/CD workflows. | 🔧 | gitleaks full history in `ci/readiness.sh`; GitHub secret scanning + push protection flip on when repos go public (fix #3). |
 | SSD-008 | Must P2 | Scan containers, images, installers, and release packages where applicable. | ➖ | No containers/installers for SDKs. Release packages covered by dep scan + SBOM. Witness image: separate review. |
-| SSD-009 | Must P1 | Define release handling for critical/high vulnerabilities and require documented risk acceptance for exceptions. | ⏳ | Severity → fix targets in `SECURITY-fixes-section.draft.md`; numbers → `DECISIONS.md` L8. |
+| SSD-009 | Must P1 | Define release handling for critical/high vulnerabilities and require documented risk acceptance for exceptions. | 📄 | SECURITY.md: false-pass = highest priority; no fixed deadlines by recorded decision (L8/L7). |
 | SSD-010 | Must P2 | Track security defects through remediation and verification. | 📄 | GitHub Security Advisories + Dependabot alerts track findings to fixed version. |
 | SSD-011 | Should P2 | Perform DAST/API security testing for exposed DNSid services. | ➖ | Should/P2. No exposed service in the SDKs. |
 | SSD-012 | Must P1 | Perform an independent application/API penetration test before significant external release and after material architectural changes. | ⏳ | `DECISIONS.md` M5 — pentest vs. harness + review. |
@@ -140,13 +140,13 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 |---|---|---|---|---|
 | VIR-001 | Must P1 | Establish and publish a vulnerability reporting process. | 🔧 | SECURITY.md byte-checked against canonical (`ci/readiness.sh`). GitHub Security Advisories + email. |
 | VIR-002 | Must P2 | Publish security.txt or equivalent security contact information. | ⏳ | `security.txt` → `DECISIONS.md` E7 (needs site repo + live aliases E1). |
-| VIR-003 | Must P1 | Define vulnerability severity classification, remediation targets, exception handling, and escalation. | ⏳ | Draft in `SECURITY-fixes-section.draft.md`; numbers → `DECISIONS.md` L8. |
-| VIR-004 | Must P1 | Maintain a process for emergency security fixes and rapid distribution of critical updates. | ⏳ | Same draft §'How fixes are released' (new version + advisory; patch on latest minor). |
+| VIR-003 | Must P1 | Define vulnerability severity classification, remediation targets, exception handling, and escalation. | 📄 | SECURITY.md §How Fixes Are Released + §Remediation Timelines: severity via CVSS, escalation = false-pass rule; remediation targets deliberately not committed (L8). |
+| VIR-004 | Must P1 | Maintain a process for emergency security fixes and rapid distribution of critical updates. | 📄 | SECURITY.md §How Fixes Are Released: new version + advisory, patch on latest minor. |
 | VIR-005 | Must P1 | Maintain procedures for compromised agent credentials, private keys, signing keys, and DNSid identities. | 📄 | Compromised keys: rotation + status revocation + `ka=` (ops docs). Signing keys: none held by SDK repos (`THREAT_MODEL.md` C6). Procedures for hosted side: service review. |
 | VIR-006 | Must P1 | Provide the operational ability to suspend or revoke compromised identities rapidly. | ➖ | Operational suspend/revoke is registry-side; SDK observes status on next check. |
 | VIR-007 | Must P1 | Include DNSid agent compromise, impersonation, malicious fork abuse, and trust-assertion compromise in incident response scenarios. | 📄 | `THREAT_MODEL.md` §C and §D cover fork abuse, impersonation, trust-assertion compromise as scenarios. |
-| VIR-008 | Should P2 | Coordinate CVE issuance and public security advisories for qualifying vulnerabilities. | ⏳ | Draft: CVE via GitHub CNA for Medium+. Confirm with L8. |
-| VIR-009 | Must P2 | Document security update/support expectations for customers and operators. | ⏳ | SECURITY.md supported-versions table exists; support period → `DECISIONS.md` L8. |
+| VIR-008 | Should P2 | Coordinate CVE issuance and public security advisories for qualifying vulnerabilities. | 📄 | SECURITY.md: CVE via GitHub for Medium+. |
+| VIR-009 | Must P2 | Document security update/support expectations for customers and operators. | 📄 | SECURITY.md: latest minor, best-effort, no defined period (recorded decision L8). |
 
 ### FRE
 
@@ -187,9 +187,9 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 | OSS-016 | Must P1 | Ensure cloning/forking the software cannot clone, export, or mint another agent's trusted DNSid identity. | 📄 | `THREAT_MODEL.md` §D — cannot mint/export another agent's identity (needs DNS zone + private key + status). |
 | OSS-017 | Must P1 | Separate software authenticity (official build) from agent identity and organizational authorization in the trust model. | 📄 | `THREAT_MODEL.md` §D — software authenticity (C1) and agent identity (A1) are independent properties. |
 | OSS-018 | Must P1 | Define contribution requirements, code-owner review, security review, and maintainer approval for external contributions. | 🔧 | CONTRIBUTING.md + CODEOWNERS + CODE_OF_CONDUCT.md present (`ci/readiness.sh`); ruleset enforces review. CLA/DCO → `DECISIONS.md` L5. |
-| OSS-019 | Must P1 | Define dependency update, patch, deprecation, and end-of-support processes. | ⏳ | Dependabot for updates; deprecation/EOL → `SECURITY-fixes-section.draft.md` §EOL, numbers L8. |
+| OSS-019 | Must P1 | Define dependency update, patch, deprecation, and end-of-support processes. | 📄 | Dependabot for updates; SECURITY.md §End of Life for deprecation/archive. |
 | OSS-020 | Must P1 | Publish SECURITY.md and vulnerability reporting instructions for the open-source project. | 🔧 | SECURITY.md byte-checked (`ci/readiness.sh`). |
-| OSS-021 | Should P2 | Document supported versions, security-support lifecycle, and how users receive security fixes. | ⏳ | Should/P2. Supported-versions table in SECURITY.md; lifecycle → L8. |
+| OSS-021 | Should P2 | Document supported versions, security-support lifecycle, and how users receive security fixes. | 📄 | Should/P2. SECURITY.md supported-versions table + §Remediation Timelines and Support Period. |
 | OSS-022 | Should P2 | Evaluate reproducible builds or equivalent measures that improve verification of release integrity. | 📄 | Should/P2. Go module builds reproducible by default; ts/py not evaluated. |
 | OSS-023 | Must P1 | Threat-model malicious contributor, dependency confusion, typosquatting, compromised maintainer, and compromised CI/CD scenarios. | 📄 | `THREAT_MODEL.md` §C1–C7. |
 | OSS-024 | Must P1 | Protect release provenance and signing mechanisms so compromise of the public repository alone cannot silently create a trusted official release. | ⏳ | Signing keys not in repos; py provenance via OIDC. go/ts → E5. Ruleset has no bypass (`THREAT_MODEL.md` C6). |
@@ -205,10 +205,10 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 | Full contents incl. history reviewed for material that should not be published | ⏳ | gitleaks clean; `WORKING_UPDATES.md`/internal docs flagged for compliance repo (M7). History vs snapshot → `DECISIONS.md` M2. |
 | Third-party/partner/customer material cleared | ✅ | None present (L4: no customer/partner material). |
 | What is published vs held back is recorded | 📄 | `STATUS.md` repo table: 3 SDKs + witness public; platform monorepo (server, console, CLI) private → M3, M7. |
-| Publication does not forfeit intended protection (trade secret / patent) | ✅ | L3: legal aware, no blocker. Record what exists → L3 follow-up. |
+| Publication does not forfeit intended protection (trade secret / patent) | ✅ | L3: one patent, held by us; no trade secrets. Apache §3 outward grant flagged for confirmation. |
 | Outbound license chosen, approved, applied; LICENSE present | 🔧 | Apache-2.0 in every repo (`ci/readiness.sh` file check). |
 | License grants or withholds a patent license | ✅ | Apache-2.0 §3 express patent grant. Intended. |
-| Contribution intake decided (CLA / DCO / neither) | ⏳ | `DECISIONS.md` L5 — re-asked; default DCO. |
+| Contribution intake decided (CLA / DCO / neither) | ✅ | Neither (L5). CONTRIBUTING.md §Licensing of contributions in every repo: Apache-2.0 §5 inbound = outbound. |
 | Every third-party dependency reviewed for license compatibility | 🔧 | `ci/readiness.sh` 'dependency licenses' allowlist; all three SDKs pass. |
 | SBOM produced for each published package (CRA driver) | 🔧 | `ci/readiness.sh` 'release: SBOM step'. |
 | Third-party attribution retained; NOTICE where required | 🔧 | NOTICE.txt in every repo, third-party license texts reproduced in SDK NOTICEs. |
@@ -226,7 +226,7 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 | All contributors assigned/licensed work to publishing entity | ✅ | L2 confirmed (employment). |
 | No former-employer or other-project material introduced | ✅ | L2 confirmed. |
 | Customer-/grant-funded material identified; terms permit publication | ✅ | L4: none. |
-| Provenance of incorporated code incl. coding assistants understood | ⏳ | L2 covers employment; AI-assisted-code policy explicit confirmation requested (L2 follow-up). |
+| Provenance of incorporated code incl. coding assistants understood | ✅ | L2 round 2: AI-assisted code covered by policy. |
 | No agreement in force restricts publication | ✅ | L4: none. |
 | Non-code assets licensed for publication | ✅ | No fonts/logos/images/datasets in SDK repos; test keys generated. Docs site → L14. |
 
@@ -238,7 +238,7 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 | License grants no trademark rights; implementer guidance exists | ✅ | Apache-2.0 §6. Guidance N/A per L11. |
 | Standards-process IP disclosure obligations met | ✅ | L13 confirmed (IETF BCP 79 for draft-ihsanullah-dnsid). |
 | Foundation contribution terms reviewed | ➖ | No foundation involved. |
-| Patent filings reading on the implementation identified | ✅ | L3: aware, no blocker. |
+| Patent filings reading on the implementation identified | ✅ | L3: one patent, held by us. |
 | Competition-law guardrails understood (standards participation) | ✅ | L13 confirmed. |
 
 ### 4. Cryptography and Export Control
@@ -295,7 +295,7 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 | Product liability exposure considered (EU PLD) | ⏳ | Turns on the same commercial-activity question as CRA (L7, deferred by legal). |
 | Decision on separate terms beyond the license | ⏳ | L10: API ToS drafted. |
 | Public API terms cover rate limits, AUP, no availability commitment | ⏳ | L10. |
-| Support expectations set or disclaimed in writing | ⏳ | `SECURITY-fixes-section.draft.md` §support expectations → L8. |
+| Support expectations set or disclaimed in writing | 📄 | SECURITY.md §Support: best-effort, no commercial support. |
 | Nothing creates a hosted-service commitment the service doesn't make | 📄 | README 'Hosted endpoints' paragraph. |
 
 ### 9. Security and Vulnerability Handling
@@ -303,9 +303,9 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 | Item | Status | Finding and evidence |
 |---|---|---|
 | Security policy published with working disclosure contact (CRA driver) | ⏳ | SECURITY.md in every repo (`ci/readiness.sh`). Contact switches to `security@dnsid.ai` when live → E1. |
-| Decision recorded on response/remediation timelines | ⏳ | Existing: acknowledge 3 business days / assess 14 days. Fix targets → L8. |
-| Process for issuing and announcing a fix | ⏳ | Draft §'How fixes are released' → L8 confirmation. |
-| Security updates free for a defined, published period (CRA driver) | ⏳ | L8b. |
+| Decision recorded on response/remediation timelines | ✅ | Acknowledge 3 business days / assess 14 days; remediation deadlines deliberately not committed (L8, recorded in SECURITY.md). |
+| Process for issuing and announcing a fix | 📄 | SECURITY.md §How Fixes Are Released. |
+| Security updates free for a defined, published period (CRA driver) | ⏳ | Deliberately undefined for now (L8); revisit with CRA (L7). Published as such in SECURITY.md. |
 | No known exploitable vulnerabilities; secure defaults (CRA driver) | 🔧 | `ci/readiness.sh` vuln scan 0 findings; fail-closed defaults (`THREAT_MODEL.md`). |
 | Dependency/vuln scanning with an owner for findings | ⏳ | Scanning ✅; owner → M4. |
 | Publishing requires more than one person / controlled against single compromise | 📄 | Release PRs under ruleset (review required, no bypass); registry accounts → E2. `THREAT_MODEL.md` C5. |
@@ -315,7 +315,7 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 
 | Item | Status | Finding and evidence |
 |---|---|---|
-| Policy decision on pursuing CRA compliance, by whom, reasoning | ⏳ | L7: legal deferred to post-launch. Record who and why. |
+| Policy decision on pursuing CRA compliance, by whom, reasoning | ✅ | L7 round 2: legal — CRA applies; deferred post-launch; reasoning: in practice a constraint on EU users rather than our launch. Recorded. |
 | Category determination per package (out of scope / steward / manufacturer) | ⏳ | L7 deferred. Facts point to manufacturer (`STATUS.md` decision 4). |
 | Manufacturer likelihood assessed rather than defaulted to steward | ⏳ | L7. |
 | Made available on the EU market confirmed (registries/mirrors) | ✅ | Yes — npm/PyPI/Go proxy are global. |
@@ -329,10 +329,10 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 
 | Item | Status | Finding and evidence |
 |---|---|---|
-| Position on sanctions applying to publishing OSS | ⏳ | L9 answered for the service (geo-blocking); repo publication position requested. |
+| Position on sanctions applying to publishing OSS | ✅ | L9: rely on GitHub platform trade-control enforcement; service geo-blocked separately. |
 | Gated components treated separately | ✅ | L9: `api.dnsid.ai` geo-blocked for embargoed regions; SDK itself is ungated. |
 | Sanctions posture of each distribution channel understood | ✅ | GitHub, npm, PyPI, Go proxy each enforce their own; recorded. |
-| Position on contributions from restricted jurisdictions | ⏳ | L9 follow-up. |
+| Position on contributions from restricted jurisdictions | ✅ | L9: GitHub restricts accounts from sanctioned regions at platform level; no project-level screening. |
 
 ### 12. Governance and Ongoing Operation
 
@@ -341,8 +341,8 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 | Governance model recorded: who merges, who speaks | ⏳ | Merging: CODEOWNERS + ruleset. Speaking: → `DECISIONS.md` M8 (needs M4). |
 | Code of conduct published with enforcement position | ✅ | Contributor Covenant 2.1, ladder as written, `report@dnsid.ai` (L12); byte-checked. |
 | Third-party service accounts company-held, terms knowingly accepted | ⏳ | `DECISIONS.md` E6. |
-| End-of-life position recorded | ⏳ | Draft §EOL → L8d. |
-| Whether the project can be relicensed later is understood | ⏳ | Follows L5 (DCO → no; CLA → yes). |
+| End-of-life position recorded | 📄 | SECURITY.md §End of Life: README + release note, registry deprecation, archive read-only. |
+| Whether the project can be relicensed later is understood | ✅ | L5 = neither → relicensing needs every contributor's consent. Accepted. |
 
 ### 13. Release Sign-off
 
@@ -360,8 +360,8 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 
 | Status | Rows |
 |---|---|
-| ✅ | 28 |
+| ✅ | 35 |
 | 🔧 | 30 |
-| 📄 | 50 |
-| ⏳ | 61 |
+| 📄 | 60 |
+| ⏳ | 44 |
 | ➖ | 56 |
