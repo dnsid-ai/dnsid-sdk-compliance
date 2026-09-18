@@ -33,7 +33,7 @@ cases:
     version: dnsid-draft-01
     op: validate
     input:
-      raw: "v=dnsid-draft-01;gi=other.com;ek=https://other.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
+      raw: "v=dnsid-draft-01;gi=other.example;ek=https://other.example/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
       identity_fqdn: agent.example.com
     expect:
       ok: true
@@ -45,8 +45,8 @@ cases:
     version: dnsid-draft-01
     op: validate
     input:
-      raw: "v=dnsid-draft-01;gi=ample.com;ek=https://ample.com/entity-keys.json;ku=https://example.com/jwks.json;lr=microledger:abc123;su=https://example.com/status;sg=AAAA"
-      identity_fqdn: example.com
+      raw: "v=dnsid-draft-01;gi=ample.example;ek=https://ample.example/entity-keys.json;ku=https://sample.example/jwks.json;lr=microledger:abc123;su=https://sample.example/status;sg=AAAA"
+      identity_fqdn: sample.example
     expect:
       ok: true
 

@@ -202,6 +202,21 @@ main branches on every pull request, after changes land on `main`, on manual
 dispatch, and daily. This repository owns that workflow because it owns the
 canonical fixtures and harness being validated.
 
+## What a compliant result means
+
+A `PASS`/`REJ` cell asserts exactly one thing: for that fixture case, the SDK checkout under
+test produced the behavior the cited spec clause requires, on the pure-data protocol surface
+listed under Scope below. It does **not** assert that the SDK is secure, that `VerifyDomain`
+end-to-end is correct, or anything about network, TLS, caching, or key handling — those are
+out of scope here and covered by each SDK's own tests. A case that did not run (shim crash,
+missing result) aborts the run; it is never reported as passed. Where SDKs disagree, the
+matrix shows each one and the divergence appendix says why.
+
+The per-SDK PR gate is **regression-only**: it goes red when a PR increases the failure count,
+not when failures exist. A green check therefore means "no worse than the base branch", not
+"conformant". Any conformance claim about a release must cite the full report
+(`make run` → `report.md`) for that exact commit, not the CI status.
+
 ## Scope
 
 The main harness covers the pure-data protocol surface: SDK conformance metadata,
