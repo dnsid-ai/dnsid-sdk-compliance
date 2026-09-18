@@ -1,6 +1,6 @@
 THIRD-PARTY SOFTWARE NOTICES
 dnsid-sdk-compliance
-Copyright 2026 Identity Digital Inc.
+Copyright 2026 Known Systems AI, Inc.
 
 This repository is a test kit. It is not published as a package,
 produces no compiled or packaged artifact, and therefore distributes
