@@ -44,7 +44,7 @@ All under `github.com/dnsid-ai`, cloned at `~/`. All **private** today.
 | `dnsid-go` | Go SDK v0.33.1 (`github.com/dnsid-ai/dnsid-go`, `…/key/aws`) | `release-readiness` | #11 | pushed |
 | `dnsid-ts` | TS SDK v0.19.1, 11 pkgs `@dnsid-ai/*` (GitHub Packages today) | `release-readiness` | #9 | pushed |
 | `dnsid-py` | Python SDK v0.19.1, PyPI `dnsid` | `release-readiness` | #4 | pushed |
-| `dnsid-cookbook` | Recipes | — | — | **not yet reviewed** |
+| `dnsid-cookbook` | Recipes (prose + sample code) | `release-readiness` | — | `d82288b` local, **not pushed**. See "dnsid-cookbook review" |
 | `Identity-Digital/c2sp-ledger-witness` (`~/c2sp-ledger-witness`) | **Service**: C2SP tlog witness partners operate | `release-readiness` | — | committed locally, **not pushed** — see section below |
 | `Identity-Digital/dnsid` (`~/dnsid`) | Platform monorepo: server, console, deploy, **CLI (`cmd/cli`)** | — | — | **out of scope** for the SDK review — hosted-service repo, separate org. See decision #13 |
 
@@ -244,7 +244,7 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
 3. ~~#16 threat model~~ done; **#17** done, **#15** dropped.
 4. When aliases go live (**#18**, by 9/22): update `policy/SECURITY.md` contact. When entity name is
    confirmed (**#1**): NOTICE + SECURITY.md prose pass across all repos. CoC done (#6).
-5. ~~Review `dnsid-sdk-compliance` itself~~ **done** (see below). Then `dnsid-cookbook`.
+5. ~~Review `dnsid-sdk-compliance` itself~~ done. ~~`dnsid-cookbook`~~ done (see below).
 
 ## c2sp-ledger-witness review
 
@@ -272,6 +272,29 @@ actions SHA-pinned. Via API: description replaced ("welcome to the TLOG party").
 | W6 | Provenance: authors under `cadena.ai` and gmail addresses, **2 commits by `copilot-swe-agent[bot]`** (Legal §2 rows 1, 4) | Extend decision #6 to this repo |
 | W7 | `$DNSID_TEAM` placeholders in partner doc; "C2SP" (third-party spec body) in the repo name (Legal §3 row 1) | #1; one-line trademark note |
 | W8 | CODE_OF_CONDUCT | #6 |
+
+## dnsid-cookbook review
+
+**Was**: `LICENSE.txt` = the old proprietary *DNSid Evaluation Agreement* (Identity Digital Inc.) — publishing
+as-is would have been a non-open release. SECURITY.md stale (0.11.x, identity.digital contact). No NOTICE /
+CONTRIBUTING / CoC / CODEOWNERS. Blank description. Ruleset already good (PR + code-owner + signatures, 0 bypass).
+Gitleaks clean (5 commits, two author emails — both the same person). Fixture domains fine: all `*.dev.dnsid.test`.
+
+**Now** (`d82288b` on `release-readiness`): **dual license by decision** — `LICENSE.txt` Apache-2.0 for sample
+code, `LICENSE-docs.txt` CC BY 4.0 for Markdown; README §License states the split (code blocks in Markdown =
+Apache). Canonical SECURITY.md + CODE_OF_CONDUCT.md, NOTICE (Known Systems; nothing redistributed),
+CONTRIBUTING (recipe lifecycle, CI matrix rule, licensing-of-contributions), CODEOWNERS `@dnsid-ai/sdk-maintainers`,
+pinned CodeQL (3 languages), readiness caller (`sdk: cookbook`), README "Security & trust" pointer.
+Deleted `licenses/README.md` (tracked copying of the old evaluation license — obsolete). Via API: description,
+homepage, Dependabot alerts + security updates.
+
+**Finding**: recipe 28 depends on `aws-opentelemetry-distro` (AgentCore observability → user's own CloudWatch)
+and didn't say so. Disclosure note added to the recipe README (Legal §5 row 4). `readiness.sh` reports telemetry
+hits as 🟡 for the cookbook target (recipe-level instrumentation, must be disclosed) instead of ❌.
+
+**Open**: `FIXUPS.md` (migration tracker referencing `~/` checkouts), `plans/`, `CLAUDE.md` — internal working
+docs; keep, move, or delete before publish (Legal §1 row 2). CODEOWNERS team assumed same as SDKs — confirm.
+`.deepsource.toml` → E6. Readiness: exit 0, advisories only (vendor hosts in recipes).
 
 ## This repo's own review (dnsid-sdk-compliance)
 
