@@ -201,6 +201,8 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
     commitments. Half a page in CONTRIBUTING or a `GOVERNANCE.md`; needs the owner from #7.
 23. ✅ **Open source policy** — confirmed. (Legal §1 row 16). Does the company have one? If not, the form says this review *is* the
     policy for this release — record that.
+25. **Warranty adequacy** for a security library (Legal §8 row 1) → DECISIONS L16.
+26. **Post-publication legal/privacy problem plan** (Legal §13 row 6) → DECISIONS M10.
 24. **Third-party service accounts** (Legal §12 row 3). GitHub org `dnsid-ai`, npm `@dnsid-ai`, PyPI, DeepSource (#15),
     any CI/SaaS — who accepted the terms, is each held by a company account, and what happens when that person leaves.
 

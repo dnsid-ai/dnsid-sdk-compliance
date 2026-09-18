@@ -184,7 +184,7 @@ LEGAL = [
   ("Launch announcement / comparative claims reviewed", "⏳", "No announcement drafted yet. Review when it exists."),
  ]),
  ("8. Warranties, Liability, and API Terms", [
-  ("Warranty disclaimer/liability limitation adequate", "⏳", "Apache-2.0 §7–8. Legal to confirm adequacy for a security library (not yet asked explicitly — fold into L10)."),
+  ("Warranty disclaimer/liability limitation adequate", "⏳", "Apache-2.0 §7–8. → `DECISIONS.md` L16."),
   ("Product liability exposure considered (EU PLD)", "⏳", "Turns on the same commercial-activity question as CRA (L7, deferred by legal)."),
   ("Decision on separate terms beyond the license", "⏳", "L10: API ToS drafted."),
   ("Public API terms cover rate limits, AUP, no availability commitment", "⏳", "L10."),
@@ -231,7 +231,7 @@ LEGAL = [
   ("Legal and privacy review completed with link to approval", "⏳", "Pending legal round 2 and M/E answers."),
   ("Brand and trademark approval for names", "✅", "L11 N/A."),
   ("Named person responsible for first weeks incl. security reports", "⏳", "M4."),
-  ("Plan for a legal/privacy problem found after publication", "⏳", "Not yet written. Proposed: new version + advisory + README notice; repo archive as last resort. Add to M-list."),
+  ("Plan for a legal/privacy problem found after publication", "⏳", "→ `DECISIONS.md` M10 (proposed: new version + advisory + registry deprecation; archive as last resort)."),
   ("Every item answered or recorded N/A with reason", "⏳", "This document. Regenerate with `gen_review.py` as answers land."),
  ]),
 ]
