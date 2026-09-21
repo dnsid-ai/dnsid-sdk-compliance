@@ -113,7 +113,7 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
 | 2 | Dependabot alerts + security updates | ✅ all 3 |
 | 3 | Secret scanning / push protection / private vuln reporting | ⏸ GHAS or public repo required; readiness flips 🟡→❌ automatically when public |
 | 4 | Org 2FA requirement | ✅ `two_factor_requirement_enabled=true` (verified in sanity pass). 18 members, 0 without 2FA. `members_can_create_public_repositories=false` ✅ |
-| 5 | Registry account ownership | 🟡 npm org `@dnsid-ai` exists, owner unverified (no npm login on this machine); PyPI `dnsid`, `dnsid-sdk`, `dnsid-ai`, `dnsid_ai`, `dnsidai` all unclaimed — **Ben setting up PyPI** |
+| 5 | Registry account ownership | 🟡 **npm verified 9/21**: org `@dnsid-ai` owner = Ben Guidarelli, user `dnsid-barnjamin`, company email, 2FA on. ⚠️ single owner → add a second org owner (Jason, #7) for continuity (Legal §12 row 3). **PyPI**: org-name approval pending; will be same email + 2FA. `dnsid` + confusables (`dnsid-sdk`, `dnsid-ai`≡`dnsid_ai`, `dnsidai`) need a stub upload each — PyPI has no reservation |
 | 6 | CODE_OF_CONDUCT.md | ✅ **Legal answered** (contact `report@dnsid.ai` re-confirmed L12): Contributor Covenant 2.1 as written, ladder as written, contact `report@dnsid.ai` (legal may later prefer a dedicated conduct alias — one edit in `policy/`). `policy/CODE_OF_CONDUCT.md` byte-checked in `readiness.sh`; copied to go `9bbecc0`, ts `070bea8`, py `9b6cbad`, this repo `00b058b`. Alias itself not live until #18 |
 | 7 | SBOM in release.yml | ✅ in PRs |
 | 8 | Signing / provenance for go + ts | ⏭ **skipped by decision**. ts blocked on npmjs-vs-GitHub-Packages cutover (`--provenance` needs npmjs) |
@@ -157,7 +157,7 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
 5. ⏳ **Export classification record** — legal: pending work, not a blocker. — facts support decontrolled (signature-only, standard algorithms).
 6. ✅ **Contributor IP** — employment covers all; AI-assisted code confirmed covered (L2 round 2). — Ben Guidarelli and Gabriel Kuettel both committed under personal emails;
    confirm employment/assignment. Repos contain `AGENTS.md`/`CLAUDE.md` → confirm AI-assisted-code policy.
-7. **Named security owner + engineering owner** (COM-004). Team today: `@dnsid-ai/sdk-maintainers` =
+7. ✅ **Named 9/21: Jason Weathersby (`@JasonWeathersby`) is both security owner and engineering owner**, and on point post-release. Inbound path `security@dnsid.ai`; he is therefore also the CRA/ENISA reporting contact (E3). Unblocks M10. **Named security owner + engineering owner** (COM-004). Team today: `@dnsid-ai/sdk-maintainers` =
    winder, jmelloy, barnjamin, wolfgangmeyers, JasonWeathersby, starlightromero, gabrielkuettel.
    Also: ruleset requires **1** approving review today. Threat model C5 suggests 2 for trust-path files
    (crypto, DNS, verification, release workflows) — accept 1, or raise?
@@ -169,7 +169,7 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
     is plaintext JWK, `0600`, no passphrase option, all 3 SDKs + CLI. Options: (a) accept and document
     "local provider = dev/single-host; KMS for production" — same as ssh/aws/gcloud; (b) add optional
     passphrase encryption (new crypto primitive → re-opens export review #5). Proposed: (a).
-13. ⏳ **partial 9/21: binary signing/provenance deferred to post-release** (OSS-010/011/012 accepted deviation at launch). Still open: public download or internal-only? **CLI release status.** The CLI lives in the private platform monorepo and ships as goreleaser
+13. ✅ **9/21: CLI is a public download at launch; binary signing/provenance deferred to post-release** (OSS-010/011/012 accepted deviation). **Consequence — new open item #27**: the CLI binaries + install path need their own Legal §4 row 4 / §5 row 6 assessment; the CLI repo (`Identity-Digital/dnsid`) is outside this review. goreleaser emits `checksums.txt` by default (OSS-011) — confirm. **CLI release status.** The CLI lives in the private platform monorepo and ships as goreleaser
     binaries. If those are a public download at launch, OSS-010/011/012 (signing, hashes, provenance),
     Legal §4 (binaries assessed separately) and §5 (installer script) apply to it even with source private.
     It also writes the `~/.dnsid` files the SDKs read, so decision #12 must hold for both. `dnsid-ts/README.md`
@@ -205,6 +205,7 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
     policy for this release — record that.
 25. **Warranty adequacy** for a security library (Legal §8 row 1) → DECISIONS L16.
 26. **Post-publication legal/privacy problem plan** (Legal §13 row 6) → DECISIONS M10.
+27. ⏳ **CLI binary assessment** (from #13). Public goreleaser download at launch, unsigned. Needs: checksums published (OSS-011), install instructions reviewed (Legal §5 row 6), export note (same signature-only determination, confirm no extra crypto in CLI), README download link in SDKs. Owner: #7.
 24. **Third-party service accounts** (Legal §12 row 3). GitHub org `dnsid-ai`, npm `@dnsid-ai`, PyPI, DeepSource (#15),
     any CI/SaaS — who accepted the terms, is each held by a company account, and what happens when that person leaves.
 
@@ -223,7 +224,7 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
 | Legal §1 row 7 — patent grant | Apache-2.0 §3: express patent grant, with defensive termination. Intended. |
 | Legal §3 row 2 — no trademark rights in license | Apache-2.0 §6 withholds trademark rights. Usage guidance still needed (#10). |
 | Legal §4 row 3 — export notification | N/A: standard published algorithms only, no notification owed (post-2021 rule). |
-| Legal §4 row 4 — binaries assessed separately | SDKs ship no binaries or images. CLI (#13) and witness image are separate assessments. |
+| Legal §4 row 4 — binaries assessed separately | SDKs ship no binaries or images. CLI (#13, **public download — assessment owed, #27**) and witness image are separate assessments. |
 | Legal §5 row 6 — installer scripts | None. Install is `go get` / `npm install` / `pip install`. |
 | Legal §2 row 6 — non-code assets | SDK repos contain no fonts, logos, images, or datasets. Test keys are disposable, generated. Docs site is #11. |
 | Legal §6 row 3 — personal data via public repos | Standard GitHub: commit metadata, issue authors. Permanent and public; deletion requests route to GitHub's process. |
