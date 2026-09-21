@@ -34,6 +34,11 @@ on:
         required: false
         type: string
         default: ""
+      accept-unsigned:
+        description: "Release signing/provenance deferred by recorded decision (E5/M3): report 🟡 instead of ❌"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -83,6 +88,7 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
+          ACCEPT_UNSIGNED: ${{ inputs.accept-unsigned }}
         run: ci/readiness.sh "${{ inputs.sdk }}" "$GITHUB_WORKSPACE/sdk" readiness.md
 
       - name: Summarize
