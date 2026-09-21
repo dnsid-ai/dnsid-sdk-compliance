@@ -1136,10 +1136,10 @@ Bindings continue to expose policy parsing, custom source/scanner construction,
 method registration, and checkpoint-store injection for private transports,
 portable bundles, mirrors, archives, and other advanced deployments.
 
-## Identity Digital-Managed Trust
+## DNSid-Managed Trust
 
 Bindings MUST expose a separately named, opt-in convenience factory for
-verification against the reviewed trust roots of Identity Digital-managed DNSid
+verification against the reviewed trust roots of DNSid-managed DNSid
 logs. Calling this factory is an application trust decision; it is product
 convenience, not DNSid or C2SP protocol authority. The generic verification
 factory above never selects these roots when caller trust is omitted.

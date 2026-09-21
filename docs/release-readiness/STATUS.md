@@ -136,7 +136,7 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
 > 11→L14, 12→M6, 13→M3, 14→M7, 15→E6, 16→L8, 17→L13, 18→L3, 19→L4, 20→L9, 21→L6, 22→M8, 23→L15, 24→E6;
 > fix-list 3/4→E4, 5/13→E2, 8→E5, 14→E7, 18→E1, CoC alias→L12. Update both when an answer lands.
 
-1. ✅ **Publishing entity** — "Known Systems AI, Inc." (final confirmation end of week). **Pass applied** on
+1. ✅ **Publishing entity** — "Known Systems AI, Inc." **confirmed 9/21**. Wording follow-up done: "Identity Digital-managed" → "DNSid-managed" in go `0f0cb5a`, ts `e19eb0f`, py `223b288`, compliance `docs/sdk-design` (anchors updated). **Pass applied** on
    `release-readiness` everywhere: canonical SECURITY.md lines 3/37 → propagated to go `f111017`, ts `746d6ce`,
    py `dea89f8` (+ NOTICE, py `pyproject.toml` authors), compliance `b8163a1`, witness `2cbbb23` (+ `$DNSID_TEAM` →
    "Known Systems"). If the name changes Friday: one sed over the same files. **Not touched**: ~25 occurrences of
@@ -165,11 +165,11 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
 9. ✅ **API ToS** — drafted and sent by legal; link from READMEs when published. for `api.dnsid.ai` / `log.dnsid.ai` (license doesn't cover hosted endpoints).
 10. ✅ **Trademark guidance** — legal: N/A (no mark claimed). for "DNSid" + brand approval.
 11. ✅ **Docs license** — CC-BY-4.0 confirmed; site owner to apply. for `docs.dnsid.ai` (CC-BY-4.0 customary); docs-site cookies/privacy notice.
-12. **Local private keys unencrypted at rest** (DAT-006 Must/P1, IDT-005). `~/.dnsid/<domain>/keys.json`
+12. ✅ **accepted 9/21, option (a)** — **Local private keys unencrypted at rest** (DAT-006 Must/P1, IDT-005). `~/.dnsid/<domain>/keys.json`
     is plaintext JWK, `0600`, no passphrase option, all 3 SDKs + CLI. Options: (a) accept and document
     "local provider = dev/single-host; KMS for production" — same as ssh/aws/gcloud; (b) add optional
     passphrase encryption (new crypto primitive → re-opens export review #5). Proposed: (a).
-13. **CLI release status.** The CLI lives in the private platform monorepo and ships as goreleaser
+13. ⏳ **partial 9/21: binary signing/provenance deferred to post-release** (OSS-010/011/012 accepted deviation at launch). Still open: public download or internal-only? **CLI release status.** The CLI lives in the private platform monorepo and ships as goreleaser
     binaries. If those are a public download at launch, OSS-010/011/012 (signing, hashes, provenance),
     Legal §4 (binaries assessed separately) and §5 (installer script) apply to it even with source private.
     It also writes the `~/.dnsid` files the SDKs read, so decision #12 must hold for both. `dnsid-ts/README.md`
@@ -198,7 +198,7 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
     accept / refuse / case-by-case.
 21. **Destination-market crypto import restrictions** (Legal §4 row 6). One line from legal: any market where we
     distribute or operate that restricts import/use of signature cryptography?
-22. **Governance statement** (Legal §12 row 1). Mechanism exists (CODEOWNERS + ruleset = who merges). Missing: who may
+22. ⏸ **deferred 9/21, not blocking** — **Governance statement** (Legal §12 row 1). Mechanism exists (CODEOWNERS + ruleset = who merges). Missing: who may
     speak for the project publicly, and a sentence that issue-thread statements by maintainers are not company
     commitments. Half a page in CONTRIBUTING or a `GOVERNANCE.md`; needs the owner from #7.
 23. ✅ **Open source policy** — confirmed. (Legal §1 row 16). Does the company have one? If not, the form says this review *is* the
@@ -301,7 +301,7 @@ homepage, Dependabot alerts + security updates.
 and didn't say so. Disclosure note added to the recipe README (Legal §5 row 4). `readiness.sh` reports telemetry
 hits as 🟡 for the cookbook target (recipe-level instrumentation, must be disclosed) instead of ❌.
 
-**Open**: `plans/`, `CLAUDE.md` — internal working docs; keep, move, or delete before publish (Legal §1 row 2).
+**Done**: `plans/` deleted `5530cc9` (M11). `CLAUDE.md` kept (contributor instructions).
 `FIXUPS.md` deleted by decision. CODEOWNERS team assumed same as SDKs — confirm.
 `.deepsource.toml` removed (#15). Readiness: exit 0, advisories only (vendor hosts in recipes).
 
