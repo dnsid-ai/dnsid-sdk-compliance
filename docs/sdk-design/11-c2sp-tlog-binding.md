@@ -21,7 +21,7 @@ This document defines the language-agnostic SDK design for the DNSid
 `LogEvent` model.
 
 The authoritative DNSid wire contract is the
-[C2SP TLog Method Specification at `d5a65d06f76eff4db81e50f8767a600d2ca7fc2a`](https://github.com/dnsid-ai/dnsid-ietf-spec/blob/d5a65d06f76eff4db81e50f8767a600d2ca7fc2a/log-method-extensions/c2sp-tlog-log-method.md).
+C2SP TLog Method Specification at revision `d5a65d06f76eff4db81e50f8767a600d2ca7fc2a` (`log-method-extensions/c2sp-tlog-log-method.md` in the DNSid specification repository).
 This immutable source includes reference syntax, event mappings, and the complete
 bundle schema/signature/freshness rules. The SDK mapping
 below does not replace that method specification. The focused corrected-contract
