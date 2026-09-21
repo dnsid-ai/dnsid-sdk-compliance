@@ -13,6 +13,7 @@ set -uo pipefail
 command -v rg >/dev/null || { echo "readiness.sh: ripgrep (rg) is required" >&2; exit 2; }
 
 sdk=$1; dir=$2; out=$3
+case $out in /*) ;; *) out=$PWD/$out ;; esac  # resolve before cd so the report lands where the caller expects
 root=$(cd "$(dirname "$0")/.." && pwd)
 repo="dnsid-ai/dnsid-$sdk"
 rows=(); fails=0
