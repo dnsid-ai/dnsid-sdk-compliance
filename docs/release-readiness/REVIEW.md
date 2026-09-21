@@ -15,7 +15,7 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 | COM-001 | Must P1 | Document the agent security architecture, trust boundaries, deployment model, and privileged components. | 📄 | `THREAT_MODEL.md` §trust boundaries: zones, what each is trusted for, no privileged components. |
 | COM-002 | Must P1 | Document exactly what the DNSid agent can and cannot do, including autonomous actions and prohibited actions. | 📄 | `THREAT_MODEL.md` §can/cannot; README 'Security & trust' in each SDK. |
 | COM-003 | Must P1 | Inventory external services, APIs, DNS infrastructure, models, tools, packages, and network destinations used by the agent. | 📄 | `INVENTORY.md` network table (8 destinations, default vs opt-in). Enforced: `ci/readiness.sh` 'network destinations' allowlist. |
-| COM-004 | Must P1 | Assign a named security owner and engineering owner for the agent. | ⏳ | `DECISIONS.md` M4 — named security + engineering owner. |
+| COM-004 | Must P1 | Assign a named security owner and engineering owner for the agent. | ✅ | Security + engineering owner named 9/21 (`STATUS.md` #7); inbound `security@dnsid.ai`. |
 | COM-005 | Must P1 | Complete a threat model covering agent impersonation, credential theft, DNS manipulation, API abuse, malicious tool use, and denial of service. | 📄 | `THREAT_MODEL.md` §A (impersonation, DNS, key theft, replay, DoS) — 'API abuse' and 'malicious tool use' N/A for a library. |
 | COM-006 | Should P2 | Map secure development practices to NIST SSDF and document exceptions. | ⏳ | Should/P2. Not mapped. Controls in place cover SSDF PO/PS/PW/RV in substance; formal mapping deferred post-launch. |
 | COM-007 | Must P1 | Define security acceptance criteria for external release and material changes. | 🔧 | `ci/readiness.sh` is the acceptance gate: ❌ blocks; runs on every PR and weekly. |
@@ -178,7 +178,7 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 | OSS-007 | Must P1 | Require MFA for maintainers and personnel with repository, package, or release privileges. | ✅ | Org-level 2FA required; registry-account 2FA → E2. |
 | OSS-008 | Must P1 | Require pull-request review and additional security review for trust, cryptographic, authentication, DNS, and release changes. | 🔧 | Ruleset + CODEOWNERS. Trust-path double review → `DECISIONS.md` M9. |
 | OSS-009 | Must P1 | Restrict package publishing, release creation, CI/CD modification, and signing permissions to authorized maintainers. | 📄 | Release via automation PRs merged under ruleset; registry accounts → `DECISIONS.md` E2. |
-| OSS-010 | Must P1 | Cryptographically sign official release artifacts, packages, containers, or equivalent distribution artifacts where supported. | ⏳ | py: provenance ✅. go/ts: skipped for launch → `DECISIONS.md` E5. `ci/readiness.sh` shows ❌ until done. |
+| OSS-010 | Must P1 | Cryptographically sign official release artifacts, packages, containers, or equivalent distribution artifacts where supported. | ⏳ | py: provenance ✅. ts: npmjs trusted publishing + provenance in dnsid-ts #16. go: deferred post-launch by decision (E5). `ci/readiness.sh` shows ❌ until done. |
 | OSS-011 | Must P1 | Publish hashes, signatures, or verification instructions that let users distinguish official DNSid releases from modified artifacts. | ⏳ | Registry checksums (Go sumdb, npm/PyPI hashes) + SBOM today; README names official sources. Signatures → E5. |
 | OSS-012 | Must P1 | Generate verifiable build provenance for official release artifacts and protect the build pipeline. | ⏳ | py: `attest-build-provenance`. go/ts → E5. |
 | OSS-013 | Must P1 | Clearly distinguish official DNSid builds from community forks, modified builds, and unofficial package distributions. | 📄 | README 'Security & trust': official sources named; forks/mirrors/similar names disclaimed. |
@@ -248,7 +248,7 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 | Every cryptographic operation listed incl. dependencies | 📄 | `STATUS.md` §scoping: Ed25519, ECDSA P-256/384/521, RSA, secp256k1 (indirect), ML-DSA (go, `filippo.io/mldsa`). Signature/verify only. No AES/JWE/ECDH/HPKE. |
 | Classification determination recorded with reasoning | ⏳ | L6: legal to write the record; facts support decontrolled (signature-only, standard algorithms). |
 | Notification owed for controlled public code? | ✅ | No — standard published algorithms, no non-standard cryptography. |
-| Binaries/containers/installers assessed separately | ✅ | SDKs ship none. CLI → M3; witness image → witness review. |
+| Binaries/containers/installers assessed separately | ⏳ | SDKs ship none. CLI is a public download at launch (M3, 9/21) → assessment owed, `STATUS.md` #27; witness image → witness review. |
 | Determination tied to change in crypto functionality | 🔧 | `ci/readiness.sh` 'signature-only cryptography' grep fails the build if an encryption primitive appears. |
 | Destination-market import restrictions considered | ⏳ | L6 (pending legal record); L9 geo-blocking applies to the service. |
 
@@ -307,7 +307,7 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 | Process for issuing and announcing a fix | 📄 | SECURITY.md §How Fixes Are Released. |
 | Security updates free for a defined, published period (CRA driver) | ⏳ | Deliberately undefined for now (L8); revisit with CRA (L7). Published as such in SECURITY.md. |
 | No known exploitable vulnerabilities; secure defaults (CRA driver) | 🔧 | `ci/readiness.sh` vuln scan 0 findings; fail-closed defaults (`THREAT_MODEL.md`). |
-| Dependency/vuln scanning with an owner for findings | ⏳ | Scanning ✅; owner → M4. |
+| Dependency/vuln scanning with an owner for findings | ✅ | Scanning ✅; owner = security owner (`STATUS.md` #7). |
 | Publishing requires more than one person / controlled against single compromise | 📄 | Release PRs under ruleset (review required, no bypass); registry accounts → E2. `THREAT_MODEL.md` C5. |
 | Consequences of a correctness bug (false pass) thought through | 📄 | `THREAT_MODEL.md` A8; false pass = Critical regardless of CVSS (draft SECURITY.md). |
 
@@ -321,7 +321,7 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 | Made available on the EU market confirmed (registries/mirrors) | ✅ | Yes — npm/PyPI/Go proxy are global. |
 | Essential requirements and vulnerability handling met (if manufacturer) | ⏳ | Evidence exists (SBOM, SECURITY.md, scanning, threat model); formal claim → L7. |
 | Technical documentation, conformity assessment, DoC, CE marking | ⏳ | L7. |
-| Reporting path for actively exploited vulns with named person | ⏳ | **Obligation live since 11 Sep 2026.** → `DECISIONS.md` E3. |
+| Reporting path for actively exploited vulns with named person | ✅ | Security owner (`STATUS.md` #7) via `security@dnsid.ai`. ENISA platform access still to be set up by the owner. |
 | Authorized EU representative decision; importer/distributor obligations | ⏳ | L7. |
 | CRA obligations of third-party components identified | ⏳ | SBOM lists them; assessment → L7. |
 
@@ -338,7 +338,7 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 
 | Item | Status | Finding and evidence |
 |---|---|---|
-| Governance model recorded: who merges, who speaks | ⏳ | Merging: CODEOWNERS + ruleset. Speaking: → `DECISIONS.md` M8 (needs M4). |
+| Governance model recorded: who merges, who speaks | ⏳ | Merging: CODEOWNERS + ruleset. Speaking: → `DECISIONS.md` M8 — deferred 9/21, not blocking. |
 | Code of conduct published with enforcement position | ✅ | Contributor Covenant 2.1, ladder as written, `report@dnsid.ai` (L12); byte-checked. |
 | Third-party service accounts company-held, terms knowingly accepted | ⏳ | `DECISIONS.md` E6. |
 | End-of-life position recorded | 📄 | SECURITY.md §End of Life: README + release note, registry deprecation, archive read-only. |
@@ -352,16 +352,16 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 | Security review completed and recorded | ⏳ | This document + `THREAT_MODEL.md` + readiness output; pentest question M5. |
 | Legal and privacy review completed with link to approval | ⏳ | Pending legal round 2 and M/E answers. |
 | Brand and trademark approval for names | ✅ | L11 N/A. |
-| Named person responsible for first weeks incl. security reports | ⏳ | M4. |
-| Plan for a legal/privacy problem found after publication | ⏳ | → `DECISIONS.md` M10 (proposed: new version + advisory + registry deprecation; archive as last resort). |
+| Named person responsible for first weeks incl. security reports | ✅ | `STATUS.md` #7 (named 9/21). |
+| Plan for a legal/privacy problem found after publication | ✅ | SECURITY.md §"Non-Security Problems Found After Publication" in every repo: new version + notice/advisory + registry deprecation; archive last resort; legal decides, security owner executes. |
 | Every item answered or recorded N/A with reason | ⏳ | This document. Regenerate with `gen_review.py` as answers land. |
 
 ## Tally
 
 | Status | Rows |
 |---|---|
-| ✅ | 36 |
+| ✅ | 40 |
 | 🔧 | 30 |
 | 📄 | 60 |
-| ⏳ | 43 |
+| ⏳ | 39 |
 | ➖ | 56 |

@@ -113,7 +113,7 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
 | 2 | Dependabot alerts + security updates | ✅ all 3 |
 | 3 | Secret scanning / push protection / private vuln reporting | ⏸ GHAS or public repo required; readiness flips 🟡→❌ automatically when public |
 | 4 | Org 2FA requirement | ✅ `two_factor_requirement_enabled=true` (verified in sanity pass). 18 members, 0 without 2FA. `members_can_create_public_repositories=false` ✅ |
-| 5 | Registry account ownership | 🟡 **npm verified 9/21**: org `@dnsid-ai` owner = Ben Guidarelli, user `dnsid-barnjamin`, company email, 2FA on. ⚠️ single owner → add a second org owner (Jason, #7) for continuity (Legal §12 row 3). **PyPI**: org-name approval pending; will be same email + 2FA. `dnsid` + confusables (`dnsid-sdk`, `dnsid-ai`≡`dnsid_ai`, `dnsidai`) need a stub upload each — PyPI has no reservation |
+| 5 | Registry account ownership | 🟡 **npm verified 9/21**, second owner added 9/21 ✅.: org `@dnsid-ai` owner = Ben Guidarelli, user `dnsid-barnjamin`, company email, 2FA on. ⚠️ single owner → add a second org owner (Jason, #7) for continuity (Legal §12 row 3). **PyPI**: org-name approval pending; will be same email + 2FA. `dnsid` + confusables (`dnsid-sdk`, `dnsid-ai`≡`dnsid_ai`, `dnsidai`) need a stub upload each — PyPI has no reservation |
 | 6 | CODE_OF_CONDUCT.md | ✅ **Legal answered** (contact `report@dnsid.ai` re-confirmed L12): Contributor Covenant 2.1 as written, ladder as written, contact `report@dnsid.ai` (legal may later prefer a dedicated conduct alias — one edit in `policy/`). `policy/CODE_OF_CONDUCT.md` byte-checked in `readiness.sh`; copied to go `9bbecc0`, ts `070bea8`, py `9b6cbad`, this repo `00b058b`. Alias itself not live until #18 |
 | 7 | SBOM in release.yml | ✅ in PRs |
 | 8 | Signing / provenance for go + ts | ⏭ **skipped by decision**. ts blocked on npmjs-vs-GitHub-Packages cutover (`--provenance` needs npmjs) |
@@ -204,7 +204,7 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
 23. ✅ **Open source policy** — confirmed. (Legal §1 row 16). Does the company have one? If not, the form says this review *is* the
     policy for this release — record that.
 25. **Warranty adequacy** for a security library (Legal §8 row 1) → DECISIONS L16.
-26. **Post-publication legal/privacy problem plan** (Legal §13 row 6) → DECISIONS M10.
+26. ✅ **Post-publication legal/privacy problem plan** (Legal §13 row 6) — section added to canonical `policy/SECURITY.md` + this repo's variant; go `01f2654`, ts `cbd56e2`, py `3e924e9`, cookbook `0bc74b0`, witness `5103b52`. Legal decides, security owner (#7) executes; inbound `security@dnsid.ai`.
 27. ⏳ **CLI binary assessment** (from #13). Public goreleaser download at launch, unsigned. Needs: checksums published (OSS-011), install instructions reviewed (Legal §5 row 6), export note (same signature-only determination, confirm no extra crypto in CLI), README download link in SDKs. Owner: #7.
 24. **Third-party service accounts** (Legal §12 row 3). GitHub org `dnsid-ai`, npm `@dnsid-ai`, PyPI, DeepSource (#15),
     any CI/SaaS — who accepted the terms, is each held by a company account, and what happens when that person leaves.
