@@ -75,7 +75,7 @@ is squash-merge residue, safe to delete.
 - Tests — registrable placeholder domains → `.example` / `.test`. **Do not rename**
   `registry.dev.dnsid.test` in py: it is a real signed testnet checkpoint origin.
 
-Expected readiness after merge: ❌ only for signing/provenance (go, ts — skipped by decision).
+Expected readiness after merge: all green; signing/provenance 🟡 on go/ts via `accept-unsigned` (decision E5/M3).
 `readiness.sh` now also byte-checks `CODE_OF_CONDUCT.md` and runs a **dependency-license allowlist**
 (go-licenses / `npm ls`+jq / pip-licenses; Apache/MIT/BSD/ISC/MPL pass, anything else ❌) — Legal §1 row 9,
 OSS-002. All 3 SDKs pass today. GitHub security features show 🟡 while repos are private.
@@ -116,7 +116,7 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
 | 5 | Registry account ownership | 🟡 **npm verified 9/21**, second owner added 9/21 ✅.: org `@dnsid-ai` owner = Ben Guidarelli, user `dnsid-barnjamin`, company email, 2FA on. ⚠️ single owner → add a second org owner (Jason, #7) for continuity (Legal §12 row 3). **PyPI**: org-name approval pending; will be same email + 2FA. `dnsid` + confusables (`dnsid-sdk`, `dnsid-ai`≡`dnsid_ai`, `dnsidai`) need a stub upload each — PyPI has no reservation |
 | 6 | CODE_OF_CONDUCT.md | ✅ **Legal answered** (contact `report@dnsid.ai` re-confirmed L12): Contributor Covenant 2.1 as written, ladder as written, contact `report@dnsid.ai` (legal may later prefer a dedicated conduct alias — one edit in `policy/`). `policy/CODE_OF_CONDUCT.md` byte-checked in `readiness.sh`; copied to go `9bbecc0`, ts `070bea8`, py `9b6cbad`, this repo `00b058b`. Alias itself not live until #18 |
 | 7 | SBOM in release.yml | ✅ in PRs |
-| 8 | Signing / provenance for go + ts | ⏭ **skipped by decision**. ts blocked on npmjs-vs-GitHub-Packages cutover (`--provenance` needs npmjs) |
+| 8 | Signing / provenance for go + ts | ⏭ **deferred post-launch by decision (9/21)**. ts: npmjs + provenance in dnsid-ts #16. Readiness callers in go `6a23aa1` / ts `1fd2078` set `accept-unsigned: true` → row reports 🟡 not ❌ (compliance #8). **Remove the input when signing lands.** |
 | 9 | Dep vuln scan in CI | ✅ in PRs |
 | 10 | RFC 2606 fixture domains | ✅ in PRs; go/ts (815)/py (1285) suites green |
 | 11 | README "Security & trust" section | ✅ committed on all 3 `release-readiness` branches (go `141ed87`, ts `5699e6a`, py `e291c95`), **not pushed**. Identical section before `## License`; per-SDK fills for package registry, opt-in endpoints, logging. Finding: none of the 3 SDKs emit logs (py declares a `dnsid` logger, never calls it). Says "DNSid-operated" not "Identity Digital" pending decision #1. Contact deferred to SECURITY.md so the #18 alias swap is one edit |
