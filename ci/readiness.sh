@@ -6,6 +6,7 @@
 # Usage: readiness.sh <go|ts|py|cookbook> <repo_dir> <out.md>
 #        cookbook = docs/recipes repo: no published package, so release/vuln-scan/license rows are N/A.
 # Env:   GH_TOKEN (optional) enables the GitHub-settings section.
+#        ACCEPT_UNSIGNED=true downgrades the signing/provenance row to 🟡 (recorded decision E5/M3).
 # Exit:  1 if any check is FAIL. WARN never fails the build.
 set -uo pipefail
 
@@ -70,7 +71,9 @@ rel=.github/workflows/release.yml
 if [ "$sdk" = cookbook ]; then ok "release: pipeline" "N/A — no published artifact"
 elif [ -f "$rel" ]; then
   rg -qi 'sbom-action|syft|cyclonedx' "$rel" && ok "release: SBOM step" "found in $rel" || fail "release: SBOM step" "none in $rel (OSS-003, Legal §1 CRA driver)"
-  rg -qi 'attest-build-provenance|--provenance|cosign|sigstore' "$rel" && ok "release: signing/provenance" "found in $rel" || fail "release: signing/provenance" "none in $rel (OSS-010/011/012)"
+  if rg -qi 'attest-build-provenance|--provenance|cosign|sigstore' "$rel"; then ok "release: signing/provenance" "found in $rel"
+  elif [ "${ACCEPT_UNSIGNED:-}" = true ]; then warn "release: signing/provenance" "none in $rel — deferred post-launch by recorded decision (E5/M3); OSS-010/011/012 deviation"
+  else fail "release: signing/provenance" "none in $rel (OSS-010/011/012)"; fi
 else fail "release: workflow" "$rel missing"; fi
 # pinned = 40-hex SHA; our own reusable workflows (dnsid-ai/*) and local ./ paths are exempt
 unpinned=$(rg -n '^\s*-?\s*uses:\s*[^./]\S*@' .github/workflows 2>/dev/null | grep -vE '@[0-9a-f]{40}\b|uses:\s*dnsid-ai/' || true)
