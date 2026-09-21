@@ -30,7 +30,7 @@ Report privately through one of the following:
 
 - **GitHub Security Advisories**: if the **"Report a vulnerability"** button is available under
   this repository's **Security** tab, use it to open a private advisory.
-- **Email**: `idil-bugreport@identity.digital`
+- **Email**: `security@dnsid.ai`
 
 ## **Our Commitment**
 
@@ -38,6 +38,38 @@ When you report a vulnerability responsibly, we will:
 
 - **Acknowledge** receipt within **3 business days**.
 - Provide an **initial assessment** (validity, severity, next steps) within **14 days**.
+
+## **How Fixes Are Released**
+
+This repository publishes no package. A confirmed issue is fixed by a commit to `main`:
+
+1. Test-vector fixes land on `main`; SDK repositories pin the reusable workflow at `@main`, so their
+   next CI run picks the correction up automatically.
+2. If an unsound vector could have let a real protocol flaw pass as compliant, a GitHub Security
+   Advisory is published here naming the affected vectors and the fixing commit, and the affected
+   SDK repositories are notified so they can re-run conformance.
+3. Reporters are credited in the advisory unless they ask otherwise.
+
+A report showing an invalid record, signature, or status being **accepted as valid** is treated as the
+highest priority regardless of its CVSS score.
+
+## **Remediation Timelines and Support Period**
+
+Beyond the acknowledgement and assessment commitments above, we do not currently commit to fixed
+remediation deadlines or to a defined security-support period. Fixes are provided on `main` on a
+best-effort basis. This position will be revisited; any change will be made in this file first.
+
+## **End of Life**
+
+If maintenance of this repository ends, we will say so in its README and archive the repository
+read-only rather than delete it, so that workflows referencing it keep resolving. Forks remain free to
+continue under the Apache-2.0 license.
+
+## **Support**
+
+This is open-source software provided under the Apache License 2.0 without warranty. Issues and pull
+requests are triaged on a best-effort basis by the maintainers listed in `CODEOWNERS`. No commercial
+support is attached to this repository.
 
 ## **Safe Harbor**
 

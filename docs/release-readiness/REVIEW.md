@@ -139,7 +139,7 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 | ID | Req | Control | Status | Response / evidence |
 |---|---|---|---|---|
 | VIR-001 | Must P1 | Establish and publish a vulnerability reporting process. | 🔧 | SECURITY.md byte-checked against canonical (`ci/readiness.sh`). GitHub Security Advisories + email. |
-| VIR-002 | Must P2 | Publish security.txt or equivalent security contact information. | ⏳ | `security.txt` → `DECISIONS.md` E7 (needs site repo + live aliases E1). |
+| VIR-002 | Must P2 | Publish security.txt or equivalent security contact information. | ⏳ | `security.txt` → `DECISIONS.md` E7 (needs site repo; aliases live). |
 | VIR-003 | Must P1 | Define vulnerability severity classification, remediation targets, exception handling, and escalation. | 📄 | SECURITY.md §How Fixes Are Released + §Remediation Timelines: severity via CVSS, escalation = false-pass rule; remediation targets deliberately not committed (L8). |
 | VIR-004 | Must P1 | Maintain a process for emergency security fixes and rapid distribution of critical updates. | 📄 | SECURITY.md §How Fixes Are Released: new version + advisory, patch on latest minor. |
 | VIR-005 | Must P1 | Maintain procedures for compromised agent credentials, private keys, signing keys, and DNSid identities. | 📄 | Compromised keys: rotation + status revocation + `ka=` (ops docs). Signing keys: none held by SDK repos (`THREAT_MODEL.md` C6). Procedures for hosted side: service review. |
@@ -202,7 +202,7 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 | Item | Status | Finding and evidence |
 |---|---|---|
 | Decision to publish recorded by someone with authority | ⏳ | `DECISIONS.md` M1. |
-| Full contents incl. history reviewed for material that should not be published | ⏳ | gitleaks clean; `WORKING_UPDATES.md`/internal docs flagged for compliance repo (M7). History vs snapshot → `DECISIONS.md` M2. |
+| Full contents incl. history reviewed for material that should not be published | ⏳ | gitleaks clean; `WORKING_UPDATES.md` removed (#5); `docs/release-readiness/` flagged for compliance repo (M7). History vs snapshot → `DECISIONS.md` M2. |
 | Third-party/partner/customer material cleared | ✅ | None present (L4: no customer/partner material). |
 | What is published vs held back is recorded | 📄 | `STATUS.md` repo table: 3 SDKs + witness public; platform monorepo (server, console, CLI) private → M3, M7. |
 | Publication does not forfeit intended protection (trade secret / patent) | ✅ | L3: one patent, held by us; no trade secrets. Apache §3 outward grant flagged for confirmation. |
@@ -302,7 +302,7 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 
 | Item | Status | Finding and evidence |
 |---|---|---|
-| Security policy published with working disclosure contact (CRA driver) | ⏳ | SECURITY.md in every repo (`ci/readiness.sh`). Contact switches to `security@dnsid.ai` when live → E1. |
+| Security policy published with working disclosure contact (CRA driver) | ✅ | SECURITY.md in every repo (`ci/readiness.sh`), contact `security@dnsid.ai` (live 9/21). |
 | Decision recorded on response/remediation timelines | ✅ | Acknowledge 3 business days / assess 14 days; remediation deadlines deliberately not committed (L8, recorded in SECURITY.md). |
 | Process for issuing and announcing a fix | 📄 | SECURITY.md §How Fixes Are Released. |
 | Security updates free for a defined, published period (CRA driver) | ⏳ | Deliberately undefined for now (L8); revisit with CRA (L7). Published as such in SECURITY.md. |
@@ -360,8 +360,8 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 
 | Status | Rows |
 |---|---|
-| ✅ | 35 |
+| ✅ | 36 |
 | 🔧 | 30 |
 | 📄 | 60 |
-| ⏳ | 44 |
+| ⏳ | 43 |
 | ➖ | 56 |

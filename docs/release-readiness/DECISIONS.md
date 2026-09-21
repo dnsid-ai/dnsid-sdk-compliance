@@ -79,7 +79,7 @@ Legend: 🔴 blocks publish · 🟡 blocks a specific file or sign-off row · �
 
 | # | Question | Why | Proposed default | Blocks |
 |---|---|---|---|---|
-| E1 🔴 | **Public contact aliases** (`security@`, `report@`, `legal@` on `dnsid.ai`) — confirm live before publish. SECURITY.md and the code of conduct point at them. | VIR-001/002, Legal §9 row 1 | Aliases route to legal and the security group; SECURITY.md contact switched from the identity.digital inbox on go-live. | Publish (dead contact otherwise) |
+| ~~E1~~ ✅ | **Public contact aliases** — `security@dnsid.ai` live 9/21; SECURITY.md contact switched in every repo. CoC already uses `report@dnsid.ai`. | VIR-001/002, Legal §9 row 1 | — | — |
 | E2 🔴 | **Package registry ownership.** npm org `@dnsid-ai` owner unverified; PyPI `dnsid` and confusable names (`dnsid-sdk`, `dnsid-ai`, `dnsid_ai`, `dnsidai`) unclaimed. Must be company-held accounts. | Legal §1 rows 13, 14; OSS-001; THREAT_MODEL C2 | Claim all under a company account with 2FA; record who holds it. | Publish |
 | E3 🟡 | **CRA reporting contact.** A named person with access to the ENISA single reporting platform for actively exploited vulnerabilities. Obligation already live. | Legal §10 row 7 | The security owner from M4, with `security@dnsid.ai` as the inbound path. | Sign-off row |
 | ~~E4~~ ✅ | **Org-level 2FA enforcement** — done; org setting enabled, 18/18 members on 2FA. | SSD-003, OSS-007 | — | — |

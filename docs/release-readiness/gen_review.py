@@ -71,7 +71,7 @@ INFOSEC = {
  "SSD-014": ("🔧", f"{R} 'actions SHA-pinned'; fork PRs get no secrets (`on: pull_request`); release via automation PRs ({TM} C6)."),
  "LOG-006": ("📄", "SDK emits no logs; nothing to redact. Documented so integrators know their logs contain nothing from us."),
  "VIR-001": ("🔧", f"SECURITY.md byte-checked against canonical ({R}). GitHub Security Advisories + email."),
- "VIR-002": ("⏳", f"`security.txt` → {D} E7 (needs site repo + live aliases E1)."),
+ "VIR-002": ("⏳", f"`security.txt` → {D} E7 (needs site repo; aliases live)."),
  "VIR-003": ("📄", "SECURITY.md §How Fixes Are Released + §Remediation Timelines: severity via CVSS, escalation = false-pass rule; remediation targets deliberately not committed (L8)."),
  "VIR-004": ("📄", "SECURITY.md §How Fixes Are Released: new version + advisory, patch on latest minor."),
  "VIR-005": ("📄", f"Compromised keys: rotation + status revocation + `ka=` (ops docs). Signing keys: none held by SDK repos ({TM} C6). Procedures for hosted side: service review."),
@@ -116,7 +116,7 @@ for k in ["API-002", "API-004", "API-006", "API-010", "LOG-001", "LOG-002", "LOG
 LEGAL = [
  ("1. Approval to Publish, Licensing, and Distribution", [
   ("Decision to publish recorded by someone with authority", "⏳", f"{D} M1."),
-  ("Full contents incl. history reviewed for material that should not be published", "⏳", f"gitleaks clean; `WORKING_UPDATES.md`/internal docs flagged for compliance repo (M7). History vs snapshot → {D} M2."),
+  ("Full contents incl. history reviewed for material that should not be published", "⏳", f"gitleaks clean; `WORKING_UPDATES.md` removed (#5); `docs/release-readiness/` flagged for compliance repo (M7). History vs snapshot → {D} M2."),
   ("Third-party/partner/customer material cleared", "✅", "None present (L4: no customer/partner material)."),
   ("What is published vs held back is recorded", "📄", "`STATUS.md` repo table: 3 SDKs + witness public; platform monorepo (server, console, CLI) private → M3, M7."),
   ("Publication does not forfeit intended protection (trade secret / patent)", "✅", "L3: one patent, held by us; no trade secrets. Apache §3 outward grant flagged for confirmation."),
@@ -192,7 +192,7 @@ LEGAL = [
   ("Nothing creates a hosted-service commitment the service doesn't make", "📄", "README 'Hosted endpoints' paragraph."),
  ]),
  ("9. Security and Vulnerability Handling", [
-  ("Security policy published with working disclosure contact (CRA driver)", "⏳", f"SECURITY.md in every repo ({R}). Contact switches to `security@dnsid.ai` when live → E1."),
+  ("Security policy published with working disclosure contact (CRA driver)", "✅", f"SECURITY.md in every repo ({R}), contact `security@dnsid.ai` (live 9/21)."),
   ("Decision recorded on response/remediation timelines", "✅", "Acknowledge 3 business days / assess 14 days; remediation deadlines deliberately not committed (L8, recorded in SECURITY.md)."),
   ("Process for issuing and announcing a fix", "📄", "SECURITY.md §How Fixes Are Released."),
   ("Security updates free for a defined, published period (CRA driver)", "⏳", "Deliberately undefined for now (L8); revisit with CRA (L7). Published as such in SECURITY.md."),

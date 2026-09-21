@@ -95,7 +95,7 @@ OSS-002. All 3 SDKs pass today. GitHub security features show 🟡 while repos a
 | SECURITY.md consistency | ts/py stale | byte-checked |
 | Fixture domains | registrable placeholders | RFC 2606 |
 | Signing / provenance | py only | py only (go/ts skipped) |
-| CODE_OF_CONDUCT | ❌ | ❌ (legal question out) |
+| CODE_OF_CONDUCT | ❌ | ✅ Contributor Covenant 2.1, byte-checked (fix #6) |
 | GitHub: secret scanning, push protection, PVR | disabled | disabled — needs GHAS or public |
 | Repo descriptions | blank | set |
 | Dependabot security updates | disabled | enabled |
@@ -127,7 +127,7 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
 | 16 | `THREAT_MODEL.md` (shared, this repo) | ✅ `docs/release-readiness/THREAT_MODEL.md` — trust boundaries (COM-001), can/cannot (COM-002), 9 protocol + 3 key-handling + 7 supply-chain threats with cited mitigations and residuals (COM-005, OSS-023, VIR-007), false-pass row (Legal §9), fork-cannot-inherit-trust argument (OSS-015/016/017). Surfaced: single-approver merges on trust-path files → added to decision #7 |
 | 17 | Data + network-destination inventory | ✅ `docs/release-readiness/INVENTORY.md` — network table (8 destinations, default vs opt-in; sanity pass removed a wrongly-listed witness row — witnesses are never contacted), data table, `~/.dnsid` file properties, in-memory caches. Surfaced **decision #12** (plaintext local keys) |
 | 19 | SAST in SDK CI (SSD-005) | ✅ **sanity-pass finding**: was recorded as done but only the compliance repo had CodeQL; SDK CI had golangci (no gosec) / ruff (no `S`) / nothing (ts). Added pinned `codeql.yml` to go `5034562`, ts `5f6edc3`, py `30135a9`; `readiness.sh` now fails without a SAST step |
-| 18 | Public contact aliases | ⏸ **IT setting up, needed by 9/22.** Legal position: public-facing contacts must not expose the `identity.digital` domain; split by product URL. Aliases: `security@dnsid.ai` (requested; `security@knownsystems.ai` exists), `report@dnsid.ai` + `report@knownsystems.ai` (misconduct/AUP reports), `legal@dnsid.ai` + `legal@knownsystems.ai`. All route to the ID legal alias plus the security group; 4 SDK maintainers named as owners. **Our follow-ups once live:** (a) `policy/SECURITY.md` contact → `security@dnsid.ai` (one edit, byte-check propagates to all 3 SDKs); (b) CoC contact → `report@dnsid.ai`; (c) same two addresses go in `security.txt` (#14) and the README section (#11); (d) `security@dnsid.ai` is the natural CRA reporting contact (decision #4) |
+| 18 | Public contact aliases | ✅ **`security@dnsid.ai` live 9/21**; (a) done — canonical + this repo's SECURITY.md → `security@dnsid.ai`, propagated to go `9071dac`, ts `b32ef6a`, py `89a86e3`, cookbook `302b9ed`, witness `97c963d` (same commit also carried the L8 sections, which had **not** reached go/ts/py despite the L8 note). (b) already `report@dnsid.ai`. (c)/(d) still open. Original ask: Legal position: public-facing contacts must not expose the `identity.digital` domain; split by product URL. Aliases: `security@dnsid.ai` (requested; `security@knownsystems.ai` exists), `report@dnsid.ai` + `report@knownsystems.ai` (misconduct/AUP reports), `legal@dnsid.ai` + `legal@knownsystems.ai`. All route to the ID legal alias plus the security group; 4 SDK maintainers named as owners. **Our follow-ups once live:** (a) `policy/SECURITY.md` contact → `security@dnsid.ai` (one edit, byte-check propagates to all 3 SDKs); (b) CoC contact → `report@dnsid.ai`; (c) same two addresses go in `security.txt` (#14) and the README section (#11); (d) `security@dnsid.ai` is the natural CRA reporting contact (decision #4) |
 
 ## Human decisions (nobody can grep these)
 
@@ -311,8 +311,8 @@ Reusable workflows are `on: pull_request`, so fork PRs never receive `GH_PAT`. N
 registry — no released artifact (NOTICE records this).
 
 Open — decision **#14 publish this repo?** Reusable workflows work from a private repo (org access
-setting). If public: `docs/release-readiness/` and `WORKING_UPDATES.md` (internal tracker, agent
-notes, file:line SDK divergences) must move out first. Decision **#15**: `.deepsource.toml` — is the
+setting). If public: `docs/release-readiness/` (internal tracker, agent notes) must move out first
+(`WORKING_UPDATES.md` already removed in #5). Decision **#15**: `.deepsource.toml` — is the
 DeepSource account company-held, or delete? Advisory: harness deps installed unpinned by `make`.
 
 ## Commands
