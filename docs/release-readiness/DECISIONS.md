@@ -22,7 +22,7 @@ Legend: 🔴 blocks publish · 🟡 blocks a specific file or sign-off row · �
 
 | # | Question | Why | Proposed default | Blocks |
 |---|---|---|---|---|
-| L1 🔴 | **Publishing entity.** Confirm the exact legal name for the copyright line and all public prose. Expected "Known Systems AI, Inc." | Legal §1 row 17; also legal's instruction that public surfaces must not present as Identity Digital. Today NOTICE says "Identity Digital Inc.", SECURITY.md says "Identity Digital Innovation Labs". | Use the confirmed name in NOTICE, SECURITY.md, and package metadata in one pass across all repos. | NOTICE, SECURITY.md, package metadata, witness placeholders |
+| ~~L1~~ ✅ | *Confirmed: "Known Systems AI, Inc." Applied everywhere (see answers table).* **Publishing entity.** Confirm the exact legal name for the copyright line and all public prose. | Legal §1 row 17; also legal's instruction that public surfaces must not present as Identity Digital. | Use the confirmed name in NOTICE, SECURITY.md, and package metadata in one pass across all repos. | — |
 | L2 🔴 | **Contributor IP.** Two contributors committed under personal email addresses; two commits in the witness repo are from a coding-assistant bot. Confirm employment/assignment covers all contributors, and that company policy permits AI-assisted code under Apache-2.0. | Legal §2 rows 1, 2, 4 | Confirm in writing; no code change. | Publish |
 | L3 🔴 | **Trade secret / patent.** Is anything in the SDKs relied on as confidential know-how? Any filed or intended patent that reads on the implementation? | Legal §1 row 5, §3 row 5. Publication creates prior art and ends trade-secret status. | "Nothing relied on; no filings." | Publish |
 | L4 🔴 | **Funding and restrictive agreements.** Any customer-, partner-, or grant-funded work in these repos? Any agreement (exclusivity, confidentiality, the former evaluation agreement) restricting publication? | Legal §2 rows 3, 5 | "None." | Publish |
@@ -43,7 +43,7 @@ Legend: 🔴 blocks publish · 🟡 blocks a specific file or sign-off row · �
 
 | # | Answer | Recorded as | Follow-up |
 |---|---|---|---|
-| L1 | Name is "Known Systems AI, Inc." — **confirmed 9/21** | ✅ | **Applied** to NOTICE, SECURITY.md, package metadata, witness doc. **Open wording question:** code comments and API docs say "Identity Digital-managed DNSid logs" (~25 places) when describing who operates `log.dnsid.ai`. Replace with "Known Systems-managed" or the entity-neutral "DNSid-managed" (matches the existing function name `NewDnsidManagedVerificationRegistry`)? **Approved 9/21, applied** to go/ts/py comments + design docs. |
+| L1 | Name is "Known Systems AI, Inc." — **final confirmation received** | ✅ | **Applied** to NOTICE, SECURITY.md, package metadata, witness doc. **Open wording question:** code comments and API docs say "Identity Digital-managed DNSid logs" (~25 places) when describing who operates `log.dnsid.ai`. Replace with "Known Systems-managed" or the entity-neutral "DNSid-managed" (matches the existing function name `NewDnsidManagedVerificationRegistry`)? **Approved 9/21, applied** to go/ts/py comments + design docs. |
 | L2 | Employment covers all contributors; AI-assisted code covered too (round 2) | ✅ | — |
 | L3 | Round 2: a patent exists, held by us, no third-party license needed; no trade secrets | ✅ | **Caution to confirm:** Apache-2.0 §3 grants every user a royalty-free license to our patent claims as embodied in the published code. "No license needed" is true for *us*; publishing *grants one outward*. Confirm that's understood and intended (it's what the SDKs' NOTICE/LICENSE already say). |
 | L4 | None | ✅ | — |
@@ -100,6 +100,5 @@ Legend: 🔴 blocks publish · 🟡 blocks a specific file or sign-off row · �
 
 ## After the decisions
 
-Once the 🔴 items are answered, remaining work is mechanical and small: one pass to apply the entity
-name, fill the SECURITY.md numbers, merge the readiness PRs, flip repos public, and complete the two
+Once the 🔴 items are answered, remaining work is mechanical and small: merge the readiness PRs, flip repos public, and complete the two
 review forms row-by-row for §13 sign-off with pointers to the evidence above.

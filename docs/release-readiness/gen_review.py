@@ -131,7 +131,7 @@ LEGAL = [
   ("Confusable package names reserved or monitored", "⏳", f"{D} E2 (PyPI confusables listed)."),
   ("Release artifacts signed; publishing restricted to named people", "⏳", f"py signed/attested; go/ts → E5. Publishing via automation PRs under ruleset."),
   ("Conforms to company open source policy, or absence recorded", "✅", "L15 confirmed."),
-  ("Publishing entity settled and matches repos/packages/license", "✅", "L1: Known Systems AI, Inc. (final confirmation pending); applied to NOTICE/SECURITY.md/pyproject."),
+  ("Publishing entity settled and matches repos/packages/license", "✅", "L1: Known Systems AI, Inc. (confirmed); applied to NOTICE/SECURITY.md/pyproject."),
  ]),
  ("2. Ownership and Provenance", [
   ("All contributors assigned/licensed work to publishing entity", "✅", "L2 confirmed (employment)."),

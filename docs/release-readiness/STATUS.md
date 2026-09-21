@@ -136,18 +136,10 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
 > 11→L14, 12→M6, 13→M3, 14→M7, 15→E6, 16→L8, 17→L13, 18→L3, 19→L4, 20→L9, 21→L6, 22→M8, 23→L15, 24→E6;
 > fix-list 3/4→E4, 5/13→E2, 8→E5, 14→E7, 18→E1, CoC alias→L12. Update both when an answer lands.
 
-1. ✅ **Publishing entity** — "Known Systems AI, Inc." **confirmed 9/21**. Wording follow-up done: "Identity Digital-managed" → "DNSid-managed" in go `0f0cb5a`, ts `e19eb0f`, py `223b288`, compliance `docs/sdk-design` (anchors updated). **Pass applied** on
+1. ✅ **Publishing entity** — "Known Systems AI, Inc." **confirmed 9/21, final confirmation received**. Wording follow-up done: "Identity Digital-managed" → "DNSid-managed" in go `0f0cb5a`, ts `e19eb0f`, py `223b288`, compliance `docs/sdk-design` (anchors updated). **Pass applied** on
    `release-readiness` everywhere: canonical SECURITY.md lines 3/37 → propagated to go `f111017`, ts `746d6ce`,
    py `dea89f8` (+ NOTICE, py `pyproject.toml` authors), compliance `b8163a1`, witness `2cbbb23` (+ `$DNSID_TEAM` →
-   "Known Systems"). If the name changes Friday: one sed over the same files. **Not touched**: ~25 occurrences of
-   "Identity Digital-managed DNSid logs" in code comments / API docs / design docs describing the `log.dnsid.ai`
-   operator — wording decision, see DECISIONS L1 follow-up. — names in use: "Identity Digital Inc." (NOTICE), "Identity Digital
-   Innovation Labs" (SECURITY.md), "Known Services" (legal form), `knownsystems.ai` (email aliases);
-   GitHub org `dnsid-ai`. Pick one, align. **New constraint from legal**: public-facing surfaces
-   (contacts, and by extension probably README/SECURITY.md prose) should not present as "Identity
-   Digital". **Legal: yes, extends to prose — repos must present as "Known".** Exact entity name
-   pending confirmation, expected **"Known Systems AI, Inc."** Once confirmed: NOTICE copyright line,
-   `policy/SECURITY.md` lines 3/37, witness `$DNSID_TEAM` placeholders, W3 NOTICE — one pass.
+   "Known Systems"). Legal constraint honored: public surfaces present as "Known", not "Identity Digital". Closed.
 2. ✅ **History** — **decided 9/21: SDKs + cookbook keep history; witness squashes to a fresh root before publish.** Verified against origin: go/ts/py/cookbook each have a single root dated 2026-09-15 and every tag is Apache-2.0 — they are already clean snapshots (the evaluation-license history is in the private predecessor, not published). Personal author emails covered by L2. Witness: `build-image.yml` infra IDs in 3 commits of `release-readiness` → squash (W1); no consumers, no cost.
 3. ✅ **CLA / DCO / neither** — **neither**; CONTRIBUTING.md "Licensing of contributions" section in every repo (L5). (Apache §5 default).
 4. ⏳ **CRA** — legal round 2: applies, deferred by decision, discuss later. E3 still recommended. — SDK drives adoption of `api.dnsid.ai`; form itself says that's a poor fit for
