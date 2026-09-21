@@ -71,7 +71,7 @@ INFOSEC = {
  "SSD-014": ("🔧", f"{R} 'actions SHA-pinned'; fork PRs get no secrets (`on: pull_request`); release via automation PRs ({TM} C6)."),
  "LOG-006": ("📄", "SDK emits no logs; nothing to redact. Documented so integrators know their logs contain nothing from us."),
  "VIR-001": ("🔧", f"SECURITY.md byte-checked against canonical ({R}). GitHub Security Advisories + email."),
- "VIR-002": ("⏳", f"`security.txt` → {D} E7 (needs site repo; aliases live)."),
+ "VIR-002": ("⏳", f"`security.txt` → {D} E7 (deployed 9/21 but not serving — CloudFront SPA fallback; site owner to fix)."),
  "VIR-003": ("📄", "SECURITY.md §How Fixes Are Released + §Remediation Timelines: severity via CVSS, escalation = false-pass rule; remediation targets deliberately not committed (L8)."),
  "VIR-004": ("📄", "SECURITY.md §How Fixes Are Released: new version + advisory, patch on latest minor."),
  "VIR-005": ("📄", f"Compromised keys: rotation + status revocation + `ka=` (ops docs). Signing keys: none held by SDK repos ({TM} C6). Procedures for hosted side: service review."),

@@ -85,7 +85,7 @@ Legend: 🔴 blocks publish · 🟡 blocks a specific file or sign-off row · �
 | ~~E4~~ ✅ | **Org-level 2FA enforcement** — done; org setting enabled, 18/18 members on 2FA. | SSD-003, OSS-007 | — | — |
 | ~~E5~~ ✅ | *9/21: skip at launch accepted; npmjs chosen — dnsid-ts PR #16 (trusted publishing + provenance).* **Release signing for Go and TypeScript** was skipped (Python has provenance). TypeScript is blocked on the npmjs-vs-GitHub-Packages decision (`--provenance` requires npmjs). Confirm skip is accepted for launch, and decide the npm registry. | OSS-010/011/012, OSS-024 | Publish `@dnsid-ai/*` to **npmjs** with provenance; add Go release signing before 1.0. | Readiness shows ❌ until done |
 | E6 ⚪ | **Third-party service accounts.** GitHub org, npm, PyPI, any CI/SaaS — held by company accounts, terms accepted knowingly, continuity when a person leaves. (DeepSource: confirmed leftover, config removed.) | Legal §12 row 3 | Inventory the accounts. | — |
-| E7 ⚪ | **`security.txt`** at `dnsid.ai` and `docs.dnsid.ai`. Needs the site repository. | VIR-002 | Publish once E1 aliases exist. | — |
+| E7 ⚪ | *9/21: deployed per site owner but not serving — CloudFront returns the SPA index at `/.well-known/security.txt` on `dnsid.ai`/`www`/`docs`. Needs a fix on the site side.* **`security.txt`** at `dnsid.ai` and `docs.dnsid.ai`. | VIR-002 | Fix deploy; verify `Contact: mailto:security@dnsid.ai` + `Expires`. | — |
 
 ---
 

@@ -18,7 +18,7 @@ mechanically-checkable rows so they stay answered; leave a short list of decisio
 Row-by-row filled forms: **`REVIEW.md`**, generated from `gen_review.py` (edit the answer tables there,
 rerun `python3 gen_review.py infosec_rows.txt > REVIEW.md`). 225 rows; every one has a status and a
 pointer to `readiness.sh`, `INVENTORY.md`, `THREAT_MODEL.md`, or a `DECISIONS.md` id. This is the §13
-sign-off attachment. Tally today: 64 ⏳ pending decisions, 56 ➖ N/A, rest answered/enforced/documented.
+sign-off attachment. Tally today: 41 ⏳ pending decisions, 58 ➖ N/A, rest answered/enforced/documented.
 
 ## Scoping conclusion (important)
 
@@ -41,12 +41,12 @@ All under `github.com/dnsid-ai`, cloned at `~/`. All **private** today.
 | Repo | Role | Branch | PR | Status |
 |---|---|---|---|---|
 | `dnsid-sdk-compliance` | Conformance harness + **readiness checker** | `release-readiness` | #2 | workflow/policy only — **merge first** |
-| `dnsid-sdk-compliance` | Tracking docs (this directory) | `release-readiness-docs` | — | split from #2 so the workflow can merge independently; open PR after push |
+| `dnsid-sdk-compliance` | Tracking docs (this directory) | `release-readiness-docs` | #4 | split from #2 so the workflow can merge independently |
 | `dnsid-go` | Go SDK v0.33.1 (`github.com/dnsid-ai/dnsid-go`, `…/key/aws`) | `release-readiness` | #11 | pushed |
 | `dnsid-ts` | TS SDK v0.19.1, 11 pkgs `@dnsid-ai/*` (GitHub Packages today) | `release-readiness` | #9 | pushed |
 | `dnsid-py` | Python SDK v0.19.1, PyPI `dnsid` | `release-readiness` | #4 | pushed |
-| `dnsid-cookbook` | Recipes (prose + sample code) | `release-readiness` | — | `d82288b` local, **not pushed**. See "dnsid-cookbook review" |
-| `Identity-Digital/c2sp-ledger-witness` (`~/c2sp-ledger-witness`) | **Service**: C2SP tlog witness partners operate | `release-readiness` | — | committed locally, **not pushed** — see section below |
+| `dnsid-cookbook` | Recipes (prose + sample code) | `release-readiness` | — | pushed. See "dnsid-cookbook review" |
+| `Identity-Digital/c2sp-ledger-witness` (`~/c2sp-ledger-witness`) | **Service**: C2SP tlog witness partners operate | `release-readiness` | — | pushed — see section below |
 | `Identity-Digital/dnsid` (`~/dnsid`) | Platform monorepo: server, console, deploy, **CLI (`cmd/cli`)** | — | — | **out of scope** for the SDK review — hosted-service repo, separate org. See decision #13 |
 
 Merge order matters: SDK callers reference `sdk-release-readiness.yaml@main` in this repo.
@@ -113,16 +113,16 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
 | 2 | Dependabot alerts + security updates | ✅ all 3 |
 | 3 | Secret scanning / push protection / private vuln reporting | ⏸ **9/21: GHAS *Code Security* enabled (CodeQL works). *Secret Protection* (secret scanning + push protection) is a separate paid add-on — still disabled on all 5 repos; gitleaks in CI covers the mechanical row meanwhile.** PVR is public-only. Readiness flips 🟡→❌ automatically when public |
 | 4 | Org 2FA requirement | ✅ `two_factor_requirement_enabled=true` (verified in sanity pass). 18 members, 0 without 2FA. `members_can_create_public_repositories=false` ✅ |
-| 5 | Registry account ownership | 🟡 **npm verified 9/21**, second owner added 9/21 ✅.: org `@dnsid-ai` owner = Ben Guidarelli, user `dnsid-barnjamin`, company email, 2FA on. ⚠️ single owner → add a second org owner (Jason, #7) for continuity (Legal §12 row 3). **PyPI**: org-name approval pending; will be same email + 2FA. `dnsid` + confusables (`dnsid-sdk`, `dnsid-ai`≡`dnsid_ai`, `dnsidai`) need a stub upload each — PyPI has no reservation |
+| 5 | Registry account ownership | 🟡 **npm verified 9/21**: org `@dnsid-ai` owner = Ben Guidarelli, user `dnsid-barnjamin`, company email, 2FA on; second org owner (Jason, #7) added 9/21 ✅. **PyPI**: org-name approval pending; will be same email + 2FA. `dnsid` + confusables (`dnsid-sdk`, `dnsid-ai`≡`dnsid_ai`, `dnsidai`) need a stub upload each — PyPI has no reservation |
 | 6 | CODE_OF_CONDUCT.md | ✅ **Legal answered** (contact `report@dnsid.ai` re-confirmed L12): Contributor Covenant 2.1 as written, ladder as written, contact `report@dnsid.ai` (legal may later prefer a dedicated conduct alias — one edit in `policy/`). `policy/CODE_OF_CONDUCT.md` byte-checked in `readiness.sh`; copied to go `9bbecc0`, ts `070bea8`, py `9b6cbad`, this repo `00b058b`. Alias itself not live until #18 |
 | 7 | SBOM in release.yml | ✅ in PRs |
 | 8 | Signing / provenance for go + ts | ⏭ **deferred post-launch by decision (9/21)**. ts: npmjs + provenance in dnsid-ts #16. Readiness callers in go `6a23aa1` / ts `1fd2078` set `accept-unsigned: true` → row reports 🟡 not ❌ (compliance #8). **Remove the input when signing lands.** |
 | 9 | Dep vuln scan in CI | ✅ in PRs |
 | 10 | RFC 2606 fixture domains | ✅ in PRs; go/ts (815)/py (1285) suites green |
-| 11 | README "Security & trust" section | ✅ committed on all 3 `release-readiness` branches (go `141ed87`, ts `5699e6a`, py `e291c95`), **not pushed**. Identical section before `## License`; per-SDK fills for package registry, opt-in endpoints, logging. Finding: none of the 3 SDKs emit logs (py declares a `dnsid` logger, never calls it). Says "DNSid-operated" not "Identity Digital" pending decision #1. Contact deferred to SECURITY.md so the #18 alias swap is one edit |
+| 11 | README "Security & trust" section | ✅ on all 3 `release-readiness` branches (go `141ed87`, ts `5699e6a`, py `e291c95`), pushed. Identical section before `## License`; per-SDK fills for package registry, opt-in endpoints, logging. Finding: none of the 3 SDKs emit logs (py declares a `dnsid` logger, never calls it). Says "DNSid-operated" not "Identity Digital" pending decision #1. Contact deferred to SECURITY.md so the #18 alias swap is one edit |
 | 12 | — | (merged into 11) |
 | 13 | Reserve PyPI confusable names | ⏸ Ben |
-| 14 | `security.txt` on dnsid.ai / docs.dnsid.ai | ⏸ need the site repo location |
+| 14 | `security.txt` on dnsid.ai / docs.dnsid.ai | ⏳ **9/21: reported deployed, but not serving** — `dnsid.ai`, `www.dnsid.ai`, `docs.dnsid.ai` `/.well-known/security.txt` all return the SPA index (`text/html`, `x-cache: Error from cloudfront` = S3 miss → fallback); `api.dnsid.ai` 404. Site owner to check the file landed in the bucket / CloudFront path. Once serving, verify: `Contact: mailto:security@dnsid.ai`, `Expires:` (RFC 9116 required), `Canonical:`; then close VIR-002 |
 | 15 | CONTRIBUTING: "adding any encryption primitive → export re-review" | ⏭ **deferred by decision** — not in source docs; `readiness.sh` primitive grep already trips on it |
 | 16 | `THREAT_MODEL.md` (shared, this repo) | ✅ `docs/release-readiness/THREAT_MODEL.md` — trust boundaries (COM-001), can/cannot (COM-002), 9 protocol + 3 key-handling + 7 supply-chain threats with cited mitigations and residuals (COM-005, OSS-023, VIR-007), false-pass row (Legal §9), fork-cannot-inherit-trust argument (OSS-015/016/017). Surfaced: single-approver merges on trust-path files → added to decision #7 |
 | 17 | Data + network-destination inventory | ✅ `docs/release-readiness/INVENTORY.md` — network table (8 destinations, default vs opt-in; sanity pass removed a wrongly-listed witness row — witnesses are never contacted), data table, `~/.dnsid` file properties, in-memory caches. Surfaced **decision #12** (plaintext local keys) |

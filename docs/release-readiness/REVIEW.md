@@ -139,7 +139,7 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 | ID | Req | Control | Status | Response / evidence |
 |---|---|---|---|---|
 | VIR-001 | Must P1 | Establish and publish a vulnerability reporting process. | 🔧 | SECURITY.md byte-checked against canonical (`ci/readiness.sh`). GitHub Security Advisories + email. |
-| VIR-002 | Must P2 | Publish security.txt or equivalent security contact information. | ⏳ | `security.txt` → `DECISIONS.md` E7 (needs site repo; aliases live). |
+| VIR-002 | Must P2 | Publish security.txt or equivalent security contact information. | ⏳ | `security.txt` → `DECISIONS.md` E7 (deployed 9/21 but not serving — CloudFront SPA fallback; site owner to fix). |
 | VIR-003 | Must P1 | Define vulnerability severity classification, remediation targets, exception handling, and escalation. | 📄 | SECURITY.md §How Fixes Are Released + §Remediation Timelines: severity via CVSS, escalation = false-pass rule; remediation targets deliberately not committed (L8). |
 | VIR-004 | Must P1 | Maintain a process for emergency security fixes and rapid distribution of critical updates. | 📄 | SECURITY.md §How Fixes Are Released: new version + advisory, patch on latest minor. |
 | VIR-005 | Must P1 | Maintain procedures for compromised agent credentials, private keys, signing keys, and DNSid identities. | 📄 | Compromised keys: rotation + status revocation + `ka=` (ops docs). Signing keys: none held by SDK repos (`THREAT_MODEL.md` C6). Procedures for hosted side: service review. |
