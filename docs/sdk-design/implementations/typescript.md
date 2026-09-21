@@ -7,7 +7,7 @@
 | SDK repository | dnsid-ts |
 | SDK branch | `main` |
 | SDK commit | `88aae3470bf50e0c9f71844a4798802054e291a2` |
-| SDK package version | `@identity-digital/dnsid` `0.19.1` |
+| SDK package version | `@dnsid-ai/*` `0.19.1` |
 | dnsid design docs commit | `1d3fbb551201669bd066b3f543f4f571622377e5` |
 | Analysis date | 2026-09-15 |
 | Validation commands | `npm test` (815 passed, 1 skipped), `npm run typecheck`, and `npm run build` passed at the reviewed head; shared harness 193/193 expectations and the C2SP matrix (9 interoperable paths, 6 mutated bundles rejected) passed at this head via `harness/run.py` and `harness/c2sp_matrix.py`. |
