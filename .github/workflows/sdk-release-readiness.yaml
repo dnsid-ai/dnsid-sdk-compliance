@@ -72,8 +72,9 @@ jobs:
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         if: inputs.sdk == 'py'
 
-      - name: Install gitleaks
+      - name: Install gitleaks and ripgrep
         run: |
+          sudo apt-get install -y --no-install-recommends ripgrep >/dev/null
           curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
             | sudo tar -xz -C /usr/local/bin gitleaks
 
