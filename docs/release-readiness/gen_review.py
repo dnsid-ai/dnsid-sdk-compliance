@@ -116,7 +116,7 @@ for k in ["API-002", "API-004", "API-006", "API-010", "LOG-001", "LOG-002", "LOG
 LEGAL = [
  ("1. Approval to Publish, Licensing, and Distribution", [
   ("Decision to publish recorded by someone with authority", "⏳", f"{D} M1."),
-  ("Full contents incl. history reviewed for material that should not be published", "⏳", f"gitleaks clean; `WORKING_UPDATES.md` removed (#5); `docs/release-readiness/` flagged for compliance repo (M7). History vs snapshot → {D} M2."),
+  ("Full contents incl. history reviewed for material that should not be published", "⏳", f"gitleaks clean; `WORKING_UPDATES.md` removed (#5); `docs/release-readiness/` flagged for compliance repo (M7). History: SDKs single-root since 2026-09-15, Apache-only tags — keep; witness squashed before publish (M2, 9/21)."),
   ("Third-party/partner/customer material cleared", "✅", "None present (L4: no customer/partner material)."),
   ("What is published vs held back is recorded", "📄", "`STATUS.md` repo table: 3 SDKs + witness public; platform monorepo (server, console, CLI) private → M3, M7."),
   ("Publication does not forfeit intended protection (trade secret / patent)", "✅", "L3: one patent, held by us; no trade secrets. Apache §3 outward grant flagged for confirmation."),

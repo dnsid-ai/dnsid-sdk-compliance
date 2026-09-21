@@ -148,8 +148,7 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
    Digital". **Legal: yes, extends to prose — repos must present as "Known".** Exact entity name
    pending confirmation, expected **"Known Systems AI, Inc."** Once confirmed: NOTICE copyright line,
    `policy/SECURITY.md` lines 3/37, witness `$DNSID_TEAM` placeholders, W3 NOTICE — one pass.
-2. **History** — old tags (through v0.24.0 in go) carry the former evaluation-agreement license.
-   Keep history or publish clean snapshot. Local clones show 5–11 commits; confirm against origin.
+2. ✅ **History** — **decided 9/21: SDKs + cookbook keep history; witness squashes to a fresh root before publish.** Verified against origin: go/ts/py/cookbook each have a single root dated 2026-09-15 and every tag is Apache-2.0 — they are already clean snapshots (the evaluation-license history is in the private predecessor, not published). Personal author emails covered by L2. Witness: `build-image.yml` infra IDs in 3 commits of `release-readiness` → squash (W1); no consumers, no cost.
 3. ✅ **CLA / DCO / neither** — **neither**; CONTRIBUTING.md "Licensing of contributions" section in every repo (L5). (Apache §5 default).
 4. ⏳ **CRA** — legal round 2: applies, deferred by decision, discuss later. E3 still recommended. — SDK drives adoption of `api.dnsid.ai`; form itself says that's a poor fit for
    "steward" → likely **manufacturer**. Reporting obligations live since 11 Sep 2026; needs a named
@@ -274,7 +273,7 @@ actions SHA-pinned. Via API: description replaced ("welcome to the TLOG party").
 
 | # | Item | Needs |
 |---|---|---|
-| W1 | `build-image.yml` publishes infra detail: AWS account ID, IAM role ARN, ECR repo, region; runs `on: push` for every branch with OIDC. Legal §1 row 2 names this exactly. Already in all 11 commits of history | **Handed off** — see `witness-image-pipeline-brief.md`. Decision #2 (history vs clean snapshot) for this repo |
+| W1 | **Decision 9/21: squash `release-readiness` to a fresh root before publish** (decision #2). Still owed: scrub the workflow itself — see brief. `build-image.yml` publishes infra detail: AWS account ID, IAM role ARN, ECR repo, region; runs `on: push` for every branch with OIDC. Legal §1 row 2 names this exactly. Already in all 11 commits of history | **Handed off** — see `witness-image-pipeline-brief.md`. Decision #2 (history vs clean snapshot) for this repo |
 | W2 | **Org + Go module path** `github.com/Identity-Digital/c2sp-ledger-witness`. Import path is effectively permanent once public; SDKs live in `dnsid-ai` | Decision #1 **before** publish |
 | W3 | No `NOTICE` — deps Tessera/transparency-dev (Apache-2.0), klog (Apache-2.0), yaml.v3 (MIT+Apache), `filippo.io/mldsa` | Copyright entity (#1); then a NOTICE like the SDKs' |
 | W4 | No CODEOWNERS; branch protection is classic: 1 review, no code-owner review, no signed commits, **admins bypass** (SSD-002, OSS-006/008) | Which team owns it? Then convert to a ruleset matching the SDKs |
