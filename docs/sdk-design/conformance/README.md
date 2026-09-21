@@ -129,7 +129,7 @@ cannot establish conformance to the changed semantics.
 ## C2SP managed trust selection
 
 [`c2sp-managed-trust-selection.json`](c2sp-managed-trust-selection.json) tests
-the exact catalog-dispatch boundary of the named Identity Digital-managed trust
+the exact catalog-dispatch boundary of the named DNSid-managed trust
 factory. Each case parses the complete `lr` before comparing its exact `(scope,
 canonical log_prefix)` selector. Exact development and production selectors
 select their respective profile-backed entries; wrong scopes, unknown or
