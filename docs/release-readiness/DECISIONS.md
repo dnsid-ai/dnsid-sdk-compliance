@@ -84,7 +84,7 @@ Legend: 🔴 blocks publish · 🟡 blocks a specific file or sign-off row · �
 | E3 🟡 | **CRA reporting contact.** A named person with access to the ENISA single reporting platform for actively exploited vulnerabilities. Obligation already live. | Legal §10 row 7 | The security owner from M4, with `security@dnsid.ai` as the inbound path. | Sign-off row |
 | ~~E4~~ ✅ | **Org-level 2FA enforcement** — done; org setting enabled, 18/18 members on 2FA. | SSD-003, OSS-007 | — | — |
 | E5 🟡 | **Release signing for Go and TypeScript** was skipped (Python has provenance). TypeScript is blocked on the npmjs-vs-GitHub-Packages decision (`--provenance` requires npmjs). Confirm skip is accepted for launch, and decide the npm registry. | OSS-010/011/012, OSS-024 | Publish `@dnsid-ai/*` to **npmjs** with provenance; add Go release signing before 1.0. | Readiness shows ❌ until done |
-| E6 ⚪ | **Third-party service accounts.** GitHub org, npm, PyPI, DeepSource, any CI/SaaS — held by company accounts, terms accepted knowingly, continuity when a person leaves. DeepSource in particular: in use, or leftover config to delete? | Legal §12 row 3 | Inventory the accounts; delete DeepSource config if unused. | — |
+| E6 ⚪ | **Third-party service accounts.** GitHub org, npm, PyPI, any CI/SaaS — held by company accounts, terms accepted knowingly, continuity when a person leaves. (DeepSource: confirmed leftover, config removed.) | Legal §12 row 3 | Inventory the accounts. | — |
 | E7 ⚪ | **`security.txt`** at `dnsid.ai` and `docs.dnsid.ai`. Needs the site repository. | VIR-002 | Publish once E1 aliases exist. | — |
 
 ---

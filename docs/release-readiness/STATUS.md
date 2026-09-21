@@ -176,7 +176,7 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
     references the CLI. Question for mgmt: public download, or internal-only at launch?
 14. **Publish `dnsid-sdk-compliance`?** See "This repo's own review". Needed only if conformance claims
     are made publicly and should be independently reproducible.
-15. **DeepSource** (`.deepsource.toml`) — company-held account or leftover? Legal §12 row 3.
+15. ✅ **DeepSource** — leftover: app not installed on `dnsid-ai` (0 installations, no webhooks). `.deepsource.toml` removed from compliance `ee6eea7`, go `c495f7d`, ts `5f686c8`, py `e4d6418`, cookbook `58adbfb`. Legal §12 row 3.
 16. ✅ **Security-process numbers** — legal: deferred with CRA; **deliberately no commitments**. SECURITY.md finalized with process + explicit no-timeline statement (L8). Draft file removed. — needed to finish `SECURITY-fixes-section.draft.md` (then it goes into
     canonical SECURITY.md and propagates). Legal §8 row 5, §9 rows 2–4, §12 row 4; VIR-003/004/009, OSS-019/021, SSD-009.
     - **16a** fix-time targets by severity (proposed Critical 7d / High 30d / Medium 90d)
@@ -303,7 +303,7 @@ hits as 🟡 for the cookbook target (recipe-level instrumentation, must be disc
 
 **Open**: `plans/`, `CLAUDE.md` — internal working docs; keep, move, or delete before publish (Legal §1 row 2).
 `FIXUPS.md` deleted by decision. CODEOWNERS team assumed same as SDKs — confirm.
-`.deepsource.toml` → E6. Readiness: exit 0, advisories only (vendor hosts in recipes).
+`.deepsource.toml` removed (#15). Readiness: exit 0, advisories only (vendor hosts in recipes).
 
 ## This repo's own review (dnsid-sdk-compliance)
 
@@ -320,8 +320,7 @@ registry — no released artifact (NOTICE records this).
 
 Open — decision **#14 publish this repo?** Reusable workflows work from a private repo (org access
 setting). If public: `docs/release-readiness/` (internal tracker, agent notes) must move out first
-(`WORKING_UPDATES.md` already removed in #5). Decision **#15**: `.deepsource.toml` — is the
-DeepSource account company-held, or delete? Advisory: harness deps installed unpinned by `make`.
+(`WORKING_UPDATES.md` already removed in #5). ~~Decision #15~~ done. Advisory: harness deps installed unpinned by `make`.
 
 ## Commands
 
