@@ -115,11 +115,11 @@ for k in ["API-002", "API-004", "API-006", "API-010", "LOG-001", "LOG-002", "LOG
 # Legal form: (section title, [(item, status, answer)])
 LEGAL = [
  ("1. Approval to Publish, Licensing, and Distribution", [
-  ("Decision to publish recorded by someone with authority", "⏳", f"{D} M1."),
+  ("Decision to publish recorded by someone with authority", "✅", f"{D} M1: approval received."),
   ("Full contents incl. history reviewed for material that should not be published", "⏳", f"gitleaks clean; `WORKING_UPDATES.md` removed (#5); `docs/release-readiness/` flagged for compliance repo (M7). History: SDKs single-root since 2026-09-15, Apache-only tags — keep; witness squashed before publish (M2, 9/21)."),
   ("Third-party/partner/customer material cleared", "✅", "None present (L4: no customer/partner material)."),
   ("What is published vs held back is recorded", "📄", "`STATUS.md` repo table: 3 SDKs + witness public; platform monorepo (server, console, CLI) private → M3, M7."),
-  ("Publication does not forfeit intended protection (trade secret / patent)", "✅", "L3: one patent, held by us; no trade secrets. Apache §3 outward grant flagged for confirmation."),
+  ("Publication does not forfeit intended protection (trade secret / patent)", "✅", "L3: one patent, held by us; no trade secrets. Apache §3 outward grant accepted."),
   ("Outbound license chosen, approved, applied; LICENSE present", "🔧", f"Apache-2.0 in every repo ({R} file check)."),
   ("License grants or withholds a patent license", "✅", "Apache-2.0 §3 express patent grant. Intended."),
   ("Contribution intake decided (CLA / DCO / neither)", "✅", "Neither (L5). CONTRIBUTING.md §Licensing of contributions in every repo: Apache-2.0 §5 inbound = outbound."),
@@ -226,7 +226,7 @@ LEGAL = [
   ("Whether the project can be relicensed later is understood", "✅", "L5 = neither → relicensing needs every contributor's consent. Accepted."),
  ]),
  ("13. Release Sign-off", [
-  ("Approval covers final contents as released", "⏳", "M1, after all 🔴 items close."),
+  ("Approval covers final contents as released", "✅", "M1: approval received; all 🔴 items closed."),
   ("Security review completed and recorded", "⏳", "This document + `THREAT_MODEL.md` + readiness output; pentest question M5."),
   ("Legal and privacy review completed with link to approval", "⏳", "Pending legal round 2 and M/E answers."),
   ("Brand and trademark approval for names", "✅", "L11 N/A."),

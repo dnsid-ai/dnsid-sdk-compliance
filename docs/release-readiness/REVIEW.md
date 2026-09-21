@@ -201,11 +201,11 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 
 | Item | Status | Finding and evidence |
 |---|---|---|
-| Decision to publish recorded by someone with authority | ⏳ | `DECISIONS.md` M1. |
+| Decision to publish recorded by someone with authority | ✅ | `DECISIONS.md` M1: approval received. |
 | Full contents incl. history reviewed for material that should not be published | ⏳ | gitleaks clean; `WORKING_UPDATES.md` removed (#5); `docs/release-readiness/` flagged for compliance repo (M7). History: SDKs single-root since 2026-09-15, Apache-only tags — keep; witness squashed before publish (M2, 9/21). |
 | Third-party/partner/customer material cleared | ✅ | None present (L4: no customer/partner material). |
 | What is published vs held back is recorded | 📄 | `STATUS.md` repo table: 3 SDKs + witness public; platform monorepo (server, console, CLI) private → M3, M7. |
-| Publication does not forfeit intended protection (trade secret / patent) | ✅ | L3: one patent, held by us; no trade secrets. Apache §3 outward grant flagged for confirmation. |
+| Publication does not forfeit intended protection (trade secret / patent) | ✅ | L3: one patent, held by us; no trade secrets. Apache §3 outward grant accepted. |
 | Outbound license chosen, approved, applied; LICENSE present | 🔧 | Apache-2.0 in every repo (`ci/readiness.sh` file check). |
 | License grants or withholds a patent license | ✅ | Apache-2.0 §3 express patent grant. Intended. |
 | Contribution intake decided (CLA / DCO / neither) | ✅ | Neither (L5). CONTRIBUTING.md §Licensing of contributions in every repo: Apache-2.0 §5 inbound = outbound. |
@@ -348,7 +348,7 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 
 | Item | Status | Finding and evidence |
 |---|---|---|
-| Approval covers final contents as released | ⏳ | M1, after all 🔴 items close. |
+| Approval covers final contents as released | ✅ | M1: approval received; all 🔴 items closed. |
 | Security review completed and recorded | ⏳ | This document + `THREAT_MODEL.md` + readiness output; pentest question M5. |
 | Legal and privacy review completed with link to approval | ⏳ | Pending legal round 2 and M/E answers. |
 | Brand and trademark approval for names | ✅ | L11 N/A. |
@@ -360,8 +360,8 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 
 | Status | Rows |
 |---|---|
-| ✅ | 40 |
+| ✅ | 42 |
 | 🔧 | 30 |
 | 📄 | 60 |
-| ⏳ | 39 |
+| ⏳ | 37 |
 | ➖ | 56 |

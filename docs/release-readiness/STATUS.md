@@ -179,7 +179,7 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
 17. ✅ **IETF participation obligations** — confirmed. (Legal §3 rows 3, 6). The protocol is `draft-ihsanullah-dnsid`. IETF BCP 79
     puts IPR-disclosure duties on participants personally; the Note Well covers competition-law conduct. Confirm the
     draft authors/contributors have done the IPR disclosure (or that there is nothing to disclose) and know the rules.
-18. ✅ **Trade secret / patent position** — we hold a patent, no trade secrets (L3). ⚠️ Apache §3 outward patent grant — confirm understood. (Legal §1 row 5, §3 row 5). Is anything in the SDKs relied on as confidential
+18. ✅ **Trade secret / patent position** — we hold a patent, no trade secrets (L3). Apache §3 outward patent grant accepted. (Legal §1 row 5, §3 row 5). Is anything in the SDKs relied on as confidential
     know-how? Any filed or intended patent that reads on the published implementation? Publication creates prior art.
 19. ✅ **Funding and restrictive agreements** — none. (Legal §2 rows 3, 5). Was any of this customer- or grant-funded? Does
     any customer/partner/exclusivity agreement restrict publication? Adjacent to #2 (the old evaluation-agreement license).
