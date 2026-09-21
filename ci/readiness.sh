@@ -9,6 +9,9 @@
 # Exit:  1 if any check is FAIL. WARN never fails the build.
 set -uo pipefail
 
+# fail closed: every grep-based check reads "no output" as a pass, so a missing rg would false-pass them
+command -v rg >/dev/null || { echo "readiness.sh: ripgrep (rg) is required" >&2; exit 2; }
+
 sdk=$1; dir=$2; out=$3
 root=$(cd "$(dirname "$0")/.." && pwd)
 repo="dnsid-ai/dnsid-$sdk"
