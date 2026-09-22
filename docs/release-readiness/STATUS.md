@@ -19,7 +19,7 @@ mechanically-checkable rows so they stay answered; leave a short list of decisio
 Row-by-row filled forms: **`REVIEW.md`**, generated from `gen_review.py` (edit the answer tables there,
 rerun `python3 gen_review.py infosec_rows.txt > REVIEW.md`). 225 rows; every one has a status and a
 pointer to `readiness.sh`, `INVENTORY.md`, `THREAT_MODEL.md`, or a `DECISIONS.md` id. This is the §13
-sign-off attachment. Tally today: 41 ⏳ pending decisions, 58 ➖ N/A, rest answered/enforced/documented.
+sign-off attachment. Tally today: 38 ⏳ pending decisions, 57 ➖ N/A, rest answered/enforced/documented.
 
 ## Scoping conclusion (important)
 
@@ -44,18 +44,21 @@ All under `github.com/dnsid-ai`, cloned at `~/`. **9/22: `dnsid-go`, `dnsid-ts`,
 |---|---|---|---|---|
 | `dnsid-sdk-compliance` | Conformance harness + **readiness checker** | `release-readiness` | #2 | merged (+ #6, #7 fixes) |
 | `dnsid-sdk-compliance` | Tracking docs (this directory) | `release-readiness-docs` | #4 | **tracking branch — never merges.** Docs-only vs `main`; PR #4 is just a view of it. Anything that must ship goes on its own branch off `origin/main` |
-| `dnsid-go` | Go SDK v0.33.3 (`github.com/dnsid-ai/dnsid-go`, `…/key/aws`) | `release-readiness` | #11 | merged; **public** |
-| `dnsid-ts` | TS SDK v0.20.2, 10 pkgs `@dnsid-ai/*` **on npmjs** with provenance (`key-gcp` unpublished by design) | `release-readiness` | #9 | merged; **public**; 0.20.2 published 9/22 |
-| `dnsid-py` | Python SDK v0.19.3, PyPI `dnsid` (**not yet on PyPI** — 404; org approval pending, fix #5) | `release-readiness` | #4 | merged; **public** |
+| `dnsid-go` | Go SDK v0.34.0 (`github.com/dnsid-ai/dnsid-go`, `…/key/aws` v0.34.0; both on proxy.golang.org) | `release-readiness` | #11 | merged; **public**; v0.34.0 released 9/22 |
+| `dnsid-ts` | TS SDK v0.21.0, 10 pkgs `@dnsid-ai/*` **on npmjs** with provenance (`key-gcp` unpublished by design) | `release-readiness` | #9 | merged; **public**; 0.21.0 published 9/22 (staged, approved `dnsid-barnjamin`) |
+| `dnsid-py` | Python SDK v0.20.0, PyPI `dnsid` (**not yet on PyPI** — 404; org approval pending, fix #5) | `release-readiness` | #4 | merged; **public**; v0.20.0 released 9/22 (GitHub release only) |
 | `dnsid-cookbook` | Recipes (prose + sample code) | `release-readiness` | #17 | merged; **public**. See "dnsid-cookbook review" |
 | `Identity-Digital/c2sp-ledger-witness` (`~/c2sp-ledger-witness`) | **Service**: C2SP tlog witness partners operate | `release-readiness` | — | pushed, private — see section below |
 | `Identity-Digital/dnsid` (`~/dnsid`) | Platform monorepo: server, console, deploy, **CLI (`cmd/cli`)** | — | — | **out of scope** for the SDK review — hosted-service repo, separate org. See decision #13 |
 
 Merge order matters: SDK callers reference `sdk-release-readiness.yaml@main` in this repo.
+**9/22 releases** (go v0.34.0 / ts v0.21.0 / py v0.20.0) all carry the same feature — "verify against a private
+registry such as dnsid local" (go #26, ts #27, py #22); cookbook #18 updated to match.
 
 Ignore `release/next` PRs (release automation). `dnsid-ts` local branch `pr6` holds 4 unmerged
 `allowedUnsafeHosts` commits — not ours, untouched. `dnsid-go` local `unpin-compliance-workflow`
-is squash-merge residue, safe to delete.
+is squash-merge residue, safe to delete. Compliance local `fix/accept-unsigned-input` (`0771947`) is a stale
+duplicate of what merged in #8 (`8f02b37`) — safe to delete, do **not** merge (it would drop the out-path fix).
 
 ## What the PRs contain
 
@@ -101,7 +104,8 @@ OSS-002. All 3 SDKs pass today. Repos public 9/22; PVR + secret scanning + push 
 | CODE_OF_CONDUCT | ❌ | ✅ Contributor Covenant 2.1, byte-checked (fix #6) |
 | GitHub: secret scanning, push protection, PVR | disabled | repos public 9/22; **all three enabled** on all 4 ✅ (free once public; 0 secret-scanning alerts) |
 | Repo visibility | private | go/ts/py/cookbook **public** 9/22; compliance + witness private |
-| npm `@dnsid-ai/*` | GitHub Packages | **npmjs**, 0.20.2 × 10 pkgs (9/22) via staged trusted publishing, provenance verified |
+| npm `@dnsid-ai/*` | GitHub Packages | **npmjs**, 0.21.0 × 10 pkgs (9/22; 0.20.2 first attested) via staged trusted publishing, provenance verified |
+| SDK readiness/compliance CI callers | green (private→private) | **❌ all startup-fail since repos went public** — see defects section |
 | Repo descriptions | blank | set |
 | Dependabot security updates | disabled | enabled |
 
@@ -118,10 +122,10 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
 | 2 | Dependabot alerts + security updates | ✅ all 3 |
 | 3 | Secret scanning / push protection / private vuln reporting | ✅ **9/22: repos public → PVR, secret scanning, push protection enabled on all 4 via API (free for public repos; the paid *Secret Protection* add-on was only needed while private). 0 secret-scanning alerts. VIR-001 + SSD-007 rows ✅; "Report a vulnerability" button live.** Still off on the private compliance + witness repos — gitleaks in CI covers those. 9/21: GHAS *Code Security* enabled (CodeQL) |
 | 4 | Org 2FA requirement | ✅ `two_factor_requirement_enabled=true` (verified in sanity pass). 18 members, 0 without 2FA. `members_can_create_public_repositories=false` ✅ |
-| 5 | Registry account ownership | 🟡 **npm live 9/22**: 10 `@dnsid-ai/*` packages at 0.20.1 on npmjs. Org owner = Ben Guidarelli, user `dnsid-barnjamin`, company email, 2FA on; second org owner (Jason, #7) added 9/21 ✅. **PyPI**: `dnsid` still 404 — org-name approval pending; will be same email + 2FA. `dnsid` + confusables (`dnsid-sdk`, `dnsid-ai`≡`dnsid_ai`, `dnsidai`) need a stub upload each — PyPI has no reservation |
+| 5 | Registry account ownership | 🟡 **npm live 9/22**: 10 `@dnsid-ai/*` packages at 0.21.0 on npmjs. Org owner = Ben Guidarelli, user `dnsid-barnjamin`, company email, 2FA on; second org owner (Jason, #7) added 9/21 ✅. **PyPI**: `dnsid` still 404 — org-name approval pending; will be same email + 2FA. `dnsid` + confusables (`dnsid-sdk`, `dnsid-ai`≡`dnsid_ai`, `dnsidai`) need a stub upload each — PyPI has no reservation |
 | 6 | CODE_OF_CONDUCT.md | ✅ **Legal answered** (contact `report@dnsid.ai` re-confirmed L12): Contributor Covenant 2.1 as written, ladder as written, contact `report@dnsid.ai` (legal may later prefer a dedicated conduct alias — one edit in `policy/`). `policy/CODE_OF_CONDUCT.md` byte-checked in `readiness.sh`; copied to go `9bbecc0`, ts `070bea8`, py `9b6cbad`, this repo `00b058b`. Alias itself not live until #18 |
 | 7 | SBOM in release.yml | ✅ in PRs |
-| 8 | Signing / provenance for go + ts | **ts ✅ 9/22**: 0.20.2 ×10 live on npmjs via staged trusted publishing (dnsid-ts #16 + #24) — publisher `GitHub Actions`, provenance attestation on every package, `npm audit signatures` verifies on a fresh install. Flow: CI `npm stage publish --provenance` → maintainer `npm stage approve` with 2FA (CONTRIBUTING). 0.20.1 remains the one manual, unattested publish. **go: ⏭ deferred post-launch by decision (9/21)**. go caller `6a23aa1` sets `accept-unsigned: true` → row 🟡 not ❌ once compliance `fix/accept-unsigned-input` merges (see defects section). **Remove the input when go signing lands.** ts caller drops it (`0a3c9cb`). |
+| 8 | Signing / provenance for go + ts | **ts ✅ 9/22**: 0.20.2 ×10 live on npmjs via staged trusted publishing (dnsid-ts #16 + #24) — publisher `GitHub Actions`, provenance attestation on every package, `npm audit signatures` verifies on a fresh install. Flow: CI `npm stage publish --provenance` → maintainer `npm stage approve` with 2FA (CONTRIBUTING). 0.21.0 (9/22) also attested — `_npmUser` = `GitHub Actions` trusted publisher, approver `dnsid-barnjamin`. 0.20.1 remains the one manual, unattested publish. **go: ⏭ deferred post-launch by decision (9/21)**. go caller `6a23aa1` sets `accept-unsigned: true` → row 🟡 not ❌ (input declared on compliance `main` since #8). **Remove the input when go signing lands.** ts caller dropped it (dnsid-ts #26, merged 9/22). Neither caller currently runs — see defects section. |
 | 9 | Dep vuln scan in CI | ✅ in PRs |
 | 10 | RFC 2606 fixture domains | ✅ in PRs; go/ts (815)/py (1285) suites green |
 | 11 | README "Security & trust" section | ✅ on all 3 `release-readiness` branches (go `141ed87`, ts `5699e6a`, py `e291c95`), pushed. Identical section before `## License`; per-SDK fills for package registry, opt-in endpoints, logging. Finding: none of the 3 SDKs emit logs (py declares a `dnsid` logger, never calls it). Says "DNSid-operated" not "Identity Digital" pending decision #1. Contact deferred to SECURITY.md so the #18 alias swap is one edit |
@@ -170,8 +174,10 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
     Legal §4 (binaries assessed separately) and §5 (installer script) apply to it even with source private.
     It also writes the `~/.dnsid` files the SDKs read, so decision #12 must hold for both. `dnsid-ts/README.md`
     references the CLI. Question for mgmt: public download, or internal-only at launch?
-14. **Publish `dnsid-sdk-compliance`?** See "This repo's own review". Needed only if conformance claims
-    are made publicly and should be independently reproducible.
+14. 🔴 **Publish `dnsid-sdk-compliance`?** See "This repo's own review". **Now forced (9/22)**: the public SDK repos
+    cannot call this repo's reusable workflows while it is private — every readiness + compliance run on go/ts/py/cookbook
+    has startup-failed since they went public. Publish (default) or vendor the workflow into each SDK. Was: needed only
+    if conformance claims are made publicly.
 15. ✅ **DeepSource** — leftover: app not installed on `dnsid-ai` (0 installations, no webhooks). `.deepsource.toml` removed from compliance `ee6eea7`, go `c495f7d`, ts `5f686c8`, py `e4d6418`, cookbook `58adbfb`. Legal §12 row 3.
 16. ✅ **Security-process numbers** — legal: deferred with CRA; **deliberately no commitments**. SECURITY.md finalized with process + explicit no-timeline statement (L8). Draft file removed. — needed to finish `SECURITY-fixes-section.draft.md` (then it goes into
     canonical SECURITY.md and propagates). Legal §8 row 5, §9 rows 2–4, §12 row 4; VIR-003/004/009, OSS-019/021, SSD-009.
@@ -212,11 +218,19 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
   "no output" reads as clean. Fixed: script exits 2 if `rg` is missing (fail closed); reusable workflow installs
   ripgrep. First real CI run only happened after the PRs went up — local runs always had `rg`. Legal §9 false-pass row.
 - ~~SECURITY.md byte-check on the SDK PRs stays ❌ until the canonical contact merges to `main`~~ merged in #7.
-- **`accept-unsigned` was never declared** (found 9/22): go `6a23aa1` / ts `1fd2078` pass it, but no compliance PR added the
-  input to the reusable workflow — GitHub rejects undeclared `workflow_call` inputs at parse time, so **every go/ts readiness
-  run since has been a zero-job startup failure** (the failed readiness check on ts release PR #23 was this). Fix on
-  `fix/accept-unsigned-input`: input declared, threaded as `ACCEPT_UNSIGNED`, missing signing step → 🟡. ts caller drops
-  the flag (provenance live). Lesson: a reusable-workflow input change is two PRs, merge the callee first.
+- ~~**`accept-unsigned` was never declared**~~ **wrong diagnosis (corrected 9/22 pm).** The input *is* declared on `main`
+  (`8f02b37`, merged in #8 on 9/21 16:21Z). The local `fix/accept-unsigned-input` branch is a stale duplicate.
+- **Public callers cannot use a private reusable workflow** (found 9/22 pm — the real cause). GitHub: a workflow in a
+  *public* repo may only call reusable workflows in *public* repos; the org "allow access to reusable workflows" setting
+  covers private/internal callers only. Timeline proves it: py readiness **success 9/21 17:56Z** → **failure 9/21 18:01Z**
+  (py went public in between), no compliance change in that window. Failed runs report `referenced_workflows: []`
+  (resolution failed) and 0 jobs, UI says "workflow file issue". Affects **both** `Release readiness` and `Compliance`
+  callers on **all three SDKs + cookbook**, every PR since — including the 9/22 release PRs (go v0.34.0, ts v0.21.0,
+  py v0.20.0 all shipped with red readiness/compliance checks). The Monday cron will fail the same way.
+  **Fix options**: (a) make `dnsid-sdk-compliance` public — forces decision #14/M7 now; `docs/release-readiness/`
+  must not be on `main` (verified 9/22: `origin/main` has only `docs/sdk-design/` — a visibility flip is enough);
+  (b) copy `sdk-release-readiness.yaml` + `ci/readiness.sh` + `policy/` into each SDK repo (4 copies to keep in sync — no).
+  Proposed: (a). Until fixed, the ruleset's required checks are not actually gating anything readiness-related.
 
 ## Recorded as satisfied (no action, just so the form has an answer)
 
@@ -248,11 +262,12 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
 
 ## Next session, in order
 
-1. ~~Confirm PRs merged~~ all merged; go/ts/py/cookbook public 9/22. `secrets: inherit` still needed in
-   callers: this compliance repo is private (reusable workflows check it out) and `security_and_analysis`
-   needs admin read regardless of visibility.
-2. ~~Enable PVR on the 4 public repos~~ done 9/22. Check the next Monday cron run is green apart from the accepted 🟡s.
-3. ~~ts 0.20.2 with provenance~~ done 9/22. **Push + merge**: compliance `fix/accept-unsigned-input` (`0771947`, worktree `/tmp/compliance-fix`) then ts `ci/readiness-drop-accept-unsigned` (`0a3c9cb`). Then confirm go/ts readiness runs actually produce a table.
+1. **Unbreak SDK CI (#14/M7)**: make this repo public (or vendor the workflow). Then re-run `Release readiness` +
+   `Compliance` on each SDK's `main` (`gh workflow run`) and confirm a table is posted. `secrets: inherit` still needed:
+   `security_and_analysis` needs admin read regardless of visibility; `GH_PAT` checkout token becomes optional once public.
+2. ~~Enable PVR on the 4 public repos~~ done 9/22. Monday cron will be red until item 1 lands.
+3. ~~ts 0.20.2 with provenance~~ done 9/22; 0.21.0 also attested. ~~compliance `fix/accept-unsigned-input`~~ already on
+   `main` (#8) — delete the stale local branch. ~~ts drop accept-unsigned~~ merged (dnsid-ts #26).
 4. **PyPI** — publish `dnsid` + reserve confusables once the org is approved (fix #5/#13); README/THREAT_MODEL C2 currently say "claimed".
 5. ~~**#11** README section~~ done.
 3. ~~#16 threat model~~ done; **#17** done, **#15** dropped.
@@ -323,9 +338,10 @@ Passing by design: shim crash or result-count mismatch aborts the run (never a f
 Reusable workflows are `on: pull_request`, so fork PRs never receive `GH_PAT`. N/A: SBOM, signing,
 registry — no released artifact (NOTICE records this).
 
-Open — decision **#14 publish this repo?** Reusable workflows work from a private repo (org access
-setting). If public: `docs/release-readiness/` (internal tracker, agent notes) must move out first
-(`WORKING_UPDATES.md` already removed in #5). ~~Decision #15~~ done. Advisory: harness deps installed unpinned by `make`.
+Open — decision **#14 publish this repo?** ~~Reusable workflows work from a private repo (org access
+setting)~~ — only for private/internal callers; **public SDK repos cannot call them** (see defects). If public:
+`docs/release-readiness/` (internal tracker, agent notes) must stay off `main` — it already lives only on this
+never-merge branch (`WORKING_UPDATES.md` already removed in #5); verified 9/22 via `git ls-tree origin/main docs/`. ~~Decision #15~~ done. Advisory: harness deps installed unpinned by `make`.
 
 ## Commands
 
