@@ -984,6 +984,7 @@ TYPE C2spTlogVerificationOptions
   policyUrl?: string
   maxPolicyBytes?: integer
   resourceFetcher?: C2spBoundedResourceFetcher
+  transport?: TransportConfig
   scanLimits?: C2spScanLimits
   trustedCheckpointStore?: TrustedC2spCheckpointStore
   checkpointMaxAge?: duration
@@ -1063,7 +1064,12 @@ must still verify and be retained; do not substitute the first copy's evidence. 
 still prohibits returning evidence when that bundle fetch or verification
 fails.
 
-When no resource fetcher is supplied, the SDK constructs one that:
+`transport` and `resourceFetcher` are mutually exclusive; supplying both is an
+`ArgumentError`. When no resource fetcher is supplied, the SDK constructs one
+from `transport` (or an empty `TransportConfig`) that applies `dnsServer`,
+`caBundlePath`, and `privateAddressHosts` exactly as the core HTTPS fetcher does
+([05: Private Address Hosts](05-transport-and-registry.md#private-address-hosts)),
+and that:
 
 - rejects URL credentials and fragments;
 - rejects redirects rather than following them;
@@ -1087,8 +1093,9 @@ factory validates those guarantees before accepting it for `policyUrl` or a
 `public` log and rejects insufficient capabilities as early as the language's
 factory model permits. It also checks the returned byte length defensively;
 that check does not replace bounding during the read. A testnet fetcher may
-implement an explicit hostname-scoped private or loopback allowlist while still
-validating every resolution and connecting to the validated address. Transports
+implement an explicit hostname-scoped private or loopback allowlist, with the
+same semantics as `privateAddressHosts`, while still validating every
+resolution and connecting to the validated address. Transports
 that cannot provide the stated guarantees, including intentionally redirecting
 or plain-HTTP private transports, remain available through the lower-level
 composition API rather than weakening the safe factory. The same fetcher

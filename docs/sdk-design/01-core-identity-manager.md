@@ -153,8 +153,9 @@ default implementations, not mutations of injected objects.
 Reject an explicit transport setting only when it has no SDK-managed consumer
 in the component being constructed. `dnsServer` configures both the default TXT
 resolver and default HTTPS fetcher: with only one injected, it still configures
-the other; reject it when both are injected. `caBundlePath` configures the default
-HTTPS fetcher only, so reject it when that fetcher is injected. Do not inspect or
+the other; reject it when both are injected. `caBundlePath` and
+`privateAddressHosts` configure the default HTTPS fetcher only, so reject them
+when that fetcher is injected. Do not inspect or
 negotiate injected dependencies' configuration. Callers take responsibility for
 injected components; settings for remaining SDK-managed components still apply.
 
@@ -264,7 +265,8 @@ SDK validation MUST cover:
 | Unknown setting, invalid pin, or duplicate normalized entity | Construction fails before network work. |
 | `dnsServer` with only the TXT resolver injected | Default HTTPS fetcher uses the setting; injected resolver is unchanged. |
 | `dnsServer` with only the HTTPS fetcher injected | Default TXT resolver uses the setting; injected fetcher is unchanged. |
-| `dnsServer` with both consumers injected, or `caBundlePath` with HTTPS fetcher injected | Construction fails before network work. |
+| `dnsServer` with both consumers injected, or `caBundlePath`/`privateAddressHosts` with HTTPS fetcher injected | Construction fails before network work. |
+| `privateAddressHosts` entry that is not a hostname or leading-dot suffix (IP literal, port, scheme, path, credentials) | Construction fails before network work. |
 | Deployment file with zero or multiple `logTrust` variants | Loader rejects with `ArgumentError`. |
 | Local publisher absent from allowlist | Publication confirmation can succeed on valid protocol evidence; public `VerifyDomain(localDomain)` still rejects. |
 | Acceptance denial | Error's structured fields and message carry only observed values (verified ID, key thumbprint); no configured allowlist entry or pin is echoed. Validate structurally: assert the observed fields, and assert that a configured value which is not a substring of any observed value does not appear. Configured values may legitimately be substrings of observed ones (a parent domain), so a bare substring check is not a valid test. |
@@ -1150,9 +1152,16 @@ cancellation, and require HTTP `200 OK`. It MUST validate every resolved
 destination address and connect to an address that was validated so DNS
 rebinding cannot bypass the check. The same validation applies independently to
 every redirect hop. Loopback, private, link-local, multicast, reserved, and
-otherwise non-routable destinations are rejected by default; deployments may
-configure an explicit hostname-scoped allowlist for intended private services.
-Limits apply while streaming the response, not only after buffering, and
+otherwise non-routable destinations are rejected by default. The only
+exception is `TransportConfig.privateAddressHosts`
+([05: Private Address Hosts](05-transport-and-registry.md#private-address-hosts)):
+a destination whose hostname matches a configured entry MAY resolve to loopback
+or private-use addresses. Everything else still applies to a matching host:
+every resolved address is validated, the connection goes to a validated
+address, link-local, multicast, reserved, and unspecified addresses remain
+rejected, and every redirect hop is matched and validated independently. An
+SDK MUST NOT exempt any hostname, TLD, or address class without a configured
+entry. Limits apply while streaming the response, not only after buffering, and
 language bindings MUST document their finite defaults.
 
 SDK-managed transports SHOULD reuse connections. Retry and circuit-breaker

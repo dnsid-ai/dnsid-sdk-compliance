@@ -23,18 +23,59 @@ for snapshot, validation, loading, and injected-transport conflict rules.
 |---|---|---|---|
 | `dnsServer` | string | no | DNS server used by SDK-managed DNS TXT verification and SDK-managed HTTPS origin resolution. Intended for product and development environments that need resolver injection; not a DNSid protocol field. Example forms include `127.0.0.1:7753` and `dns-compose:53`. |
 | `caBundlePath` | string | no | Path to an additional PEM CA bundle used for SDK-managed HTTPS verification, including JWKS, status, registry, and requests made through DNSid HTTP transport helpers. This augments the platform trust store and does not disable TLS verification. Intended for development or private PKI deployments; not a DNSid protocol field. |
+| `privateAddressHosts` | []string | no | Hostnames, or leading-dot suffixes such as `.test`, whose SDK-managed HTTPS destinations may resolve to loopback or private-use addresses. Empty by default. See [Private Address Hosts](#private-address-hosts). Not a DNSid protocol field. |
 
 Language bindings SHOULD expose this capability through their platform's
 idiomatic HTTP abstraction, such as a configured HTTP client, transport,
 session, or request function. Development CLIs may inject these values through
-environment variables such as `DNSID_DNS_SERVER` and `DNSID_CA_BUNDLE`; explicit SDK
-loaders may read them as defaults for `TransportConfig`, but explicit caller
-configuration wins. Constructors and transport helpers do not read the
+environment variables such as `DNSID_DNS_SERVER`, `DNSID_CA_BUNDLE`, and
+`DNSID_PRIVATE_HOSTS` (comma-separated); explicit SDK loaders may read them as
+defaults for `TransportConfig`, but explicit caller configuration wins. Constructors and transport helpers do not read the
 environment implicitly. The helper is intended for registry workflows,
 [`JWKS`](07-protocol-data-types.md#jwks) /
 [`AgentStatus`](07-protocol-data-types.md#agentstatus) / capabilities
 fetches, and application requests that need the same DNSid transport
 configuration.
+
+#### Private Address Hosts
+
+SDK-managed HTTPS fetches reject loopback, private, link-local, multicast,
+reserved, and otherwise non-routable destinations by default
+([01: HTTPSFetcher Interface](01-core-identity-manager.md#httpsfetcher-interface)).
+Local development and testnet deployments, such as a `dnsid local` stack that
+serves `*.test` agents, JWKS, status, and log resources from loopback, need a
+way to reach those services without weakening the guard elsewhere.
+`privateAddressHosts` is that opt-in.
+
+Semantics:
+
+- Entries are hostnames or leading-dot suffixes. `agent.example.test` matches
+  only that name; `.test` matches `test` and every name beneath it, with
+  DNS-label boundary matching (`evil-test` and `evil.test.example` do not
+  match `.test`). Matching is case-insensitive and ignores a trailing dot.
+- A matching host may resolve to loopback (`127.0.0.0/8`, `::1`) or private-use
+  (RFC 1918, RFC 4193) addresses. Link-local, multicast, reserved, unspecified,
+  and other non-routable classes are still rejected, and a resolution that
+  mixes public and non-public addresses is rejected.
+- Matching is per destination hostname, evaluated independently for the
+  initial request and every redirect hop. It never exempts IP-literal URLs.
+- Every other fetcher guarantee is unchanged: validated resolution, connection
+  to the validated address, TLS verification (use `caBundlePath` for a local
+  CA), HTTPS scheme, exact `200 OK`, finite deadlines, redirect counts, and
+  streamed size limits.
+- The setting applies to every fetch the SDK makes with this `TransportConfig`:
+  JWKS, status, and capabilities documents, OIDC discovery and JWKS, and the
+  C2SP verification factory's default resource fetcher when it is given this
+  configuration. It does not apply to injected fetchers
+  ([01: injected-transport conflicts](01-core-identity-manager.md#configuration-ownership-and-loading)).
+- Entries are validated at construction: IP literals, ports, schemes, paths,
+  and credentials are rejected with `ArgumentError`.
+- There is no built-in exemption. SDKs MUST NOT treat `.test`, `.localhost`,
+  `.internal`, or any other name as allowed unless it is configured. Reserved
+  TLDs are ordinary suffix entries; `.test` is the expected entry for a local
+  `dnsid` stack, and development tooling that starts such a stack SHOULD emit
+  or export `DNSID_PRIVATE_HOSTS=.test` alongside `DNSID_DNS_SERVER` and
+  `DNSID_CA_BUNDLE`.
 
 ```
 FUNCTION CreateDnsidHttpClient(transportConfig: TransportConfig) -> HttpClient
@@ -63,7 +104,7 @@ is outside the initial SDK acceptance surface.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `registryUrl` | string | no | Base URL of the DNSid registry for managing the local identity's own registration and status publication workflows. Never used by `VerifyDomain` to validate external identities. |
+| `registryUrl` | string | no | Base URL of the DNSid registry for managing the local identity's own registration and status publication workflows. Never used by `VerifyDomain` to validate external identities. HTTPS is required except for plain HTTP to a literal loopback host (`localhost`, `127.0.0.1`, `[::1]`); userinfo, query, and fragment are rejected. SDKs MAY default it to the local `dnsid local` registry (`http://127.0.0.1:7755`); hosted deployments must set it explicitly. |
 
 During the Internet-Draft period, registry and SDK releases publish the same
 latest fully supported submitted numbered selector, initially
@@ -482,33 +523,27 @@ Input for every registration mode other than managed Live.
 | `name` | string | no | Human-readable registry metadata. Not published in the DNSid record. |
 | `metadata` | map[string]any | no | Registry-specific metadata. Not used by protocol verification. |
 | `publicKeyJwk` | JWK | no | Public signing key material supplied during registration when the registry workflow needs it. Private JWK members are forbidden. Managed Live uses the separate `LiveAgentRegistrationInput`. |
-| `environment` | `"sandbox"` or `"production"` | no | Registry environment. Server defaults apply when omitted; other values are rejected. |
-| `managed` | boolean | no | Whether the registry should manage DNS/JWKS publication for the identity. |
-| `zoneId` | string | no | Registry-managed zone in which the server assigns the identity domain. Mutually exclusive with `domain`. |
+| `environment` | `"sandbox"` or `"production"` | no | Registry environment. Defaults to `production` when omitted; other values are rejected. Does not affect the registration mode. |
+| `managed` | boolean | no | Whether the registry should manage DNS/JWKS publication for the identity. When true, `zoneId` is required. |
+| `zoneId` | string | no | Registry-managed zone in which the server assigns the identity domain. Mutually exclusive with `domain`; setting it makes the registration managed. |
 | `capabilitiesUrl` | string | no | HTTPS capabilities-document URL to publish as `cu`. |
 
-Registration helpers MUST respect registry defaults rather than assume that an
-explicit false boolean survives every wire binding. For the current product API,
-an omitted environment defaults to `sandbox`, and `sandbox` is managed even when
-`managed` is false. Therefore a self-managed helper requires
-`environment="production"` and a domain. A sandbox-managed helper omits the
-domain and supplies the operational public key; a zone-managed helper supplies
-`zoneId` instead of a domain. The current JSON wire names are `public_key`,
-`zone_id`, and `capabilities_url`.
+The registration mode is determined only by `managed` and `zoneId`; the
+environment is orthogonal metadata. An omitted environment defaults to
+`production` and SDKs send the effective value explicitly rather than relying on
+a server default. A self-managed helper supplies a domain in either
+environment; a zone-managed helper supplies `zoneId` instead of a domain. The
+current JSON wire names are `public_key`, `zone_id`, and `capabilities_url`.
 
 These invariants apply to every public registration entry point, including a
-generic `RegisterAgent` method, not only named convenience helpers. SDKs MUST
-apply the product default before validating the effective registration mode.
-For the current product, a request is effectively registry-managed when
-`managed` is true, the effective environment is `sandbox`, or `zoneId` is set.
-SDKs MUST reject contradictory input before making a request: `domain` and
-`zoneId` cannot both be set; an effectively managed registration omits
-`domain`; and an effectively self-managed registration requires `domain` and
-forbids `zoneId`. Consequently a self-managed domain requires
-`environment="production"`. An explicit false `managed` value does not override
-the product's sandbox-managed default. The current product adapter accepts only
-HTTP 201 for this ordinary registration shape; HTTP 202 is reserved for managed
-Live registration and MUST NOT be parsed as `AgentRegistration`.
+generic `RegisterAgent` method, not only named convenience helpers. A request is
+registry-managed when `managed` is true or `zoneId` is set. SDKs MUST reject
+contradictory input before making a request: `domain` and `zoneId` cannot both
+be set; `managed=true` requires `zoneId`; a managed registration omits
+`domain`; and a self-managed registration requires `domain` and forbids
+`zoneId`. The current product adapter accepts only HTTP 201 for this ordinary
+registration shape; HTTP 202 is reserved for managed Live registration and MUST
+NOT be parsed as `AgentRegistration`.
 
 #### LiveAgentRegistrationInput
 

@@ -6,17 +6,28 @@ Use the per-SDK files for implementation evidence:
 
 | SDK | Coverage File | Last Reviewed Branch | Last Reviewed Commit | Package Version | Last Analysis Date | Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| Go | [go.md](./go.md) | `main` | `3ea026a` | `v0.33.1` | 2026-09-15 | Consolidated `Config`/`trustedEntities` contract implemented and reviewed; no open findings |
-| TypeScript | [typescript.md](./typescript.md) | `main` | `88aae34` | `0.19.1` | 2026-09-15 | Consolidated `DnsidConfig`/`trustedEntities` contract implemented; validation matrix complete as of 0.19.1. Partial: `verifyPublicationEvidence` is a published acceptance-free method the design says must not be public |
-| Python | [python.md](./python.md) | `main` | `1257fd0` | `0.19.1` | 2026-09-15 | Consolidated `DnsidConfig`/`trusted_entities` contract implemented; 0.19.1 fixed unknown-field `ArgumentError` and thumbprint retention. Partial: identity URL/transport string fields are not type-validated at construction. Earlier prepared-event, OIDC response-bound, conformance-metadata, and issuance-evidence gaps remain |
+| Go | [go.md](./go.md) | `main` | `052f8dc` | `v0.34.0` | 2026-09-22 | Partial: `TransportConfig.AllowPrivateNetwork` is a global (not hostname-scoped) private-address opt-in and the safe dialer implicitly exempts `.test` names; `CreateAgent` registration defaults diverge from design 05 |
+| TypeScript | [typescript.md](./typescript.md) | `main` | `76037ea` | `0.21.0` | 2026-09-22 | Packages renamed to `@dnsid-ai/*` (`packages/core` → `packages/protocol`); hostname-scoped `allowedUnsafeHosts` added. Partial: implicit `.test` private-address exemption; `registerAgent` defaults diverge from design 05; `verifyPublicationEvidence` remains a published acceptance-free method |
+| Python | [python.md](./python.md) | `main` | `4e8c93a` | `0.20.0` | 2026-09-22 | Post-`sg` identity/status/history work now runs concurrently. Partial: implicit `.test` private-address exemption; `register_agent` defaults diverge from design 05; identity URL/transport string fields still not type-validated at construction; earlier prepared-event, OIDC response-bound, conformance-metadata, and issuance-evidence gaps remain |
 
-The 2026-09-15 review covers design commits `dd5ef3b..1d3fbb5` (the consolidated
-`DnsidConfig` and `trustedEntities` contract) against the SDK releases that
-implement it. The former `Pre-redesign`/`TBD` rows are superseded; each tracker's
-`SDK Configuration and Counterparty Acceptance` section carries the evidence.
-Because the constructor redesign is cross-cutting, native test suites, the
-193-expectation shared harness, and the C2SP interoperability matrix were all
-rerun at the reviewed heads recorded below and passed.
+The 2026-09-22 review follows the move from the `Identity-Digital` organization
+to `dnsid-ai`, which rewrote history in every repository. The old baselines were
+recovered from pre-migration clones and shown to be content-identical (modulo
+org/module renames) to each repository's new "Initial public release" root, so
+the trackers proceed incrementally from those roots. Design changes since
+`1d3fbb5` are wording and RFC 2606 fixture domains only. SDK changes common to
+all three bindings: an implicit `.test`-TLD exemption in the SSRF guard (design
+01 requires an explicit hostname-scoped allowlist), registration defaults that
+invert design 05's documented product default (`production`, `managed` requires a
+zone), a loopback `dnsid local` default registry URL, explicit registry
+environment loaders, and a transport option on the C2SP verification factory.
+Because the transport guard and (TS/Python) `verifyDomain` fan-out are
+cross-cutting, native suites, the 193-expectation shared harness, and the C2SP
+matrix were rerun at the heads recorded below and passed.
+
+The 2026-09-15 review covered design commits `dd5ef3b..1d3fbb5` (the consolidated
+`DnsidConfig` and `trustedEntities` contract); each tracker's
+`SDK Configuration and Counterparty Acceptance` section carries that evidence.
 
 The 2026-09-09 review reconciled the earlier tracker edits and superseded the
 historical correction notices. Per-SDK files retain authoritative review scope,
@@ -29,15 +40,15 @@ migration support in configured readers.
 
 | Repository | Branch | Version / Commit | Package Version | Analysis Date | Notes |
 | --- | --- | --- | --- | --- | --- |
-| dnsid design docs baseline | `main` | `1d3fbb551201669bd066b3f543f4f571622377e5` | N/A | 2026-09-15 | Exact design-repository head reviewed for the configuration/acceptance contract; shared fixtures unchanged since `dd5ef3b`. 33 focused event-identity checks pass. |
-| dnsid-go | `main` | `3ea026a2fba99a63bf25b2d7df58d2d54877b256` | `v0.33.1` | 2026-09-15 | `go test ./...`, `go test -race ./...`, `key/aws` module tests, all 193 shared expectations, and the C2SP matrix passed. |
-| dnsid-ts | `main` | `88aae3470bf50e0c9f71844a4798802054e291a2` | `0.19.1` | 2026-09-15 | 815 tests passed, 1 skipped; typecheck, build, all 193 shared expectations, and the C2SP matrix passed. |
-| dnsid-py | `main` | `1257fd0b44fd3b0e214ba5bc7db427b5c266c91e` | `0.19.1` | 2026-09-15 | 1285 tests, all 193 shared expectations, and the C2SP matrix passed. |
+| dnsid design docs baseline | `main` | `c20013d49b90736a68859b4066d078109d534896` | N/A | 2026-09-22 | Exact design-repository head; `docs/sdk-design/` and `fixtures/` changed only in wording and RFC 2606 fixture domains since `1d3fbb5`. 33 focused event-identity checks pass. |
+| dnsid-go | `main` | `052f8dc9ffc08ec4f4b1cda7ad96929b3dfd683f` | `v0.34.0` | 2026-09-22 | `go test -count=1 ./...`, `go test -race ./...`, `key/aws` module tests, all 193 shared expectations, and the C2SP matrix passed. |
+| dnsid-ts | `main` | `76037ead4e0e61a13c138dc9762fcda3e1ad5f5a` | `0.21.0` | 2026-09-22 | 832 tests passed, 1 skipped; typecheck, build, all 193 shared expectations, and the C2SP matrix passed. |
+| dnsid-py | `main` | `4e8c93ac23e2ccc9ca04d35089b6784e71aa54aa` | `0.20.0` | 2026-09-22 | 1312 tests, all 193 shared expectations, and the C2SP matrix passed. |
 
 ## Shared Compliance Harness
 
-The latest recorded three-SDK run (2026-09-15) used Go commit `3ea026a`,
-TypeScript commit `88aae34`, and Python commit `1257fd0`. Each SDK matched all 193 expectations:
+The latest recorded three-SDK run (2026-09-22) used Go commit `052f8dc`,
+TypeScript commit `76037ea`, and Python commit `4e8c93a`. Each SDK matched all 193 expectations:
 182 passes plus 11 fail-closed rejections of retired selectors, with no
 unexpected failures or known-bug allowances. This includes release conformance
 metadata, signed TXT generation, all seven managed trust-selection vectors, and
