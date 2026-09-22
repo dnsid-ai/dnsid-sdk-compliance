@@ -1,7 +1,8 @@
 # DNSid SDK Release Readiness — Status & Handoff
 
 Working log for getting the DNSid SDKs through the two review checklists required for
-public open-source release. Lives in the compliance repo so it travels with the checker.
+public open-source release. Lives on the `release-readiness-docs` branch of the compliance repo —
+**a tracking branch that is never merged**; `main` stays free of internal notes (decision #14).
 
 ## Goal
 
@@ -36,17 +37,18 @@ no hosted service, no telemetry, no credentials shipped. Therefore:
 
 ## Repos
 
-All under `github.com/dnsid-ai`, cloned at `~/`. All **private** today.
+All under `github.com/dnsid-ai`, cloned at `~/`. **9/22: `dnsid-go`, `dnsid-ts`, `dnsid-py`, `dnsid-cookbook` are public.**
+`dnsid-sdk-compliance` (#14/M7) and the witness (W1–W8) remain private.
 
 | Repo | Role | Branch | PR | Status |
 |---|---|---|---|---|
-| `dnsid-sdk-compliance` | Conformance harness + **readiness checker** | `release-readiness` | #2 | workflow/policy only — **merge first** |
-| `dnsid-sdk-compliance` | Tracking docs (this directory) | `release-readiness-docs` | #4 | split from #2 so the workflow can merge independently |
-| `dnsid-go` | Go SDK v0.33.1 (`github.com/dnsid-ai/dnsid-go`, `…/key/aws`) | `release-readiness` | #11 | pushed |
-| `dnsid-ts` | TS SDK v0.19.1, 11 pkgs `@dnsid-ai/*` (GitHub Packages today) | `release-readiness` | #9 | pushed |
-| `dnsid-py` | Python SDK v0.19.1, PyPI `dnsid` | `release-readiness` | #4 | pushed |
-| `dnsid-cookbook` | Recipes (prose + sample code) | `release-readiness` | — | pushed. See "dnsid-cookbook review" |
-| `Identity-Digital/c2sp-ledger-witness` (`~/c2sp-ledger-witness`) | **Service**: C2SP tlog witness partners operate | `release-readiness` | — | pushed — see section below |
+| `dnsid-sdk-compliance` | Conformance harness + **readiness checker** | `release-readiness` | #2 | merged (+ #6, #7 fixes) |
+| `dnsid-sdk-compliance` | Tracking docs (this directory) | `release-readiness-docs` | #4 | **tracking branch — never merges.** Docs-only vs `main`; PR #4 is just a view of it. Anything that must ship goes on its own branch off `origin/main` |
+| `dnsid-go` | Go SDK v0.33.3 (`github.com/dnsid-ai/dnsid-go`, `…/key/aws`) | `release-readiness` | #11 | merged; **public** |
+| `dnsid-ts` | TS SDK v0.20.2, 10 pkgs `@dnsid-ai/*` **on npmjs** with provenance (`key-gcp` unpublished by design) | `release-readiness` | #9 | merged; **public**; 0.20.2 published 9/22 |
+| `dnsid-py` | Python SDK v0.19.3, PyPI `dnsid` (**not yet on PyPI** — 404; org approval pending, fix #5) | `release-readiness` | #4 | merged; **public** |
+| `dnsid-cookbook` | Recipes (prose + sample code) | `release-readiness` | #17 | merged; **public**. See "dnsid-cookbook review" |
+| `Identity-Digital/c2sp-ledger-witness` (`~/c2sp-ledger-witness`) | **Service**: C2SP tlog witness partners operate | `release-readiness` | — | pushed, private — see section below |
 | `Identity-Digital/dnsid` (`~/dnsid`) | Platform monorepo: server, console, deploy, **CLI (`cmd/cli`)** | — | — | **out of scope** for the SDK review — hosted-service repo, separate org. See decision #13 |
 
 Merge order matters: SDK callers reference `sdk-release-readiness.yaml@main` in this repo.
@@ -78,7 +80,8 @@ is squash-merge residue, safe to delete.
 Expected readiness after merge: all green; signing/provenance 🟡 on go/ts via `accept-unsigned` (decision E5/M3).
 `readiness.sh` now also byte-checks `CODE_OF_CONDUCT.md` and runs a **dependency-license allowlist**
 (go-licenses / `npm ls`+jq / pip-licenses; Apache/MIT/BSD/ISC/MPL pass, anything else ❌) — Legal §1 row 9,
-OSS-002. All 3 SDKs pass today. GitHub security features show 🟡 while repos are private.
+OSS-002. All 3 SDKs pass today. Repos public 9/22; PVR + secret scanning + push protection enabled on all 4 the same day
+(free on public repos — no GHAS needed); GitHub-settings rows all ✅. Compliance + witness repos stay private → gitleaks only.
 
 ## Findings snapshot (pre-PR baseline → after PRs)
 
@@ -94,9 +97,11 @@ OSS-002. All 3 SDKs pass today. GitHub security features show 🟡 while repos a
 | Dep vuln scan in CI | go only | all 3 (0 vulns today) |
 | SECURITY.md consistency | ts/py stale | byte-checked |
 | Fixture domains | registrable placeholders | RFC 2606 |
-| Signing / provenance | py only | py only (go/ts skipped) |
+| Signing / provenance | py only | py + **ts** (npm provenance, staged approve); go skipped |
 | CODE_OF_CONDUCT | ❌ | ✅ Contributor Covenant 2.1, byte-checked (fix #6) |
-| GitHub: secret scanning, push protection, PVR | disabled | disabled — needs GHAS or public |
+| GitHub: secret scanning, push protection, PVR | disabled | repos public 9/22; **all three enabled** on all 4 ✅ (free once public; 0 secret-scanning alerts) |
+| Repo visibility | private | go/ts/py/cookbook **public** 9/22; compliance + witness private |
+| npm `@dnsid-ai/*` | GitHub Packages | **npmjs**, 0.20.2 × 10 pkgs (9/22) via staged trusted publishing, provenance verified |
 | Repo descriptions | blank | set |
 | Dependabot security updates | disabled | enabled |
 
@@ -111,12 +116,12 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
 |---|---|---|
 | 1 | Repo descriptions + homepage | ✅ "`<Lang> SDK — Cryptographically verifiable identity for agents, anchored in DNS.`", homepage `https://docs.dnsid.ai` |
 | 2 | Dependabot alerts + security updates | ✅ all 3 |
-| 3 | Secret scanning / push protection / private vuln reporting | ⏸ **9/21: GHAS *Code Security* enabled (CodeQL works). *Secret Protection* (secret scanning + push protection) is a separate paid add-on — still disabled on all 5 repos; gitleaks in CI covers the mechanical row meanwhile.** PVR is public-only. Readiness flips 🟡→❌ automatically when public |
+| 3 | Secret scanning / push protection / private vuln reporting | ✅ **9/22: repos public → PVR, secret scanning, push protection enabled on all 4 via API (free for public repos; the paid *Secret Protection* add-on was only needed while private). 0 secret-scanning alerts. VIR-001 + SSD-007 rows ✅; "Report a vulnerability" button live.** Still off on the private compliance + witness repos — gitleaks in CI covers those. 9/21: GHAS *Code Security* enabled (CodeQL) |
 | 4 | Org 2FA requirement | ✅ `two_factor_requirement_enabled=true` (verified in sanity pass). 18 members, 0 without 2FA. `members_can_create_public_repositories=false` ✅ |
-| 5 | Registry account ownership | 🟡 **npm verified 9/21**: org `@dnsid-ai` owner = Ben Guidarelli, user `dnsid-barnjamin`, company email, 2FA on; second org owner (Jason, #7) added 9/21 ✅. **PyPI**: org-name approval pending; will be same email + 2FA. `dnsid` + confusables (`dnsid-sdk`, `dnsid-ai`≡`dnsid_ai`, `dnsidai`) need a stub upload each — PyPI has no reservation |
+| 5 | Registry account ownership | 🟡 **npm live 9/22**: 10 `@dnsid-ai/*` packages at 0.20.1 on npmjs. Org owner = Ben Guidarelli, user `dnsid-barnjamin`, company email, 2FA on; second org owner (Jason, #7) added 9/21 ✅. **PyPI**: `dnsid` still 404 — org-name approval pending; will be same email + 2FA. `dnsid` + confusables (`dnsid-sdk`, `dnsid-ai`≡`dnsid_ai`, `dnsidai`) need a stub upload each — PyPI has no reservation |
 | 6 | CODE_OF_CONDUCT.md | ✅ **Legal answered** (contact `report@dnsid.ai` re-confirmed L12): Contributor Covenant 2.1 as written, ladder as written, contact `report@dnsid.ai` (legal may later prefer a dedicated conduct alias — one edit in `policy/`). `policy/CODE_OF_CONDUCT.md` byte-checked in `readiness.sh`; copied to go `9bbecc0`, ts `070bea8`, py `9b6cbad`, this repo `00b058b`. Alias itself not live until #18 |
 | 7 | SBOM in release.yml | ✅ in PRs |
-| 8 | Signing / provenance for go + ts | ⏭ **deferred post-launch by decision (9/21)**. ts: npmjs + provenance in dnsid-ts #16. Readiness callers in go `6a23aa1` / ts `1fd2078` set `accept-unsigned: true` → row reports 🟡 not ❌ (compliance #8). **Remove the input when signing lands.** |
+| 8 | Signing / provenance for go + ts | **ts ✅ 9/22**: 0.20.2 ×10 live on npmjs via staged trusted publishing (dnsid-ts #16 + #24) — publisher `GitHub Actions`, provenance attestation on every package, `npm audit signatures` verifies on a fresh install. Flow: CI `npm stage publish --provenance` → maintainer `npm stage approve` with 2FA (CONTRIBUTING). 0.20.1 remains the one manual, unattested publish. **go: ⏭ deferred post-launch by decision (9/21)**. go caller `6a23aa1` sets `accept-unsigned: true` → row 🟡 not ❌ once compliance `fix/accept-unsigned-input` merges (see defects section). **Remove the input when go signing lands.** ts caller drops it (`0a3c9cb`). |
 | 9 | Dep vuln scan in CI | ✅ in PRs |
 | 10 | RFC 2606 fixture domains | ✅ in PRs; go/ts (815)/py (1285) suites green |
 | 11 | README "Security & trust" section | ✅ on all 3 `release-readiness` branches (go `141ed87`, ts `5699e6a`, py `e291c95`), pushed. Identical section before `## License`; per-SDK fills for package registry, opt-in endpoints, logging. Finding: none of the 3 SDKs emit logs (py declares a `dnsid` logger, never calls it). Says "DNSid-operated" not "Identity Digital" pending decision #1. Contact deferred to SECURITY.md so the #18 alias swap is one edit |
@@ -206,7 +211,12 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
   grep-based checks **false-passed** (SHA-pinned, TLS, telemetry, crypto primitives, network destinations) because
   "no output" reads as clean. Fixed: script exits 2 if `rg` is missing (fail closed); reusable workflow installs
   ripgrep. First real CI run only happened after the PRs went up — local runs always had `rg`. Legal §9 false-pass row.
-- SECURITY.md byte-check on the SDK PRs stays ❌ until this branch (canonical contact) merges to `main`.
+- ~~SECURITY.md byte-check on the SDK PRs stays ❌ until the canonical contact merges to `main`~~ merged in #7.
+- **`accept-unsigned` was never declared** (found 9/22): go `6a23aa1` / ts `1fd2078` pass it, but no compliance PR added the
+  input to the reusable workflow — GitHub rejects undeclared `workflow_call` inputs at parse time, so **every go/ts readiness
+  run since has been a zero-job startup failure** (the failed readiness check on ts release PR #23 was this). Fix on
+  `fix/accept-unsigned-input`: input declared, threaded as `ACCEPT_UNSIGNED`, missing signing step → 🟡. ts caller drops
+  the flag (provenance live). Lesson: a reusable-workflow input change is two PRs, merge the callee first.
 
 ## Recorded as satisfied (no action, just so the form has an answer)
 
@@ -238,10 +248,13 @@ JWKS + status URLs; **opt-in only**: `https://api.dnsid.ai` (registry client, ts
 
 ## Next session, in order
 
-1. Confirm PRs merged (compliance #2 first). Check the first readiness CI run: if the GitHub-settings
-   section says "token lacks access", `github.token` can't read `security_and_analysis` on private
-   repos — `secrets: inherit` already passes `GH_PAT`, which the workflow prefers when present.
-2. **#11** README section — agent proposes text first.
+1. ~~Confirm PRs merged~~ all merged; go/ts/py/cookbook public 9/22. `secrets: inherit` still needed in
+   callers: this compliance repo is private (reusable workflows check it out) and `security_and_analysis`
+   needs admin read regardless of visibility.
+2. ~~Enable PVR on the 4 public repos~~ done 9/22. Check the next Monday cron run is green apart from the accepted 🟡s.
+3. ~~ts 0.20.2 with provenance~~ done 9/22. **Push + merge**: compliance `fix/accept-unsigned-input` (`0771947`, worktree `/tmp/compliance-fix`) then ts `ci/readiness-drop-accept-unsigned` (`0a3c9cb`). Then confirm go/ts readiness runs actually produce a table.
+4. **PyPI** — publish `dnsid` + reserve confusables once the org is approved (fix #5/#13); README/THREAT_MODEL C2 currently say "claimed".
+5. ~~**#11** README section~~ done.
 3. ~~#16 threat model~~ done; **#17** done, **#15** dropped.
 4. When aliases go live (**#18**, by 9/22): update `policy/SECURITY.md` contact. When entity name is
    confirmed (**#1**): NOTICE + SECURITY.md prose pass across all repos. CoC done (#6).
@@ -294,7 +307,7 @@ and didn't say so. Disclosure note added to the recipe README (Legal §5 row 4).
 hits as 🟡 for the cookbook target (recipe-level instrumentation, must be disclosed) instead of ❌.
 
 **Done**: `plans/` deleted `5530cc9` (M11). `CLAUDE.md` kept (contributor instructions).
-`FIXUPS.md` deleted by decision. CODEOWNERS team assumed same as SDKs — confirm.
+`FIXUPS.md` deleted by decision. CODEOWNERS team assumed same as SDKs — confirm. **#17 merged, repo public 9/22.**
 `.deepsource.toml` removed (#15). Readiness: exit 0, advisories only (vendor hosts in recipes).
 
 ## This repo's own review (dnsid-sdk-compliance)

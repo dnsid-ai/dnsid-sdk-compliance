@@ -111,7 +111,7 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 | SSD-004 | Must P1 | Require peer review for code changes that affect authentication, authorization, DNS, cryptography, identity, logging, or trust logic. | 🔧 | CODEOWNERS on `*` + ruleset `require_code_owner_review`. Second reviewer for trust-path files → `DECISIONS.md` M9. |
 | SSD-005 | Must P1 | Run SAST in CI/CD and triage identified vulnerabilities. | 🔧 | CodeQL workflow (SHA-pinned) in every repo — added to SDKs in sanity pass; `ci/readiness.sh` 'CI: SAST' fails without it. |
 | SSD-006 | Must P1 | Run software composition analysis/dependency vulnerability scanning. | 🔧 | `ci/readiness.sh` 'CI: dependency vuln scan' — govulncheck / npm audit / pip-audit. 0 findings today. |
-| SSD-007 | Must P1 | Run secret scanning on repositories and CI/CD workflows. | 🔧 | gitleaks full history in `ci/readiness.sh`; GitHub secret scanning + push protection flip on when repos go public (fix #3). |
+| SSD-007 | Must P1 | Run secret scanning on repositories and CI/CD workflows. | 🔧 | gitleaks full history in `ci/readiness.sh`; GitHub secret scanning + push protection enabled on all 4 public repos 9/22 (0 alerts). |
 | SSD-008 | Must P2 | Scan containers, images, installers, and release packages where applicable. | ➖ | No containers/installers for SDKs. Release packages covered by dep scan + SBOM. Witness image: separate review. |
 | SSD-009 | Must P1 | Define release handling for critical/high vulnerabilities and require documented risk acceptance for exceptions. | 📄 | SECURITY.md: false-pass = highest priority; no fixed deadlines by recorded decision (L8/L7). |
 | SSD-010 | Must P2 | Track security defects through remediation and verification. | 📄 | GitHub Security Advisories + Dependabot alerts track findings to fixed version. |
@@ -138,7 +138,7 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 
 | ID | Req | Control | Status | Response / evidence |
 |---|---|---|---|---|
-| VIR-001 | Must P1 | Establish and publish a vulnerability reporting process. | 🔧 | SECURITY.md byte-checked against canonical (`ci/readiness.sh`). GitHub Security Advisories + email. |
+| VIR-001 | Must P1 | Establish and publish a vulnerability reporting process. | 🔧 | SECURITY.md byte-checked against canonical (`ci/readiness.sh`). GitHub Security Advisories + email. Repos public + private vulnerability reporting enabled on all 4, 9/22. |
 | VIR-002 | Must P2 | Publish security.txt or equivalent security contact information. | ⏳ | `security.txt` → `DECISIONS.md` E7 (deployed 9/21 but not serving — CloudFront SPA fallback; site owner to fix). |
 | VIR-003 | Must P1 | Define vulnerability severity classification, remediation targets, exception handling, and escalation. | 📄 | SECURITY.md §How Fixes Are Released + §Remediation Timelines: severity via CVSS, escalation = false-pass rule; remediation targets deliberately not committed (L8). |
 | VIR-004 | Must P1 | Maintain a process for emergency security fixes and rapid distribution of critical updates. | 📄 | SECURITY.md §How Fixes Are Released: new version + advisory, patch on latest minor. |
@@ -178,7 +178,7 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 | OSS-007 | Must P1 | Require MFA for maintainers and personnel with repository, package, or release privileges. | ✅ | Org-level 2FA required; registry-account 2FA → E2. |
 | OSS-008 | Must P1 | Require pull-request review and additional security review for trust, cryptographic, authentication, DNS, and release changes. | 🔧 | Ruleset + CODEOWNERS. Trust-path double review → `DECISIONS.md` M9. |
 | OSS-009 | Must P1 | Restrict package publishing, release creation, CI/CD modification, and signing permissions to authorized maintainers. | 📄 | Release via automation PRs merged under ruleset; registry accounts → `DECISIONS.md` E2. |
-| OSS-010 | Must P1 | Cryptographically sign official release artifacts, packages, containers, or equivalent distribution artifacts where supported. | ⏳ | py: provenance ✅. ts: npmjs trusted publishing + provenance in dnsid-ts #16. go: deferred post-launch by decision (E5). `ci/readiness.sh` shows ❌ until done. |
+| OSS-010 | Must P1 | Cryptographically sign official release artifacts, packages, containers, or equivalent distribution artifacts where supported. | ⏳ | py: provenance ✅. ts: provenance ✅ from 0.20.2 (staged trusted publishing, `npm audit signatures` verified). go: deferred post-launch by decision (E5). `ci/readiness.sh` shows ❌ until done. |
 | OSS-011 | Must P1 | Publish hashes, signatures, or verification instructions that let users distinguish official DNSid releases from modified artifacts. | ⏳ | Registry checksums (Go sumdb, npm/PyPI hashes) + SBOM today; README names official sources. Signatures → E5. |
 | OSS-012 | Must P1 | Generate verifiable build provenance for official release artifacts and protect the build pipeline. | ⏳ | py: `attest-build-provenance`. go/ts → E5. |
 | OSS-013 | Must P1 | Clearly distinguish official DNSid builds from community forks, modified builds, and unofficial package distributions. | 📄 | README 'Security & trust': official sources named; forks/mirrors/similar names disclaimed. |
@@ -192,7 +192,7 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 | OSS-021 | Should P2 | Document supported versions, security-support lifecycle, and how users receive security fixes. | 📄 | Should/P2. SECURITY.md supported-versions table + §Remediation Timelines and Support Period. |
 | OSS-022 | Should P2 | Evaluate reproducible builds or equivalent measures that improve verification of release integrity. | 📄 | Should/P2. Go module builds reproducible by default; ts/py not evaluated. |
 | OSS-023 | Must P1 | Threat-model malicious contributor, dependency confusion, typosquatting, compromised maintainer, and compromised CI/CD scenarios. | 📄 | `THREAT_MODEL.md` §C1–C7. |
-| OSS-024 | Must P1 | Protect release provenance and signing mechanisms so compromise of the public repository alone cannot silently create a trusted official release. | ⏳ | Signing keys not in repos; py provenance via OIDC. go/ts → E5. Ruleset has no bypass (`THREAT_MODEL.md` C6). |
+| OSS-024 | Must P1 | Protect release provenance and signing mechanisms so compromise of the public repository alone cannot silently create a trusted official release. | ⏳ | Signing keys not in repos; py + ts provenance via OIDC; ts staged publish — CI alone cannot go live (`THREAT_MODEL.md` C6). go → E5. Ruleset has no bypass. |
 
 ## Part B — OSS Release Legal & Privacy Review Form
 
@@ -204,7 +204,7 @@ Status: ✅ answered · 🔧 enforced mechanically by `ci/readiness.sh` on every
 | Decision to publish recorded by someone with authority | ✅ | `DECISIONS.md` M1: approval received. |
 | Full contents incl. history reviewed for material that should not be published | ⏳ | gitleaks clean; `WORKING_UPDATES.md` removed (#5); `docs/release-readiness/` flagged for compliance repo (M7). History: SDKs single-root since 2026-09-15, Apache-only tags — keep; witness squashed before publish (M2, 9/21). |
 | Third-party/partner/customer material cleared | ✅ | None present (L4: no customer/partner material). |
-| What is published vs held back is recorded | 📄 | `STATUS.md` repo table: 3 SDKs + witness public; platform monorepo (server, console, CLI) private → M3, M7. |
+| What is published vs held back is recorded | 📄 | `STATUS.md` repo table: 3 SDKs + cookbook public (9/22); witness pending W1–W8; compliance repo + platform monorepo (server, console, CLI) private → M3, M7. |
 | Publication does not forfeit intended protection (trade secret / patent) | ✅ | L3: one patent, held by us; no trade secrets. Apache §3 outward grant accepted. |
 | Outbound license chosen, approved, applied; LICENSE present | 🔧 | Apache-2.0 in every repo (`ci/readiness.sh` file check). |
 | License grants or withholds a patent license | ✅ | Apache-2.0 §3 express patent grant. Intended. |

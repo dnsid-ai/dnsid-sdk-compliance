@@ -80,10 +80,10 @@ Legend: 🔴 blocks publish · 🟡 blocks a specific file or sign-off row · �
 | # | Question | Why | Proposed default | Blocks |
 |---|---|---|---|---|
 | ~~E1~~ ✅ | **Public contact aliases** — `security@dnsid.ai` live 9/21; SECURITY.md contact switched in every repo. CoC already uses `report@dnsid.ai`. | VIR-001/002, Legal §9 row 1 | — | — |
-| E2 🟡 | *9/21: npm verified (company email, 2FA); PyPI pending org-name approval.* **Package registry ownership.** npm org `@dnsid-ai` owner unverified; PyPI `dnsid` and confusable names (`dnsid-sdk`, `dnsid-ai`, `dnsid_ai`, `dnsidai`) unclaimed. Must be company-held accounts. | Legal §1 rows 13, 14; OSS-001; THREAT_MODEL C2 | Claim all under a company account with 2FA; record who holds it. | Publish |
+| E2 🟡 | *9/22: `@dnsid-ai/*` 0.20.1 live on npmjs (company account, 2FA); PyPI `dnsid` still unpublished — org-name approval pending.* **Package registry ownership.** npm org `@dnsid-ai` owner unverified; PyPI `dnsid` and confusable names (`dnsid-sdk`, `dnsid-ai`, `dnsid_ai`, `dnsidai`) unclaimed. Must be company-held accounts. | Legal §1 rows 13, 14; OSS-001; THREAT_MODEL C2 | Claim all under a company account with 2FA; record who holds it. | Publish |
 | ~~E3~~ ✅ | *Security owner (M4) via `security@dnsid.ai`.* **CRA reporting contact.** A named person with access to the ENISA single reporting platform for actively exploited vulnerabilities. Obligation already live. | Legal §10 row 7 | The security owner from M4, with `security@dnsid.ai` as the inbound path. | Sign-off row |
 | ~~E4~~ ✅ | **Org-level 2FA enforcement** — done; org setting enabled, 18/18 members on 2FA. | SSD-003, OSS-007 | — | — |
-| ~~E5~~ ✅ | *9/21: skip at launch accepted; npmjs chosen — dnsid-ts PR #16 (trusted publishing + provenance).* **Release signing for Go and TypeScript** was skipped (Python has provenance). TypeScript is blocked on the npmjs-vs-GitHub-Packages decision (`--provenance` requires npmjs). Confirm skip is accepted for launch, and decide the npm registry. | OSS-010/011/012, OSS-024 | Publish `@dnsid-ai/*` to **npmjs** with provenance; add Go release signing before 1.0. | Readiness shows ❌ until done |
+| ~~E5~~ ✅ | *9/21: skip at launch accepted; npmjs chosen — dnsid-ts #16 merged 9/22. First npmjs publish (0.20.1) was manual, no attestation. 9/22: **staged publishing chosen and live** — 0.20.2 ×10 on npmjs with verified provenance; CI stages, maintainer approves with 2FA. Go signing remains the only open piece.* **Release signing for Go and TypeScript** was skipped (Python has provenance). TypeScript is blocked on the npmjs-vs-GitHub-Packages decision (`--provenance` requires npmjs). Confirm skip is accepted for launch, and decide the npm registry. | OSS-010/011/012, OSS-024 | Publish `@dnsid-ai/*` to **npmjs** with provenance; add Go release signing before 1.0. | Readiness shows ❌ until done |
 | E6 ⚪ | **Third-party service accounts.** GitHub org, npm, PyPI, any CI/SaaS — held by company accounts, terms accepted knowingly, continuity when a person leaves. (DeepSource: confirmed leftover, config removed.) | Legal §12 row 3 | Inventory the accounts. | — |
 | E7 ⚪ | *9/21: deployed per site owner but not serving — CloudFront returns the SPA index at `/.well-known/security.txt` on `dnsid.ai`/`www`/`docs`. Needs a fix on the site side.* **`security.txt`** at `dnsid.ai` and `docs.dnsid.ai`. | VIR-002 | Fix deploy; verify `Contact: mailto:security@dnsid.ai` + `Expires`. | — |
 
@@ -94,11 +94,11 @@ Legend: 🔴 blocks publish · 🟡 blocks a specific file or sign-off row · �
 - Every repo: Apache-2.0 LICENSE, NOTICE, CONTRIBUTING, canonical SECURITY.md and CODE_OF_CONDUCT.md (byte-checked), CODEOWNERS, Dependabot.
 - Branch rules: PR required, code-owner review, signed commits, no force-push or deletion, no bypass.
 - CI on every PR: all GitHub Actions SHA-pinned, secret scan over full history (clean), CodeQL SAST, dependency vulnerability scan, dependency license allowlist, TLS-disable and telemetry greps (none), encryption-primitive grep (none — export re-review tripwire), fixture domains RFC 2606.
-- Releases: CycloneDX SBOM attached; Python has build provenance.
+- Releases: CycloneDX SBOM attached; Python and TypeScript have build provenance (ts via staged trusted publishing, 2FA approve).
 - Written: data & network inventory (every destination, default vs opt-in, what is stored), threat model (19 threats with mitigations and residuals), README "Security & trust" section in each SDK (official sources, software ≠ identity, network behavior, no telemetry, downstream privacy-notice guidance).
 - Cross-SDK conformance harness: 193 spec-derived cases, all three SDKs 100%, with a written statement of what a pass does and does not assert.
 
 ## After the decisions
 
-All 🔴 items are closed. Remaining work is mechanical: merge the readiness PRs, flip repos public, and complete the two
-review forms row-by-row for §13 sign-off with pointers to the evidence above (`REVIEW.md`).
+All 🔴 items are closed. **9/22: readiness PRs merged; `dnsid-go`, `dnsid-ts`, `dnsid-py`, `dnsid-cookbook` are public;
+`@dnsid-ai/*` on npmjs.** PVR enabled on all four. Remaining: PyPI publish (E2), and the §13 sign-off with pointers to the evidence above (`REVIEW.md`).
