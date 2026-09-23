@@ -56,14 +56,15 @@ END
 
 TYPE KeySource
   cliDirectory?: string             // DNSid CLI identity directory (01: Initialization from DNSid CLI Configuration)
-  entityKeyPath?: string            // accountable-entity key file; CLI loader resolves config.json entity_key_path against the directory
+  entityKeyPath?: string            // accountable-entity key file; CLI loader resolves a relative entity_key_path against the directory of the config.json that carries it
   keyStorePath?: string             // binding-defined local key store file
 END
 ```
 
-`LogTrust` MUST contain exactly one variant when present; zero or more than one
-fails with `ArgumentError` at construction. `logTrust` is atomic under merge: a
-later source that sets any variant replaces the whole section.
+`LogTrust` MUST contain exactly one variant when `Construct` uses it; zero or
+more than one fails with `ArgumentError`. When the caller supplies
+`deps.logRegistry`, `logTrust` is not inspected. `logTrust` is atomic under
+merge: a later source that sets any variant replaces the whole section.
 
 `dnsid.identity` is present only when the source supplies at least one identity
 field. A source that supplies no identity field yields a verification-only
@@ -170,6 +171,11 @@ FUNCTION Merge(base: LoadedConfig, overlay: LoadedConfig) -> LoadedConfig
 - `logTrust` is replaced as a whole section when `overlay` sets any variant.
 - A section absent from both stays absent.
 
+A binding whose configuration types cannot express presence for a scalar
+(a non-pointer integer whose zero value is also the constructor default)
+treats that zero value as absent in `Merge`; an explicit zero then cannot
+override a loaded nonzero value. Document the affected fields.
+
 When a convenience constructor combines sources, the order is fixed: DNSid CLI
 directory, deployment file, environment, code overlay; later wins. Callers
 composing sources themselves may choose any order.
@@ -185,6 +191,7 @@ presence.
 
 ```
 FUNCTION Construct(loaded: LoadedConfig, deps: IdentityManagerDependencies) -> IdentityManager
+  ValidateDnsidConfig(loaded.dnsid)       // SHOULD: fail on configuration before reading key files or fetching policy
   IF deps.logRegistry ABSENT AND loaded.logTrust PRESENT THEN
     deps.logRegistry = LogRegistryFromTrust(loaded.logTrust, loaded.dnsid.transport)
   END
@@ -282,5 +289,6 @@ verify` reads; there are no SDK-local aliases.
 | `IdentityManagerFromDnsid()` with `DNSID_CONFIG_DIR` set | Reads `~/.dnsid`; the variable is not consulted. |
 | Same inputs through a convenience constructor and through manual `Load → Merge → Construct` | Identical validated snapshot and dependency wiring. |
 | `DNSID_PUBLIC_URL`, `DNSID_AGENT_PORT`, `DNSID_SERVER` set | Ignored by SDK loaders. |
-| Deployment file with unknown member, or `logTrust` with zero or two variants | Loader or construction fails with `ArgumentError`. |
+| Deployment file with unknown member, or `logTrust` with zero or two variants and no caller `logRegistry` | Loader or construction fails with `ArgumentError`. |
+| Invalid `dnsid` config together with a `policyUrl` | Construction fails with `ArgumentError` without fetching the policy. |
 | Any constructor invoked with environment variables or files present | Constructor reads neither. |
