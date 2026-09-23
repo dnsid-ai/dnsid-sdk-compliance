@@ -48,7 +48,7 @@ TYPE LoadedConfig
 END
 
 TYPE LogTrust
-  managed?: string                  // managed catalog selector (11: DNSid-Managed Trust)
+  managed?: boolean                 // true selects the embedded managed catalog (11: DNSid-Managed Trust)
   profile?: object                  // trust profile document (11: Trust Profiles)
   policyDocument?: bytes            // trusted tlog-policy document (11: Verification Convenience Factory)
   policyUrl?: string                // explicit trust-policy URL (11: Verification Convenience Factory)
@@ -56,6 +56,7 @@ END
 
 TYPE KeySource
   cliDirectory?: string             // DNSid CLI identity directory (01: Initialization from DNSid CLI Configuration)
+  entityKeyPath?: string            // accountable-entity key file; CLI loader resolves config.json entity_key_path against the directory
   keyStorePath?: string             // binding-defined local key store file
 END
 ```
@@ -67,6 +68,11 @@ later source that sets any variant replaces the whole section.
 `dnsid.identity` is present only when the source supplies at least one identity
 field. A source that supplies no identity field yields a verification-only
 configuration.
+
+`KeySource` variants are not exclusive: `dnsid local run` exports both
+`DNSID_CONFIG_DIR` and `DNSID_KEY_STORE` for one agent. When both are present,
+`cliDirectory` supplies the operational key provider and `keyStorePath` is
+unused; `entityKeyPath` supplies the entity key provider whenever present.
 
 ## Sources
 
@@ -112,8 +118,8 @@ rejected.
 | `DNSID_KEY_STORE` | `keySource.keyStorePath` | string |
 
 Configuration fields without a variable (`policyFlags`, `maxKeyAge`,
-`statusCheckInterval`, `trustedEntities`, `logTrust.managed`, and all profile
-settings) are set through the deployment file or the
+`statusCheckInterval`, `trustedEntities`, `logTrust.managed`,
+`keySource.entityKeyPath`, and all profile settings) are set through the deployment file or the
 code overlay. Add a variable here when a consumer needs one; do not add
 binding-local names.
 
@@ -133,7 +139,7 @@ onto an existing type with no cross-section logic.
 ```json
 {
   "dnsid": { "verification": { "dnssecMode": "required", "trustedEntities": [{ "governanceId": "acme.example" }] } },
-  "logTrust": { "managed": "identity-digital" },
+  "logTrust": { "managed": true },
   "registry": { "registryUrl": "https://registry.example" }
 }
 ```
@@ -172,28 +178,49 @@ composing sources themselves may choose any order.
 
 Construction consumes a merged `LoadedConfig` and caller-supplied dependencies.
 It fills only dependencies the caller did not supply; caller dependencies win
-and any loaded value they displace is ignored.
+and any loaded value they displace is ignored. Bindings whose dependency
+injection is opaque (functional options) expose `logRegistry`, `keyProvider`,
+and `entityKeyProvider` in an inspectable form so `Construct` can observe
+presence.
 
 ```
 FUNCTION Construct(loaded: LoadedConfig, deps: IdentityManagerDependencies) -> IdentityManager
   IF deps.logRegistry ABSENT AND loaded.logTrust PRESENT THEN
-    deps.logRegistry = LogRegistryFromTrust(loaded.logTrust)   // 11 factories
+    deps.logRegistry = LogRegistryFromTrust(loaded.logTrust, loaded.dnsid.transport)
   END
-  IF deps.keyProvider ABSENT AND loaded.dnsid.identity PRESENT AND loaded.keySource PRESENT THEN
-    deps.keyProvider, deps.entityKeyProvider = KeyProvidersFrom(loaded.keySource, loaded.dnsid.identity.domain)
+  IF loaded.dnsid.identity PRESENT AND loaded.keySource PRESENT THEN
+    IF deps.keyProvider ABSENT THEN
+      deps.keyProvider = OperationalKeyProviderFrom(loaded.keySource, loaded.dnsid.identity.domain)
+    END
+    IF deps.entityKeyProvider ABSENT AND loaded.keySource.entityKeyPath PRESENT THEN
+      deps.entityKeyProvider = FileKeyProvider(loaded.keySource.entityKeyPath)
+    END
   END
   RETURN IdentityManager(loaded.dnsid, deps)
 END
 ```
 
-`LogRegistryFromTrust` dispatches on the single `LogTrust` variant to the
-[managed](11-c2sp-tlog-binding.md#dnsid-managed-trust) or
-[generic](11-c2sp-tlog-binding.md#verification-convenience-factory) factory.
-`KeyProvidersFrom` locates key files under the effective identity domain, as
-[01](01-core-identity-manager.md#initialization-from-dnsid-cli-configuration)
+`Construct` adds no configuration values. The factories it calls are
+constructors and apply their own defaults, like any other constructor.
+
+`LogRegistryFromTrust` dispatches on the single `LogTrust` variant.
+`managed: true` calls the
+[managed factory](11-c2sp-tlog-binding.md#dnsid-managed-trust) with no options.
+`profile`, `policyDocument`, and `policyUrl` call the
+[generic factory](11-c2sp-tlog-binding.md#verification-convenience-factory)
+with that one trust input, `transport` set to `loaded.dnsid.transport` so the
+policy fetch honors `caBundlePath` and `privateAddressHosts`, and the same
+fixed defaults the managed factory documents: checkpoint maximum age 10
+minutes, maximum stream-bundle lifetime 10 minutes, allowed clock skew zero.
+Freshness, limits, and bundle requirements are not loadable; a deployment that
+needs different values constructs the registry with the generic factory and
+injects `deps.logRegistry`.
+
+`OperationalKeyProviderFrom` uses `cliDirectory` when present, otherwise
+`keyStorePath`, and locates CLI key files under the effective identity domain
+as [01](01-core-identity-manager.md#initialization-from-dnsid-cli-configuration)
 requires. `IdentityManager(config, deps)` is the ordinary constructor; it
-applies every default and performs every validation. `Construct` adds nothing
-else.
+applies every default and performs every validation.
 
 The registry path is the same shape:
 `RegistryClient(loaded.registry, loaded.registryCredential)`, with the
@@ -210,7 +237,7 @@ selection of its own. That is the test for whether a new one is permitted.
 IdentityManagerFromEnvironment(env?, overlay?: DnsidConfig, deps?) -> IdentityManager
   = Construct(Merge(LoadEnvironment(env), {dnsid: overlay}), deps)
 
-IdentityManagerFromDnsid(directory, overlay?: DnsidConfig, deps?) -> IdentityManager
+IdentityManagerFromDnsid(directory?, overlay?: DnsidConfig, deps?) -> IdentityManager
   = Construct(Merge(LoadCliDirectory(directory), {dnsid: overlay}), deps)
 
 IdentityManagerFromFile(path, overlay?: DnsidConfig, deps?) -> IdentityManager
@@ -220,7 +247,12 @@ RegistryClientFromEnvironment(env?) -> RegistryClient
   = RegistryClient(LoadEnvironment(env).registry, LoadEnvironment(env).registryCredential)
 ```
 
-Names and argument passing are binding-idiomatic. An environment with no
+Names and argument passing are binding-idiomatic. `LoadCliDirectory` with no
+directory reads `~/.dnsid`; that is a source-location default, not a
+configuration default, and is permitted. It does not consult
+`DNSID_CONFIG_DIR`; that variable reaches `Construct` through
+`LoadEnvironment` as `keySource.cliDirectory`, so under `dnsid local run` the
+one-liner is `IdentityManagerFromEnvironment()`. An environment with no
 `DNSID_DOMAIN` yields a verification-only manager; an environment exported by
 `dnsid local env` (transport, DNSSEC mode, `DNSID_LOG_POLICY_URL`) yields a
 manager that can verify draft 01 identities without further wiring. The
@@ -243,6 +275,11 @@ verify` reads; there are no SDK-local aliases.
 | File `logTrust.managed`, environment `DNSID_LOG_POLICY_URL` | Result is `policyUrl` only. |
 | `DNSID_LOG_POLICY_FILE` and `DNSID_LOG_POLICY_URL` both set | Construction fails with `ArgumentError`; the loader does not pick one. |
 | `logTrust` loaded, `deps.logRegistry` supplied | Caller's registry used; loaded trust ignored. |
+| `DNSID_LOG_POLICY_URL`, `DNSID_CA_BUNDLE`, `DNSID_PRIVATE_HOSTS=.test` set | Policy fetch uses the CA bundle and private-host allowance; verification of a `.test` draft 01 identity succeeds with no further wiring. |
+| `DNSID_LOG_TRUST_PROFILE_FILE` set, profile carries bundle verifier keys | Registry constructs with the 10-minute bundle lifetime default; no `ArgumentError`. |
+| `DNSID_CONFIG_DIR` and `DNSID_KEY_STORE` both set | Operational key from the CLI directory; key store unused. |
+| CLI `config.json` with `entity_key_path`, no caller `entityKeyProvider` | Entity key provider loaded from the resolved path. |
+| `IdentityManagerFromDnsid()` with `DNSID_CONFIG_DIR` set | Reads `~/.dnsid`; the variable is not consulted. |
 | Same inputs through a convenience constructor and through manual `Load → Merge → Construct` | Identical validated snapshot and dependency wiring. |
 | `DNSID_PUBLIC_URL`, `DNSID_AGENT_PORT`, `DNSID_SERVER` set | Ignored by SDK loaders. |
 | Deployment file with unknown member, or `logTrust` with zero or two variants | Loader or construction fails with `ArgumentError`. |

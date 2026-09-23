@@ -212,7 +212,16 @@ DNSid core does not depend on any application authentication profile.
   -> 07 protocol data types
   -> KeyProvider
   -> transport helpers
+
+12 configuration loading
+  -> 01 core IdentityManager constructor
+  -> 05 RegistryClient and TransportConfig
+  -> 11 log-trust factories
 ```
+
+Configuration loading sits above core: it constructs an `IdentityManager` and
+its log registry, so core never imports it. Bindings place it in a separate
+package when their module system requires acyclic imports.
 
 ## Naming
 
