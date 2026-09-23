@@ -41,7 +41,8 @@ dnsid-sdk-compliance/
 │   │                  #   to test the local checkout, not the published module)
 │   └── ts/shim.mjs    # Node shim that imports the built dnsid-ts dist
 └── docs/
-    └── sdk-design/    # SDK design docs, incl. conformance/ JSON vectors
+    ├── sdk-design/    # SDK design docs, incl. conformance/ JSON vectors
+    └── security/      # SDK threat model + data/network inventory
 ```
 
 dnsid-py is imported in-process by the harness (installed editable into `.venv`).
