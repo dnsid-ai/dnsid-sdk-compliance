@@ -62,7 +62,8 @@ END
 ```
 
 `LogTrust` MUST contain exactly one variant when `Construct` uses it; zero or
-more than one fails with `ArgumentError`. When the caller supplies
+more than one fails with `ArgumentError`. `managed: false` is rejected with
+`ArgumentError`; omit the field instead. When the caller supplies
 `deps.logRegistry`, `logTrust` is not inspected. `logTrust` is atomic under
 merge: a later source that sets any variant replaces the whole section.
 
