@@ -285,7 +285,7 @@ Relevant files:
 
 | Path | Purpose |
 |---|---|
-| `config.json` | Current local identity pointer/configuration when reading the root DNSid directory. |
+| `config.json` | Current local identity pointer when reading the root DNSid directory. The CLI treats `<domain>/config.json` as authoritative, so when the root file names a `domain` and `<domain>/config.json` exists, the loader MUST read that file instead; relative `entity_key_path` resolves against the file actually read. A directory with no such subdirectory is a leaf identity directory and is read as-is. |
 | `<domain>/config.json` | Per-identity configuration when reading an identity directory directly. |
 | `<domain>/private.pem` or `private.pem` | Optional binding-supported PKCS#8 PEM Ed25519 private key. |
 | `<domain>/private.jwk` or `private.jwk` | Local signing key material for the selected identity. Bindings MAY require this format. |
