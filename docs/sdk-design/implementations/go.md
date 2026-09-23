@@ -5,12 +5,16 @@
 | Field | Value |
 | --- | --- |
 | SDK repository | [dnsid-go](https://github.com/dnsid-ai/dnsid-go) |
-| SDK branch | `feat/private-address-hosts` |
-| SDK commit | `9c75835` (`feat!: replace AllowPrivateNetwork and implicit .test with PrivateAddressHosts`) |
-| SDK package version | `v0.34.0` + unreleased changelog entry (breaking `TransportConfig` change) |
-| dnsid design docs commit | `5cc35bcb35c75800ff6ed726b85db4ae34f36382` (`design/private-address-hosts`) |
-| Analysis date | 2026-09-22 (second pass) |
+| SDK branch | `main` |
+| SDK commit | `e5d01e5` (`chore: update changelog and version (#30)`; squash-merge of the reviewed `feat/private-address-hosts` branch is `250853a`) |
+| SDK package version | `v0.35.0` (`.release-version`; `key/aws` module pins `dnsid-go v0.35.0`; released 2026-09-23) |
+| dnsid design docs commit | `ccba7eac9d976a63981c91e2c092df922cfeb881` (`design/private-address-hosts`; identical to `5cc35bc` outside `implementations/`) |
+| Analysis date | 2026-09-23 |
 | Validation commands | `go vet ./...`, `go test -count=1 ./...`, and `go test -race ./...` passed at the reviewed head (root, `log`, `log/c2sptlog`, `oidc`, `webbotauth`, `httpsig`, `jose`, `internal/joseutil`); `key/aws` module tests passed; shared harness 193/193 expectations (`harness/run.py`, rebuilt Go shim) and the C2SP matrix (9 interoperable paths, 6 mutated bundles rejected; `harness/c2sp_matrix.py`) passed at this head. |
+
+## Review scope — 2026-09-23 (`9c75835`..`e5d01e5`, release `v0.35.0`)
+
+The reviewed branch tip `9c75835` was squash-merged to `main` as `250853a` (#29), so it is not a literal ancestor; `git diff 9c75835 250853a` is empty (tree-identical). Design delta (`5cc35bc`..`ccba7ea`): tracker files only; no `docs/sdk-design/` requirement or `fixtures/` change, no uncommitted changes. SDK delta: `e5d01e5` only bumps `.release-version` to `v0.35.0`, pins `key/aws/go.mod` to `dnsid-go v0.35.0`, and writes the `0.35.0` changelog entry. No source, test, dependency, or generated artifact changed, so every coverage row and citation is preserved; suites were rerun at the release head.
 
 ## Review scope — 2026-09-22 (second pass, `052f8dc`..`9c75835`)
 
@@ -216,5 +220,5 @@ Initial review: SDK commits `2638bcf`..`9d21698` (nine commits: key-store durabi
 - **Resolved (design `5cc35bc`):** design 05 `AgentRegistrationInput` was rewritten to the contract all three SDKs implement (`production` default; mode from `managed`/`zoneId`); `registry.go:711`, `:720` are unchanged and now conform.
 - **Note (design permits):** the registry client defaults to the local `dnsid local up` registry over loopback HTTP (`registry.go:510`) and exposes an explicit `NewRegistryClientFromEnv` loader (`:516`); `IdentityManager` construction still reads no environment.
 - **Note (design permits):** the CLI loader still substitutes `noop:0` for a missing `log_ref` in older CLI configs without `entity_key_path` (`dnsid_config.go:67`); this keeps legacy verification-only configs usable and never applies to publication-capable configs.
-- **Validation scope:** `go vet ./...`, `go test -count=1 ./...`, `go test -race ./...`, the `key/aws` module tests, the 193-expectation shared harness (rebuilt Go shim), and the C2SP matrix all passed at `9c75835`; the transport-guard change is cross-cutting (every SDK-managed fetch), so the shared suites were rerun rather than carried forward.
+- **Validation scope:** `go vet ./...`, `go test -count=1 ./...`, `go test -race ./...`, the `key/aws` module tests, the 193-expectation shared harness (rebuilt Go shim), and the C2SP matrix all passed at `e5d01e5` (`v0.35.0`); the transport-guard change is cross-cutting (every SDK-managed fetch), so the shared suites were rerun rather than carried forward.
 - **Hosting preconditions:** injected dependencies must honor cancellation; HTTP hosts/custom body readers must impose read deadlines. The synchronous provider API cannot interrupt a blocked custom signer (`OPERATIONS.md:66`).

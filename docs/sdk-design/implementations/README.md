@@ -6,9 +6,19 @@ Use the per-SDK files for implementation evidence:
 
 | SDK | Coverage File | Last Reviewed Branch | Last Reviewed Commit | Package Version | Last Analysis Date | Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| Go | [go.md](./go.md) | `feat/private-address-hosts` | `9c75835` | `v0.34.0`+unreleased | 2026-09-22 | `PrivateAddressHosts` and `ConfigFromEnv` implemented per design 05; no open findings |
-| TypeScript | [typescript.md](./typescript.md) | `private-address-hosts` | `c24c86d` | `0.21.0`+unreleased | 2026-09-22 | `privateAddressHosts` (suffix entries, no implicit `.test`) implemented per design 05. Partial: `verifyPublicationEvidence` remains a published acceptance-free method |
-| Python | [python.md](./python.md) | `private-address-hosts` | `686d7bf` | `0.20.0`+unreleased | 2026-09-22 | `private_address_hosts` (no implicit `.test`, C2SP passthrough, choke-point validation) and constructor-time config type validation implemented. Partial: prepared-event, OIDC response-bound, conformance-metadata, and issuance-evidence gaps remain |
+| Go | [go.md](./go.md) | `main` | `e5d01e5` | `v0.35.0` | 2026-09-23 | Release of the reviewed `PrivateAddressHosts` branch; no source change since `9c75835`; no open findings |
+| TypeScript | [typescript.md](./typescript.md) | `main` | `d1af8c1` | `0.22.0` | 2026-09-23 | Release of the reviewed `privateAddressHosts` branch plus `stripInternal`: `verifyPublicationEvidence` is no longer in the published typings, closing the last Partial; no open findings |
+| Python | [python.md](./python.md) | `main` | `5591a96` | `0.21.0` | 2026-09-23 | Release of the reviewed `private_address_hosts` branch; no source change since `686d7bf`. Partial: prepared-event, OIDC response-bound, conformance-metadata, and issuance-evidence gaps remain |
+
+The 2026-09-23 review records the releases cut from the `private-address-hosts`
+branches (Go `v0.35.0`, TypeScript `0.22.0`, Python `0.21.0`). Each branch was
+squash-merged to `main`, so the prior baselines are not literal ancestors; the Go
+and Python squash commits are tree-identical to the reviewed tips, and the
+TypeScript squash additionally enables `stripInternal` and un-exports
+`RegistryPublicationVerifier`, resolving the acceptance-free-method finding. The
+design repo changed only under `implementations/`. Native suites, the
+193-expectation harness, and the C2SP matrix were rerun at the release heads and
+passed.
 
 The 2026-09-22 second pass reviews the three `private-address-hosts` SDK branches
 against design branch `design/private-address-hosts` (`5cc35bc`), which replaced
@@ -48,15 +58,15 @@ migration support in configured readers.
 
 | Repository | Branch | Version / Commit | Package Version | Analysis Date | Notes |
 | --- | --- | --- | --- | --- | --- |
-| dnsid design docs baseline | `design/private-address-hosts` | `5cc35bcb35c75800ff6ed726b85db4ae34f36382` | N/A | 2026-09-22 | Adds 05 `Private Address Hosts`, `privateAddressHosts` in 01/05/11, and the rewritten `AgentRegistrationInput`; `fixtures/` unchanged since `c20013d`. 33 focused event-identity checks pass. |
-| dnsid-go | `feat/private-address-hosts` | `9c75835` | `v0.34.0`+unreleased | 2026-09-22 | `go vet ./...`, `go test -count=1 ./...`, `go test -race ./...`, `key/aws` module tests, all 193 shared expectations, and the C2SP matrix passed. |
-| dnsid-ts | `private-address-hosts` | `c24c86d` | `0.21.0`+unreleased | 2026-09-22 | 836 tests passed, 1 skipped; typecheck, build, all 193 shared expectations, and the C2SP matrix passed. |
-| dnsid-py | `private-address-hosts` | `686d7bf` | `0.20.0`+unreleased | 2026-09-22 | 1390 tests, `ruff`, `mypy`, all 193 shared expectations, and the C2SP matrix passed. |
+| dnsid design docs baseline | `design/private-address-hosts` | `ccba7eac9d976a63981c91e2c092df922cfeb881` | N/A | 2026-09-23 | Identical to `5cc35bc` outside `implementations/`; `fixtures/` unchanged since `c20013d`. 33 focused event-identity checks pass. |
+| dnsid-go | `main` | `e5d01e5` | `v0.35.0` | 2026-09-23 | `go vet ./...`, `go test -count=1 ./...`, `go test -race ./...`, `key/aws` module tests, all 193 shared expectations, and the C2SP matrix passed. |
+| dnsid-ts | `main` | `d1af8c1` | `0.22.0` | 2026-09-23 | 836 tests passed, 1 skipped; typecheck, build, all 193 shared expectations, and the C2SP matrix passed. |
+| dnsid-py | `main` | `5591a96` | `0.21.0` | 2026-09-23 | 1390 tests, `ruff`, `mypy`, all 193 shared expectations, and the C2SP matrix passed. |
 
 ## Shared Compliance Harness
 
-The latest recorded three-SDK run (2026-09-22, second pass) used Go commit `9c75835`,
-TypeScript commit `c24c86d`, and Python commit `686d7bf`. Each SDK matched all 193 expectations:
+The latest recorded three-SDK run (2026-09-23) used Go commit `e5d01e5`,
+TypeScript commit `d1af8c1`, and Python commit `5591a96`. Each SDK matched all 193 expectations:
 182 passes plus 11 fail-closed rejections of retired selectors, with no
 unexpected failures or known-bug allowances. This includes release conformance
 metadata, signed TXT generation, all seven managed trust-selection vectors, and

@@ -5,12 +5,16 @@
 | Field | Value |
 | --- | --- |
 | SDK repository | dnsid-py |
-| SDK branch | `private-address-hosts` |
-| SDK commit | `686d7bf` (branch tip; feature commit `cd7a8ad`, follow-ups `c434ad9`, `686d7bf`) |
-| SDK package version | `0.20.0` + unreleased changelog entries (breaking: no implicit `.test`; construction-time config type checks) |
-| dnsid design docs commit | `5cc35bcb35c75800ff6ed726b85db4ae34f36382` (`design/private-address-hosts`) |
-| Analysis date | 2026-09-22 (second pass) |
+| SDK branch | `main` |
+| SDK commit | `5591a96` (`chore: update changelog and version (#25)`, tag `v0.21.0`; squash-merge of the reviewed `private-address-hosts` branch is `01251e0`) |
+| SDK package version | `0.21.0` (released 2026-09-23) |
+| dnsid design docs commit | `ccba7eac9d976a63981c91e2c092df922cfeb881` (`design/private-address-hosts`; identical to `5cc35bc` outside `implementations/`) |
+| Analysis date | 2026-09-23 |
 | Validation commands | `.venv/bin/pytest -q` passed at the reviewed head (1390 tests); `ruff check` and `mypy dnsid` clean; shared harness 193/193 expectations (`harness/run.py`, package reinstalled into the harness `.venv`) and the C2SP matrix (9 interoperable paths, 6 mutated bundles rejected; `harness/c2sp_matrix.py`) passed at this head. |
+
+## Review scope — 2026-09-23 (`686d7bf`..`5591a96`, release `0.21.0`)
+
+The reviewed branch tip `686d7bf` was squash-merged to `main` as `01251e0` (#24), so it is not a literal ancestor; `git diff 686d7bf 01251e0` is empty (tree-identical). Design delta (`5cc35bc`..`ccba7ea`): tracker files only; no `docs/sdk-design/` requirement or `fixtures/` change, no uncommitted changes. SDK delta: `5591a96` only bumps `pyproject.toml` to `0.21.0` and writes the `0.21.0` changelog entry. No source, test, dependency, or generated artifact changed, so every coverage row, citation, and open Partial finding is preserved; suites were rerun at the release head.
 
 ## Review scope — 2026-09-22 (second pass, `4e8c93a`..`686d7bf`)
 
@@ -240,5 +244,5 @@ Initial review: SDK commits `2fc0e9e`..`8490ca4` (seven commits: durable SQLite 
 | Consolidated configuration and counterparty acceptance | `dnsid/manager.py:136`, `:1298`, `:1315`, `:1893`, `:1945`, `:1970` | **Resolved (`686d7bf`).** The `DnsidConfig`/`trusted_entities` contract is implemented and tested; former `Pre-redesign`/`TBD` rows are superseded. 0.19.1 resolved the unknown-field error type (`ArgumentError`) and retains the entity-key thumbprint on `VerifiedDomain`; `686d7bf` adds constructor-time type and value validation for `identity` URL/profile/`ka` fields and the `transport` string and list fields. |
 | SSRF `.test` exemption | `dnsid/safe_transport.py:285`, `:114`; `tests/test_ssrf_guard.py:128` | **Resolved (`cd7a8ad`/`c434ad9`).** The implicit `.test` rule is removed; `private_address_hosts` implements design 05 `Private Address Hosts` with construction- and transport-time validation, loopback/private-use-only resolution, and C2SP passthrough. |
 | Registration defaults vs design 05 | `dnsid/registry_client.py:202`, `:208` | **Resolved (design `5cc35bc`).** Design 05 `AgentRegistrationInput` was rewritten to the contract all three SDKs implement; the code is unchanged and now conforms. |
-| Validation scope | `tests/` | `.venv/bin/pytest -q` (1390 tests), `ruff check`, `mypy dnsid`, the 193-expectation shared harness (package reinstalled), and the C2SP matrix all passed at `686d7bf`; the transport-guard change is cross-cutting, so the shared suites were rerun rather than carried forward. |
+| Validation scope | `tests/` | `.venv/bin/pytest -q` (1390 tests), `ruff check`, `mypy dnsid`, the 193-expectation shared harness (package reinstalled), and the C2SP matrix all passed at `5591a96` (`0.21.0`); the transport-guard change is cross-cutting, so the shared suites were rerun rather than carried forward. |
 | Initial issuance recovery | `dnsid/manager.py:428`, `:442`, `:460`; `dnsid/c2sp_tlog/prepared.py:119` | **Evidence incomplete.** Publication/signing primitives and registry transport do not demonstrate a durable end-to-end issuance/recovery composition. Identify and test its coordinator before marking the whole flow Implemented. |
