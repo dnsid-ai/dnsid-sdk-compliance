@@ -49,7 +49,8 @@ END
 
 TYPE LogTrust
   managed?: string                  // managed catalog selector (11: DNSid-Managed Trust)
-  profile?: object                  // inline trust profile document (11: Trust Profiles)
+  profile?: object                  // trust profile document (11: Trust Profiles)
+  policyDocument?: bytes            // trusted tlog-policy document (11: Verification Convenience Factory)
   policyUrl?: string                // explicit trust-policy URL (11: Verification Convenience Factory)
 END
 
@@ -97,20 +98,22 @@ rejected.
 | `DNSID_EK_URL` | `dnsid.identity.ekUrl` | string |
 | `DNSID_KU_URL` | `dnsid.identity.kuUrl` | string |
 | `DNSID_PUBLISH_PROFILE` | `dnsid.identity.publishProfile` | string |
+| `DNSID_CAPABILITIES_URL` | `dnsid.identity.capabilitiesUrl` | string |
 | `DNSID_DNSSEC_MODE` | `dnsid.verification.dnssecMode` | `auto`, `validated`, or `required`; anything else is `ArgumentError` |
 | `DNSID_DNS_SERVER` | `dnsid.transport.dnsServer` | string |
 | `DNSID_CA_BUNDLE` | `dnsid.transport.caBundlePath` | string |
 | `DNSID_PRIVATE_HOSTS` | `dnsid.transport.privateAddressHosts` | comma-separated; entries trimmed, empties dropped; absent when nothing remains |
 | `DNSID_LOG_POLICY_URL` | `logTrust.policyUrl` | string |
-| `DNSID_LOG_TRUST_MANAGED` | `logTrust.managed` | string |
+| `DNSID_LOG_POLICY_FILE` | `logTrust.policyDocument` | path; loader reads the file bytes |
+| `DNSID_LOG_TRUST_PROFILE_FILE` | `logTrust.profile` | path; loader reads and parses the file |
 | `DNSID_REGISTRY_URL` | `registry.registryUrl` | string |
 | `DNSID_API_KEY` | `registryCredential` | string |
 | `DNSID_CONFIG_DIR` | `keySource.cliDirectory` | string |
 | `DNSID_KEY_STORE` | `keySource.keyStorePath` | string |
 
 Configuration fields without a variable (`policyFlags`, `maxKeyAge`,
-`capabilitiesUrl`, `statusCheckInterval`, `trustedEntities`, inline trust
-profiles, and all profile settings) are set through the deployment file or the
+`statusCheckInterval`, `trustedEntities`, `logTrust.managed`, and all profile
+settings) are set through the deployment file or the
 code overlay. Add a variable here when a consumer needs one; do not add
 binding-local names.
 
@@ -138,7 +141,7 @@ onto an existing type with no cross-section logic.
 | Section | Maps to |
 |---|---|
 | `dnsid` | `DnsidConfig`, validated by the `IdentityManager` constructor. |
-| `logTrust` | `LogTrust`; exactly one variant. |
+| `logTrust` | `LogTrust`; exactly one of `managed`, `profile` (inline document), or `policyUrl`. `policyDocument` has no file member; supply it through `DNSID_LOG_POLICY_FILE` or code. |
 | `registry` | `RegistryConfig`, validated by the `RegistryClient` constructor. |
 
 The file loader MUST reject unknown members and mistyped values, and SHOULD
@@ -220,7 +223,9 @@ RegistryClientFromEnvironment(env?) -> RegistryClient
 Names and argument passing are binding-idiomatic. An environment with no
 `DNSID_DOMAIN` yields a verification-only manager; an environment exported by
 `dnsid local env` (transport, DNSSEC mode, `DNSID_LOG_POLICY_URL`) yields a
-manager that can verify draft 01 identities without further wiring.
+manager that can verify draft 01 identities without further wiring. The
+environment variable names for log trust are the same ones `dnsid record
+verify` reads; there are no SDK-local aliases.
 
 ## Validation Scenarios
 
@@ -236,6 +241,7 @@ manager that can verify draft 01 identities without further wiring.
 | File sets `trustedEntities: [a]`, overlay sets `[]` | Result is `[]`, deny all. |
 | File sets `trustedEntities: [a]`, overlay omits it | Result is `[a]`. |
 | File `logTrust.managed`, environment `DNSID_LOG_POLICY_URL` | Result is `policyUrl` only. |
+| `DNSID_LOG_POLICY_FILE` and `DNSID_LOG_POLICY_URL` both set | Construction fails with `ArgumentError`; the loader does not pick one. |
 | `logTrust` loaded, `deps.logRegistry` supplied | Caller's registry used; loaded trust ignored. |
 | Same inputs through a convenience constructor and through manual `Load → Merge → Construct` | Identical validated snapshot and dependency wiring. |
 | `DNSID_PUBLIC_URL`, `DNSID_AGENT_PORT`, `DNSID_SERVER` set | Ignored by SDK loaders. |
