@@ -36,6 +36,7 @@ The documents are organized by SDK responsibility:
 | [09-oidc-federation.md](09-oidc-federation.md) | OIDC federation profile for JWT Bearer assertions, token exchange, and token verification using DNSid identities. |
 | [10-web-bot-auth.md](10-web-bot-auth.md) | Web Bot Auth profile using RFC 9421 primitives and an HTTP Message Signatures Directory. |
 | [11-c2sp-tlog-binding.md](11-c2sp-tlog-binding.md) | C2SP transparency-log binding: references, envelopes, split signing, prepared submission, tiled-log verification, policy, witnesses, and completeness. |
+| [12-configuration-loading.md](12-configuration-loading.md) | Configuration sources: environment variable schema, deployment file, merge rule, and convenience constructors. Loaders parse; constructors default. |
 | [conformance/](conformance/) | Language-neutral RFC 9421 signature-base, lifecycle reducer, snapshot, and binding-selection vectors shared by SDK implementations. |
 
 ## Configuration
@@ -49,12 +50,13 @@ and log registries are injected separately using idiomatic binding conventions.
 The initial acceptance surface is a static entity allowlist with optional current
 entity-key pins; custom evaluators and remote policy services are deferred.
 Registry clients, log-trust factories, and application profiles retain ownership
-of their own configuration. Verifier file loaders use the single
-[deployment file](01-core-identity-manager.md#deployment-file) shape, which
-maps `dnsid` and `logTrust` sections 1:1 onto existing types. Loading files or
-environment settings is always explicit. All constructors share one
-initialization path, and obsolete configuration is replaced directly, without
-compatibility adapters.
+of their own configuration. Environment variables, the deployment file, and
+DNSid CLI directories are configuration sources defined in
+[12](12-configuration-loading.md): loaders return only what the source
+contains, constructors apply every default and validation, and convenience
+constructors are `Load → Merge → Construct` with no logic of their own. All
+constructors share one initialization path, and obsolete configuration is
+replaced directly, without compatibility adapters.
 
 These SDK configuration and acceptance contracts do not change protocol wire
 behavior. Implementation trackers record reviewed baselines, not claims that

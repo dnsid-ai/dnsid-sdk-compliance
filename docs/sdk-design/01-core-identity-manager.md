@@ -33,8 +33,9 @@ separate responsibilities; configuration contains data, while runtime objects
 are supplied through `IdentityManagerDependencies`. This is a logical dependency
 bundle; bindings MAY use idiomatic dependency injection such as functional
 options rather than requiring a new container type. All initialization paths
-MUST use the same configuration validation, defaults, and dependency setup.
-Replace obsolete configuration directly; no compatibility adapters or parallel
+MUST use the same configuration validation, defaults, and dependency setup;
+loading from environment, files, and CLI directories is defined in
+[12](12-configuration-loading.md). Replace obsolete configuration directly; no compatibility adapters or parallel
 legacy configuration model are required.
 
 | Section | Type | Default | Responsibility |
@@ -113,37 +114,16 @@ intervals retain their meaning. Each setting has one home: verification settings
 MUST NOT also appear under `identity`, and transport settings MUST NOT also
 appear in dependencies.
 
-Constructors MUST NOT implicitly read files or environment variables. Explicit
-loaders MAY, and then follow one precedence rule: explicit caller settings win
-over loaded values, omission is distinct from explicit zero/empty, and policy
-arrays replace rather than merge. Loading local identity data MUST NOT infer
-accepted counterparties from its `governanceId`, registry, TLS CA, or log.
-Replacing security policy means constructing a new manager; see
+Constructors MUST NOT read files or environment variables. Loaders parse;
+constructors default: every loader returns only the fields present in its
+source, and this constructor applies every default and validation. The
+environment schema, deployment file, merge rule, and convenience constructors
+are defined in [12](12-configuration-loading.md). Loading local identity data
+MUST NOT infer accepted counterparties from its `governanceId`, registry, TLS
+CA, or log. Replacing security policy means constructing a new manager; see
 [IdentityCache](#identitycache).
 
-##### Deployment File
-
-Bindings that offer a file loader for verifiers MUST use this shape. It is an
-umbrella-package convenience, not a core type: each section maps 1:1 onto an
-existing type or factory with no cross-section logic or inference.
-
-```json
-{
-  "dnsid": { "verification": { "dnssecMode": "required", "trustedEntities": [{ "governanceId": "acme.example" }] } },
-  "logTrust": { "managed": "identity-digital" }
-}
-```
-
-| Section | Maps to |
-|---|---|
-| `dnsid` | `DnsidConfig`, validated as above. |
-| `logTrust` | Exactly one of `managed` ([managed catalog](11-c2sp-tlog-binding.md#dnsid-managed-trust)), `profile` (inline [trust profile](11-c2sp-tlog-binding.md#trust-profiles) document), or `policyUrl` ([generic factory](11-c2sp-tlog-binding.md#verification-convenience-factory)). Zero or more than one fails with `ArgumentError`. |
-
-The loader returns `(DnsidConfig, IdentityManagerDependencies)` with
-`logRegistry` populated; the caller passes both to the ordinary constructor.
-Runtime objects such as checkpoint stores and injected fetchers stay code-only.
-Profile settings (`jose`, `oidc`, `webBotAuth`, `httpMessageSignatures`) are not
-sections today; add them as siblings when a consumer needs them.
+##### Injected Transport Conflicts
 
 Injected resolvers/fetchers are caller-owned runtime infrastructure. A
 caller-supplied HTTP client, session, or transport that the SDK wraps for its
@@ -158,19 +138,6 @@ the other; reject it when both are injected. `caBundlePath` and
 when that fetcher is injected. Do not inspect or
 negotiate injected dependencies' configuration. Callers take responsibility for
 injected components; settings for remaining SDK-managed components still apply.
-
-Verification-only example (the caller separately supplies an explicitly trusted
-read-side `logRegistry`):
-
-```json
-{
-  "verification": {
-    "dnssecMode": "required",
-    "statusCheckInterval": 0,
-    "trustedEntities": [{ "governanceId": "acme.example" }]
-  }
-}
-```
 
 #### Counterparty Acceptance
 
@@ -267,7 +234,6 @@ SDK validation MUST cover:
 | `dnsServer` with only the HTTPS fetcher injected | Default TXT resolver uses the setting; injected fetcher is unchanged. |
 | `dnsServer` with both consumers injected, or `caBundlePath`/`privateAddressHosts` with HTTPS fetcher injected | Construction fails before network work. |
 | `privateAddressHosts` entry that is not a hostname or leading-dot suffix (IP literal, port, scheme, path, credentials) | Construction fails before network work. |
-| Deployment file with zero or multiple `logTrust` variants | Loader rejects with `ArgumentError`. |
 | Local publisher absent from allowlist | Publication confirmation can succeed on valid protocol evidence; public `VerifyDomain(localDomain)` still rejects. |
 | Acceptance denial | Error's structured fields and message carry only observed values (verified ID, key thumbprint); no configured allowlist entry or pin is echoed. Validate structurally: assert the observed fields, and assert that a configured value which is not a substring of any observed value does not appear. Configured values may legitimately be substrings of observed ones (a parent domain), so a bare substring check is not a valid test. |
 | Policy omitted versus explicit empty allowlist | No acceptance decision versus reject all. |
@@ -287,7 +253,9 @@ SDK validation MUST cover:
 Language bindings MAY provide a convenience initializer that constructs an
 `IdentityManager` from local identity files written by the DNSid CLI. This is a
 binding convenience only; it does not change protocol semantics or the
-`IdentityManager` constructor contract.
+`IdentityManager` constructor contract. The directory is one configuration
+source under [12](12-configuration-loading.md): its loader parses and never
+defaults or derives.
 
 The loader reads a DNSid identity directory, defaulting to the user's DNSid
 config directory (`~/.dnsid` on Unix-like systems). The DNSid CLI writes a root
@@ -337,29 +305,27 @@ groups:
 | `log_ref` | `DnsidConfig.identity.logRef` |
 | `publish_profile` | `DnsidConfig.identity.publishProfile` |
 | `max_key_age` | `DnsidConfig.identity.maxKeyAge` |
-| `server_url` | Registry base URL used only to derive `status_url` when `status_url` is absent. |
+| `server_url` | Not SDK configuration; ignored. |
+| `agent_id`, `environment` | Not SDK configuration; ignored. |
 
-For self-managed identities, the DNSid CLI persists these publication fields
-from the registry's registration response rather than deriving deployment
-defaults locally. Bindings that support client-controlled publication should
-consume the persisted values without replacing them with local defaults.
-
-If `status_url` is omitted and `server_url` is present, the loader MAY derive
-the local status URL from the registry's documented status endpoint format. This
-derived value is local initialization behavior only; verification of external
-identities still uses the signed `su` value from DNS.
+The DNSid CLI persists these publication fields from the registry's
+registration response. The loader consumes the persisted values and MUST NOT
+replace, derive, or substitute any of them: a missing `status_url` stays
+absent rather than being derived from `server_url`, and a missing `log_ref`
+stays absent rather than becoming a placeholder. Construction then fails with
+`ArgumentError` unless the caller's overlay supplies the field.
 
 The conceptual loader signature is:
 
 ```
-IdentityManagerFromDnsid(directory: string, config: DnsidConfig, deps: IdentityManagerDependencies) -> IdentityManager
+IdentityManagerFromDnsid(directory: string, overlay?: DnsidConfig, deps?: IdentityManagerDependencies) -> IdentityManager
 ```
 
-Bindings expose these inputs idiomatically. Loaded publication fields supply
-defaults; supplied `config` and key providers win per the
-[loader precedence rule](#configuration-ownership-and-loading). Apply the
-overlay before normalizing, validating, or deriving any field, so a caller can
-supply values the persisted configuration lacks. Where the CLI's on-disk key
+Bindings expose these inputs idiomatically. This is
+`Construct(Merge(LoadCliDirectory(directory), {dnsid: overlay}), deps)` per
+[12](12-configuration-loading.md#convenience-constructors): the overlay and
+supplied key providers win. Apply the overlay before normalizing or validating
+any field, so a caller can supply values the persisted configuration lacks. Where the CLI's on-disk key
 layout is keyed by domain, key files are located using the effective
 `config.identity.domain` after overlay, not the persisted value; a caller
 supplying a different domain therefore also supplies, or points at, that

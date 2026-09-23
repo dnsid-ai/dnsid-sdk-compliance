@@ -1,0 +1,243 @@
+# Configuration Loading
+
+This document defines how SDK configuration reaches a constructor from
+sources other than code: environment variables, a deployment file, and a
+DNSid CLI identity directory. It owns the environment variable schema, the
+merge rule, and the contract for convenience constructors. It does not change
+protocol wire behavior or the types defined in
+[01](01-core-identity-manager.md#initialization),
+[05](05-transport-and-registry.md), and [11](11-c2sp-tlog-binding.md).
+
+## Principle
+
+**Loaders parse; constructors default.**
+
+A loader returns a partial configuration containing only the fields that are
+present in its source. A loader MUST NOT default, derive, infer, or fabricate a
+value, and MUST NOT read a second source to fill a gap in the first. Defaults
+and validation are applied exactly once, by the constructor of the owning type
+(`IdentityManager`, `RegistryClient`, log-trust factories, profile verifiers).
+
+Consequences:
+
+- Missing required fields stay absent. Construction then fails with
+  `ArgumentError` naming the field. No placeholder value (such as a no-op log
+  reference) may be substituted to satisfy a required field.
+- Empty or whitespace-only source values are treated as absent, so the
+  constructor default applies. A loader MUST NOT pass an empty string, zero, or
+  empty list in place of an omitted field, because the constructor treats
+  explicit empty values as meaningful
+  ([01: Configuration Ownership and Loading](01-core-identity-manager.md#configuration-ownership-and-loading)).
+- Defaults documented in 01, 02, 03, 05, 09, 10, and 11 are constructor
+  defaults. They follow one presence rule: `DefaultIfMissing` from
+  [03](03-jose-jwt-jws.md#profile-configuration) tests presence, not
+  truthiness. A loader never applies them.
+- Constructors MUST NOT read environment variables or files.
+
+## Loaded Configuration
+
+Every source produces the same partial shape:
+
+```
+TYPE LoadedConfig
+  dnsid?: DnsidConfig               // partial; sections and fields present only when sourced
+  logTrust?: LogTrust               // atomic section, see below
+  registry?: RegistryConfig         // partial
+  registryCredential?: string       // secret; never placed in a loggable config object
+  keySource?: KeySource
+END
+
+TYPE LogTrust
+  managed?: string                  // managed catalog selector (11: DNSid-Managed Trust)
+  profile?: object                  // inline trust profile document (11: Trust Profiles)
+  policyUrl?: string                // explicit trust-policy URL (11: Verification Convenience Factory)
+END
+
+TYPE KeySource
+  cliDirectory?: string             // DNSid CLI identity directory (01: Initialization from DNSid CLI Configuration)
+  keyStorePath?: string             // binding-defined local key store file
+END
+```
+
+`LogTrust` MUST contain exactly one variant when present; zero or more than one
+fails with `ArgumentError` at construction. `logTrust` is atomic under merge: a
+later source that sets any variant replaces the whole section.
+
+`dnsid.identity` is present only when the source supplies at least one identity
+field. A source that supplies no identity field yields a verification-only
+configuration.
+
+## Sources
+
+| Source | Encoding | Defined in |
+|---|---|---|
+| Environment | `DNSID_*` variables | [Environment Variables](#environment-variables) |
+| Deployment file | JSON document | [Deployment File](#deployment-file) |
+| DNSid CLI directory | `config.json` plus key files | [01: Initialization from DNSid CLI Configuration](01-core-identity-manager.md#initialization-from-dnsid-cli-configuration) |
+| Code | `DnsidConfig` and `IdentityManagerDependencies` supplied by the caller | [01: Initialization](01-core-identity-manager.md#initialization) |
+
+Each source has one loader. The CLI directory loader maps the persisted
+snake_case publication fields into `dnsid.identity` and records the directory
+as `keySource.cliDirectory`; it MUST NOT derive `statusUrl` from `server_url`
+or substitute any log reference.
+
+### Environment Variables
+
+Variables are read by exact name. A variable that is unset, empty, or
+whitespace-only is absent. Values are trimmed. The `DNSID_` namespace is shared
+with deployment tooling, so unknown `DNSID_*` variables are ignored rather than
+rejected.
+
+| Variable | Maps to | Parse |
+|---|---|---|
+| `DNSID_DOMAIN` | `dnsid.identity.domain` | string |
+| `DNSID_GOVERNANCE_ID` | `dnsid.identity.governanceId` | string |
+| `DNSID_STATUS_URL` | `dnsid.identity.statusUrl` | string |
+| `DNSID_LOG_REF` | `dnsid.identity.logRef` | string |
+| `DNSID_EK_URL` | `dnsid.identity.ekUrl` | string |
+| `DNSID_KU_URL` | `dnsid.identity.kuUrl` | string |
+| `DNSID_PUBLISH_PROFILE` | `dnsid.identity.publishProfile` | string |
+| `DNSID_DNSSEC_MODE` | `dnsid.verification.dnssecMode` | `auto`, `validated`, or `required`; anything else is `ArgumentError` |
+| `DNSID_DNS_SERVER` | `dnsid.transport.dnsServer` | string |
+| `DNSID_CA_BUNDLE` | `dnsid.transport.caBundlePath` | string |
+| `DNSID_PRIVATE_HOSTS` | `dnsid.transport.privateAddressHosts` | comma-separated; entries trimmed, empties dropped; absent when nothing remains |
+| `DNSID_LOG_POLICY_URL` | `logTrust.policyUrl` | string |
+| `DNSID_LOG_TRUST_MANAGED` | `logTrust.managed` | string |
+| `DNSID_REGISTRY_URL` | `registry.registryUrl` | string |
+| `DNSID_API_KEY` | `registryCredential` | string |
+| `DNSID_CONFIG_DIR` | `keySource.cliDirectory` | string |
+| `DNSID_KEY_STORE` | `keySource.keyStorePath` | string |
+
+Configuration fields without a variable (`policyFlags`, `maxKeyAge`,
+`capabilitiesUrl`, `statusCheckInterval`, `trustedEntities`, inline trust
+profiles, and all profile settings) are set through the deployment file or the
+code overlay. Add a variable here when a consumer needs one; do not add
+binding-local names.
+
+Variables that deployment tooling exports for the hosted application
+(`DNSID_PUBLIC_URL`, `DNSID_AGENT_NAME`, `DNSID_AGENT_PORT`,
+`DNSID_AGENT_UPSTREAM`, `DNSID_SERVER`) are not SDK configuration. SDK loaders
+do not read or return them. Tooling that exports an environment for SDK
+consumers SHOULD emit `DNSID_REGISTRY_URL`, not only the CLI's `DNSID_SERVER`.
+
+### Deployment File
+
+The deployment file is the JSON encoding of `LoadedConfig` minus
+`registryCredential` and `keySource`, which are never written to a shared file.
+It is an umbrella-package convenience, not a core type: each section maps 1:1
+onto an existing type with no cross-section logic.
+
+```json
+{
+  "dnsid": { "verification": { "dnssecMode": "required", "trustedEntities": [{ "governanceId": "acme.example" }] } },
+  "logTrust": { "managed": "identity-digital" },
+  "registry": { "registryUrl": "https://registry.example" }
+}
+```
+
+| Section | Maps to |
+|---|---|
+| `dnsid` | `DnsidConfig`, validated by the `IdentityManager` constructor. |
+| `logTrust` | `LogTrust`; exactly one variant. |
+| `registry` | `RegistryConfig`, validated by the `RegistryClient` constructor. |
+
+The file loader MUST reject unknown members and mistyped values, and SHOULD
+reject duplicate members where the platform parser makes that available.
+Profile settings (`jose`, `oidc`, `webBotAuth`, `httpMessageSignatures`) are
+not sections today; add them as siblings when a consumer needs them. Runtime
+objects such as checkpoint stores and injected fetchers stay code-only.
+
+## Merge
+
+```
+FUNCTION Merge(base: LoadedConfig, overlay: LoadedConfig) -> LoadedConfig
+```
+
+- Field-wise: a field present in `overlay` replaces the same field in `base`;
+  a field absent in `overlay` leaves `base` unchanged.
+- Presence, not truthiness: an explicit empty list, empty string, or zero in
+  `overlay` replaces the base value.
+- Lists replace; they are never concatenated or deduplicated across sources.
+- `logTrust` is replaced as a whole section when `overlay` sets any variant.
+- A section absent from both stays absent.
+
+When a convenience constructor combines sources, the order is fixed: DNSid CLI
+directory, deployment file, environment, code overlay; later wins. Callers
+composing sources themselves may choose any order.
+
+## Construction
+
+Construction consumes a merged `LoadedConfig` and caller-supplied dependencies.
+It fills only dependencies the caller did not supply; caller dependencies win
+and any loaded value they displace is ignored.
+
+```
+FUNCTION Construct(loaded: LoadedConfig, deps: IdentityManagerDependencies) -> IdentityManager
+  IF deps.logRegistry ABSENT AND loaded.logTrust PRESENT THEN
+    deps.logRegistry = LogRegistryFromTrust(loaded.logTrust)   // 11 factories
+  END
+  IF deps.keyProvider ABSENT AND loaded.dnsid.identity PRESENT AND loaded.keySource PRESENT THEN
+    deps.keyProvider, deps.entityKeyProvider = KeyProvidersFrom(loaded.keySource, loaded.dnsid.identity.domain)
+  END
+  RETURN IdentityManager(loaded.dnsid, deps)
+END
+```
+
+`LogRegistryFromTrust` dispatches on the single `LogTrust` variant to the
+[managed](11-c2sp-tlog-binding.md#dnsid-managed-trust) or
+[generic](11-c2sp-tlog-binding.md#verification-convenience-factory) factory.
+`KeyProvidersFrom` locates key files under the effective identity domain, as
+[01](01-core-identity-manager.md#initialization-from-dnsid-cli-configuration)
+requires. `IdentityManager(config, deps)` is the ordinary constructor; it
+applies every default and performs every validation. `Construct` adds nothing
+else.
+
+The registry path is the same shape:
+`RegistryClient(loaded.registry, loaded.registryCredential)`, with the
+constructor applying the [05](05-transport-and-registry.md#registry-responsibilities)
+loopback default when `registryUrl` is absent.
+
+## Convenience Constructors
+
+Bindings MAY offer one-call constructors. Each MUST be expressible as
+`Load → Merge → Construct` with no defaulting, derivation, or dependency
+selection of its own. That is the test for whether a new one is permitted.
+
+```
+IdentityManagerFromEnvironment(env?, overlay?: DnsidConfig, deps?) -> IdentityManager
+  = Construct(Merge(LoadEnvironment(env), {dnsid: overlay}), deps)
+
+IdentityManagerFromDnsid(directory, overlay?: DnsidConfig, deps?) -> IdentityManager
+  = Construct(Merge(LoadCliDirectory(directory), {dnsid: overlay}), deps)
+
+IdentityManagerFromFile(path, overlay?: DnsidConfig, deps?) -> IdentityManager
+  = Construct(Merge(LoadFile(path), {dnsid: overlay}), deps)
+
+RegistryClientFromEnvironment(env?) -> RegistryClient
+  = RegistryClient(LoadEnvironment(env).registry, LoadEnvironment(env).registryCredential)
+```
+
+Names and argument passing are binding-idiomatic. An environment with no
+`DNSID_DOMAIN` yields a verification-only manager; an environment exported by
+`dnsid local env` (transport, DNSSEC mode, `DNSID_LOG_POLICY_URL`) yields a
+manager that can verify draft 01 identities without further wiring.
+
+## Validation Scenarios
+
+| Scenario | Required result |
+|---|---|
+| Only transport and verification variables set | Verification-only manager; `identity` absent. |
+| `DNSID_DOMAIN` set, `DNSID_LOG_REF` absent | Construction fails with `ArgumentError`; no placeholder log reference. |
+| `DNSID_STATUS_URL` absent, `DNSID_REGISTRY_URL` set | `statusUrl` absent; not derived from the registry URL. |
+| CLI `config.json` without `status_url`, with `server_url` | `statusUrl` absent; not derived. |
+| `DNSID_DNS_SERVER` empty or whitespace | Field absent; constructor default applies. |
+| `DNSID_PRIVATE_HOSTS=" , "` | Field absent. |
+| `DNSID_DNSSEC_MODE=bogus` | Loader fails with `ArgumentError` before construction. |
+| File sets `trustedEntities: [a]`, overlay sets `[]` | Result is `[]`, deny all. |
+| File sets `trustedEntities: [a]`, overlay omits it | Result is `[a]`. |
+| File `logTrust.managed`, environment `DNSID_LOG_POLICY_URL` | Result is `policyUrl` only. |
+| `logTrust` loaded, `deps.logRegistry` supplied | Caller's registry used; loaded trust ignored. |
+| Same inputs through a convenience constructor and through manual `Load → Merge → Construct` | Identical validated snapshot and dependency wiring. |
+| `DNSID_PUBLIC_URL`, `DNSID_AGENT_PORT`, `DNSID_SERVER` set | Ignored by SDK loaders. |
+| Deployment file with unknown member, or `logTrust` with zero or two variants | Loader or construction fails with `ArgumentError`. |
+| Any constructor invoked with environment variables or files present | Constructor reads neither. |
