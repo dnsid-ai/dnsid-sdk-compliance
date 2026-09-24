@@ -6,9 +6,21 @@ Use the per-SDK files for implementation evidence:
 
 | SDK | Coverage File | Last Reviewed Branch | Last Reviewed Commit | Package Version | Last Analysis Date | Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| Go | [go.md](./go.md) | `main` | `e5d01e5` | `v0.35.0` | 2026-09-23 | Release of the reviewed `PrivateAddressHosts` branch; no source change since `9c75835`; no open findings |
-| TypeScript | [typescript.md](./typescript.md) | `main` | `d1af8c1` | `0.22.0` | 2026-09-23 | Release of the reviewed `privateAddressHosts` branch plus `stripInternal`: `verifyPublicationEvidence` is no longer in the published typings, closing the last Partial; no open findings |
-| Python | [python.md](./python.md) | `main` | `5591a96` | `0.21.0` | 2026-09-23 | Release of the reviewed `private_address_hosts` branch; no source change since `686d7bf`. Partial: prepared-event, OIDC response-bound, conformance-metadata, and issuance-evidence gaps remain |
+| Go | [go.md](./go.md) | `main` | `089fe48` | `v0.36.0` | 2026-09-24 | Missing design 12 deployment-file loader; partial construction validation ordering |
+| TypeScript | [typescript.md](./typescript.md) | `main` | `86b708a` | `0.23.0` | 2026-09-24 | Partial design 12 construction validation ordering |
+| Python | [python.md](./python.md) | `main` | `a07070a` | `0.22.0` | 2026-09-24 | Partial prepared-event metadata, OIDC response bounds, conformance metadata, and issuance-recovery evidence |
+
+The 2026-09-24 review covers design 12 configuration loading on design `main`
+(`615f182`) and SDK implementation commits through `a255586` (Go), `bb70f74`
+(TypeScript), and `68ba790` (Python). The next commit in each SDK is a release:
+`v0.36.0`, `v0.23.0`, and `v0.22.0`, respectively. The design repo's
+`9326f7a` tracker commit changes no requirements or fixtures; release commits
+change no implementation source or tests. All three native suites, the shared
+193-expectation harness and the C2SP matrix passed at the release heads. Go still
+lacks the design 12 deployment-file loader; Go and TypeScript still defer an
+injected-transport conflict check until after a policy fetch can occur. The
+Python partials listed above remain open. Python's released `uv.lock` still
+records the editable package as `0.21.0` rather than `0.22.0`.
 
 The 2026-09-23 review records the releases cut from the `private-address-hosts`
 branches (Go `v0.35.0`, TypeScript `0.22.0`, Python `0.21.0`). Each branch was
@@ -58,15 +70,15 @@ migration support in configured readers.
 
 | Repository | Branch | Version / Commit | Package Version | Analysis Date | Notes |
 | --- | --- | --- | --- | --- | --- |
-| dnsid design docs baseline | `design/private-address-hosts` | `ccba7eac9d976a63981c91e2c092df922cfeb881` | N/A | 2026-09-23 | Identical to `5cc35bc` outside `implementations/`; `fixtures/` unchanged since `c20013d`. 33 focused event-identity checks pass. |
-| dnsid-go | `main` | `e5d01e5` | `v0.35.0` | 2026-09-23 | `go vet ./...`, `go test -count=1 ./...`, `go test -race ./...`, `key/aws` module tests, all 193 shared expectations, and the C2SP matrix passed. |
-| dnsid-ts | `main` | `d1af8c1` | `0.22.0` | 2026-09-23 | 836 tests passed, 1 skipped; typecheck, build, all 193 shared expectations, and the C2SP matrix passed. |
-| dnsid-py | `main` | `5591a96` | `0.21.0` | 2026-09-23 | 1390 tests, `ruff`, `mypy`, all 193 shared expectations, and the C2SP matrix passed. |
+| dnsid design docs baseline | `chore/impl-tracker-updates` | `9326f7a7407d68376f8484e1122a696f01b01ee0` | N/A | 2026-09-24 | Tracker-only change since design `main` `615f182`; no fixture or design requirement changes. |
+| dnsid-go | `main` | `089fe482a1ec757b0d27fb4168e5af1a9bb4e0d8` | `v0.36.0` | 2026-09-24 | `go vet ./...`, `go test -count=1 ./...`, `go test -race ./...`, `key/aws` module tests, 193/193 shared expectations, and C2SP matrix passed. |
+| dnsid-ts | `main` | `86b708a977ffa43414719d7ebf10fa7d74cfdc2b` | `0.23.0` | 2026-09-24 | 866 tests passed, 1 skipped; typecheck, build, 193/193 shared expectations, and C2SP matrix passed. |
+| dnsid-py | `main` | `a07070a53a9191ce158b43dd17be7e0619a945e7` | `0.22.0` | 2026-09-24 | 1376 tests, `ruff`, `mypy`, 193/193 shared expectations, and C2SP matrix passed. |
 
 ## Shared Compliance Harness
 
-The latest recorded three-SDK run (2026-09-23) used Go commit `e5d01e5`,
-TypeScript commit `d1af8c1`, and Python commit `5591a96`. Each SDK matched all 193 expectations:
+The latest recorded three-SDK run (2026-09-24) used Go commit `089fe48`,
+TypeScript commit `86b708a`, and Python commit `a07070a`. Each SDK matched all 193 expectations:
 182 passes plus 11 fail-closed rejections of retired selectors, with no
 unexpected failures or known-bug allowances. This includes release conformance
 metadata, signed TXT generation, all seven managed trust-selection vectors, and
@@ -81,11 +93,10 @@ use the corrected logical-event-chain contract. The matrix does not establish
 full recursive migration interoperability. The shared harness does not cover the
 registry Live workflow; that area is tracked in the per-SDK files.
 
-Validation used the direct harness commands (`harness/c2sp_event_identity_check.py`,
-`harness/run.py`, `harness/c2sp_matrix.py`) with a rebuilt Go shim, a rebuilt
-TypeScript package, and the Python package reinstalled into `.venv`.
-The separate 33 focused event-identity checks are not included in the 193 SDK
-expectations and do not themselves verify SDKs, proofs, bundles, or migration.
+Validation used `harness/run.py` and `harness/c2sp_matrix.py` with a rebuilt
+Go shim, rebuilt TypeScript packages, and the installed local Python package.
+The earlier 33 focused event-identity checks are not included in the 193 SDK
+expectations and were not rerun at these release heads.
 
 ## Agent Update Instructions
 
@@ -133,3 +144,4 @@ The per-SDK files cover the full SDK design set:
 | OIDC Federation | [09-oidc-federation.md](../09-oidc-federation.md) |
 | Web Bot Auth | [10-web-bot-auth.md](../10-web-bot-auth.md) |
 | C2SP Transparency Log Binding | [11-c2sp-tlog-binding.md](../11-c2sp-tlog-binding.md) |
+| Configuration Loading | [12-configuration-loading.md](../12-configuration-loading.md) |
