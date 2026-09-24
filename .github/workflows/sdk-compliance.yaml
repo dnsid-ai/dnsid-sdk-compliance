@@ -13,10 +13,6 @@ name: SDK Compliance (reusable)
 #   jobs:
 #     compliance:
 #       uses: dnsid-ai/dnsid-sdk-compliance/.github/workflows/sdk-compliance.yaml@main
-#       secrets: inherit          # needs GH_PAT only while this repo and the SDK
-#                                 # repos are private; every token use below falls
-#                                 # back to github.token, so once the repos are
-#                                 # public the callers can drop `secrets: inherit`
 #       with:
 #         sdk: py
 #         ref: ${{ github.event.pull_request.head.sha }}
@@ -50,28 +46,27 @@ on:
         type: string
         default: ""
 
-permissions:
-  contents: read
-  issues: write
-  pull-requests: write
-
 jobs:
   compliance:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      comment_ready: ${{ steps.comment_artifact.outcome == 'success' }}
     steps:
       # The harness and fixtures live in this compliance repository, not the caller's.
       - name: Check out compliance harness
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: dnsid-ai/dnsid-sdk-compliance
-          token: ${{ secrets.GH_PAT || github.token }}
+          persist-credentials: false
 
       - name: Check out SDK (head)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: dnsid-ai/dnsid-${{ inputs.sdk }}
           ref: ${{ inputs.ref }}
-          token: ${{ secrets.GH_PAT || github.token }}
+          persist-credentials: false
           path: sdk-head
 
       - name: Check out SDK (base)
@@ -80,7 +75,7 @@ jobs:
         with:
           repository: dnsid-ai/dnsid-${{ inputs.sdk }}
           ref: ${{ inputs.base-ref }}
-          token: ${{ secrets.GH_PAT || github.token }}
+          persist-credentials: false
           path: sdk-base
 
       - if: inputs.sdk == 'go'
@@ -107,8 +102,6 @@ jobs:
         id: compliance_summary
         env:
           SDK: ${{ inputs.sdk }}
-          PR_NUMBER: ${{ inputs.pr-number || github.event.pull_request.number || '' }}
-          PR_REPOSITORY: ${{ inputs.pr-repository || github.repository }}
         run: |
           set -euo pipefail
 
@@ -198,29 +191,6 @@ jobs:
           echo "regressed=$regressed" >> "$GITHUB_OUTPUT"
           echo "strict_fail=$strict_fail" >> "$GITHUB_OUTPUT"
           echo "stale_known_bug=$stale_known_bug" >> "$GITHUB_OUTPUT"
-          echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
-          echo "pr_repository=$PR_REPOSITORY" >> "$GITHUB_OUTPUT"
-
-      - name: Comment compliance summary on PR
-        if: always() && steps.compliance_summary.outputs.pr_number != ''
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
-          PR_NUMBER: ${{ steps.compliance_summary.outputs.pr_number }}
-          PR_REPOSITORY: ${{ steps.compliance_summary.outputs.pr_repository }}
-          SDK: ${{ inputs.sdk }}
-        run: |
-          set -euo pipefail
-          marker="<!-- dnsid-compliance:$SDK -->"
-          comment_id=$(gh api "repos/$PR_REPOSITORY/issues/$PR_NUMBER/comments" --paginate \
-            --jq ".[] | select(.body | contains(\"$marker\")) | .id" | head -n1 || true)
-          if [ -n "$comment_id" ]; then
-            gh api --method PATCH "repos/$PR_REPOSITORY/issues/comments/$comment_id" \
-              -f body="$(cat comment.md)" >/dev/null
-          else
-            gh api --method POST "repos/$PR_REPOSITORY/issues/$PR_NUMBER/comments" \
-              -f body="$(cat comment.md)" >/dev/null
-          fi
 
       - name: Fail on compliance gate
         if: steps.compliance_summary.outputs.regressed == 'true' || steps.compliance_summary.outputs.strict_fail == 'true' || steps.compliance_summary.outputs.stale_known_bug == 'true'
@@ -232,3 +202,42 @@ jobs:
           name: compliance-report-${{ inputs.sdk }}
           path: report-head.md
           if-no-files-found: ignore
+
+      - name: Upload PR comment
+        id: comment_artifact
+        if: always() && steps.compliance_summary.outcome == 'success' && (inputs.pr-number != '' || github.event.pull_request.number != '')
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: compliance-comment-${{ inputs.sdk }}
+          path: comment.md
+          if-no-files-found: error
+
+  comment:
+    needs: compliance
+    if: always() && needs.compliance.outputs.comment_ready == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: compliance-comment-${{ inputs.sdk }}
+      - name: Comment compliance summary on PR
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr-number || github.event.pull_request.number }}
+          PR_REPOSITORY: ${{ inputs.pr-repository || github.repository }}
+          SDK: ${{ inputs.sdk }}
+        run: |
+          set -euo pipefail
+          marker="<!-- dnsid-compliance:$SDK -->"
+          comment_id=$(gh api "repos/$PR_REPOSITORY/issues/$PR_NUMBER/comments" --paginate \
+            --jq ".[] | select(.body | contains(\"$marker\")) | .id" | head -n1 || true)
+          if [ -n "$comment_id" ]; then
+            gh api --method PATCH "repos/$PR_REPOSITORY/issues/comments/$comment_id" \
+              -F body=@comment.md >/dev/null
+          else
+            gh api --method POST "repos/$PR_REPOSITORY/issues/$PR_NUMBER/comments" \
+              -F body=@comment.md >/dev/null
+          fi

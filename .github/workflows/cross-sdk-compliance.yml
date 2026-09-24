@@ -24,29 +24,28 @@ jobs:
     steps:
       - name: Check out compliance kit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      # The SDK repositories are private, so the default GITHUB_TOKEN (scoped
-      # to this repository) cannot read them. Once they are public, callers can
-      # rely on github.token and remove GH_PAT.
       - name: Check out dnsid-go
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: dnsid-ai/dnsid-go
-          token: ${{ secrets.GH_PAT || github.token }}
+          persist-credentials: false
           path: sdks/dnsid-go
 
       - name: Check out dnsid-ts
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: dnsid-ai/dnsid-ts
-          token: ${{ secrets.GH_PAT || github.token }}
+          persist-credentials: false
           path: sdks/dnsid-ts
 
       - name: Check out dnsid-py
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: dnsid-ai/dnsid-py
-          token: ${{ secrets.GH_PAT || github.token }}
+          persist-credentials: false
           path: sdks/dnsid-py
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
