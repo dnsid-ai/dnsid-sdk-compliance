@@ -172,10 +172,13 @@ FUNCTION Merge(base: LoadedConfig, overlay: LoadedConfig) -> LoadedConfig
 - `logTrust` is replaced as a whole section when `overlay` sets any variant.
 - A section absent from both stays absent.
 
-A binding whose configuration types cannot express presence for a scalar
-(a non-pointer integer whose zero value is also the constructor default)
-treats that zero value as absent in `Merge`; an explicit zero then cannot
-override a loaded nonzero value. Document the affected fields.
+A binding whose partial configuration uses value fields that cannot distinguish
+omission from a scalar's zero value (such as `0` or `""`) treats that zero value
+as absent in `Merge`. A code overlay cannot use that value to clear a loaded
+nonzero field; this exception does not apply to an explicitly empty list where
+presence can be represented. Bindings MUST document which fields are affected.
+Callers that need to clear one can set the desired value on the merged config
+before passing it to `Construct`.
 
 When a convenience constructor combines sources, the order is fixed: DNSid CLI
 directory, deployment file, environment, code overlay; later wins. Callers
