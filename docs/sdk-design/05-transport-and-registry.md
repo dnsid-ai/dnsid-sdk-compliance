@@ -27,11 +27,10 @@ for snapshot, validation, loading, and injected-transport conflict rules.
 
 Language bindings SHOULD expose this capability through their platform's
 idiomatic HTTP abstraction, such as a configured HTTP client, transport,
-session, or request function. Development CLIs may inject these values through
-environment variables such as `DNSID_DNS_SERVER`, `DNSID_CA_BUNDLE`, and
-`DNSID_PRIVATE_HOSTS` (comma-separated); explicit SDK loaders may read them as
-defaults for `TransportConfig`, but explicit caller configuration wins. Constructors and transport helpers do not read the
-environment implicitly. The helper is intended for registry workflows,
+session, or request function. The environment variables that populate this
+section (`DNSID_DNS_SERVER`, `DNSID_CA_BUNDLE`, `DNSID_PRIVATE_HOSTS`) are
+defined in [12](12-configuration-loading.md#environment-variables); constructors
+and transport helpers do not read the environment. The helper is intended for registry workflows,
 [`JWKS`](07-protocol-data-types.md#jwks) /
 [`AgentStatus`](07-protocol-data-types.md#agentstatus) / capabilities
 fetches, and application requests that need the same DNSid transport
@@ -104,7 +103,7 @@ is outside the initial SDK acceptance surface.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `registryUrl` | string | no | Base URL of the DNSid registry for managing the local identity's own registration and status publication workflows. Never used by `VerifyDomain` to validate external identities. HTTPS is required except for plain HTTP to a literal loopback host (`localhost`, `127.0.0.1`, `[::1]`); userinfo, query, and fragment are rejected. SDKs MAY default it to the local `dnsid local` registry (`http://127.0.0.1:7755`); hosted deployments must set it explicitly. |
+| `registryUrl` | string | no | Base URL of the DNSid registry for managing the local identity's own registration and status publication workflows. Never used by `VerifyDomain` to validate external identities. HTTPS is required except for plain HTTP to a literal loopback host (`localhost`, `127.0.0.1`, `[::1]`); userinfo, query, and fragment are rejected. The `RegistryClient` constructor MAY default it to the local `dnsid local` registry (`http://127.0.0.1:7755`) when absent; hosted deployments must set it explicitly. Populated from `DNSID_REGISTRY_URL` per [12](12-configuration-loading.md#environment-variables). |
 
 During the Internet-Draft period, registry and SDK releases publish the same
 latest fully supported submitted numbered selector, initially
