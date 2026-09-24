@@ -43,7 +43,6 @@ TYPE LoadedConfig
   dnsid?: DnsidConfig               // partial; sections and fields present only when sourced
   logTrust?: LogTrust               // atomic section, see below
   registry?: RegistryConfig         // partial
-  registryCredential?: string       // secret; never placed in a loggable config object
   keySource?: KeySource
 END
 
@@ -85,7 +84,10 @@ unused; `entityKeyPath` supplies the entity key provider whenever present.
 | DNSid CLI directory | `config.json` plus key files | [01: Initialization from DNSid CLI Configuration](01-core-identity-manager.md#initialization-from-dnsid-cli-configuration) |
 | Code | `DnsidConfig` and `IdentityManagerDependencies` supplied by the caller | [01: Initialization](01-core-identity-manager.md#initialization) |
 
-Each source has one loader. The CLI directory loader maps the persisted
+Each configuration source has one loader. Registry credentials are secrets,
+not loaded configuration: they are supplied explicitly to `RegistryClient` or
+read directly by `RegistryClientFromEnvironment`, never stored in `LoadedConfig`.
+The CLI directory loader maps the persisted
 snake_case publication fields into `dnsid.identity` and records the directory
 as `keySource.cliDirectory`; it MUST NOT derive `statusUrl` from `server_url`
 or substitute any log reference.
@@ -115,7 +117,7 @@ rejected.
 | `DNSID_LOG_POLICY_FILE` | `logTrust.policyDocument` | path; loader reads the file bytes |
 | `DNSID_LOG_TRUST_PROFILE_FILE` | `logTrust.profile` | path; loader reads and parses the file |
 | `DNSID_REGISTRY_URL` | `registry.registryUrl` | string |
-| `DNSID_API_KEY` | `registryCredential` | string |
+| `DNSID_API_KEY` | `RegistryClientFromEnvironment` only; not `LoadedConfig` | trimmed secret, absent if empty |
 | `DNSID_CONFIG_DIR` | `keySource.cliDirectory` | string |
 | `DNSID_KEY_STORE` | `keySource.keyStorePath` | string |
 
@@ -134,7 +136,8 @@ consumers SHOULD emit `DNSID_REGISTRY_URL`, not only the CLI's `DNSID_SERVER`.
 ### Deployment File
 
 The deployment file is the JSON encoding of `LoadedConfig` minus
-`registryCredential` and `keySource`, which are never written to a shared file.
+`keySource`, which is never written to a shared file. Registry credentials
+are never part of `LoadedConfig` or the deployment file.
 It is an umbrella-package convenience, not a core type: each section maps 1:1
 onto an existing type with no cross-section logic.
 
@@ -233,16 +236,19 @@ as [01](01-core-identity-manager.md#initialization-from-dnsid-cli-configuration)
 requires. `IdentityManager(config, deps)` is the ordinary constructor; it
 applies every default and performs every validation.
 
-The registry path is the same shape:
-`RegistryClient(loaded.registry, loaded.registryCredential)`, with the
-constructor applying the [05](05-transport-and-registry.md#registry-responsibilities)
-loopback default when `registryUrl` is absent.
+The registry path takes `loaded.registry` and an independently supplied
+credential. `RegistryClientFromEnvironment` reads `DNSID_API_KEY` directly,
+trims it, and passes it to `RegistryClient` without storing it in `LoadedConfig`.
+Explicit caller credentials take precedence. The constructor applies the
+[05](05-transport-and-registry.md#registry-responsibilities) loopback default
+when `registryUrl` is absent.
 
 ## Convenience Constructors
 
-Bindings MAY offer one-call constructors. Each MUST be expressible as
-`Load → Merge → Construct` with no defaulting, derivation, or dependency
-selection of its own. That is the test for whether a new one is permitted.
+Bindings MAY offer one-call identity-manager constructors. Each MUST be
+expressible as `Load → Merge → Construct` with no defaulting, derivation, or
+dependency selection of its own. The registry convenience constructor follows
+the separate credential path above.
 
 ```
 IdentityManagerFromEnvironment(env?, overlay?: DnsidConfig, deps?) -> IdentityManager
@@ -255,7 +261,7 @@ IdentityManagerFromFile(path, overlay?: DnsidConfig, deps?) -> IdentityManager
   = Construct(Merge(LoadFile(path), {dnsid: overlay}), deps)
 
 RegistryClientFromEnvironment(env?) -> RegistryClient
-  = RegistryClient(LoadEnvironment(env).registry, LoadEnvironment(env).registryCredential)
+  = RegistryClient(LoadEnvironment(env).registry, Trim(env["DNSID_API_KEY"]))
 ```
 
 Names and argument passing are binding-idiomatic. `LoadCliDirectory` with no
@@ -279,6 +285,7 @@ verify` reads; there are no SDK-local aliases.
 | `DNSID_STATUS_URL` absent, `DNSID_REGISTRY_URL` set | `statusUrl` absent; not derived from the registry URL. |
 | CLI `config.json` without `status_url`, with `server_url` | `statusUrl` absent; not derived. |
 | `DNSID_DNS_SERVER` empty or whitespace | Field absent; constructor default applies. |
+| `DNSID_API_KEY` set | `LoadEnvironment` contains no credential; `RegistryClientFromEnvironment` passes it only to the registry client. |
 | `DNSID_PRIVATE_HOSTS=" , "` | Field absent. |
 | `DNSID_DNSSEC_MODE=bogus` | Loader fails with `ArgumentError` before construction. |
 | File sets `trustedEntities: [a]`, overlay sets `[]` | Result is `[]`, deny all. |
