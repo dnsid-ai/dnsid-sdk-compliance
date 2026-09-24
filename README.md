@@ -180,7 +180,6 @@ on: pull_request
 jobs:
   compliance:
     uses: dnsid-ai/dnsid-sdk-compliance/.github/workflows/sdk-compliance.yaml@main
-    secrets: inherit          # GH_PAT — needed only while these repos are private
     with:
       sdk: py                 # go | ts | py
       ref: ${{ github.event.pull_request.head.sha }}
