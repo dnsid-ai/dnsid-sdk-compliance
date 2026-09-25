@@ -1,7 +1,8 @@
 # DNSid SDK Data & Network Inventory
 
-Covers `dnsid-go`, `dnsid-ts`, `dnsid-py`. Facts verified against source;
-the host list is enforced by the allowlist in `ci/readiness.sh` ("network destinations" check).
+Covers `dnsid-go`, `dnsid-ts`, `dnsid-py`. The development hosts below reflect the
+new domain; SDK source still using the former development hosts needs updating.
+The host list is checked by the allowlist in `ci/readiness.sh` ("network destinations" check).
 
 Scope reminder: these are libraries. Nothing runs unless the integrator calls it; nothing is sent
 anywhere the integrator (or the domain being verified) did not designate. No telemetry, usage
@@ -9,7 +10,7 @@ reporting, update checks, or crash reporting exist in any SDK.
 
 ## Network destinations
 
-Not a destination: `witness.dnsid.ai` / `witness.dnsid.dev` appear in source only as witness *key names* inside
+Not a destination: `witness.dnsid.ai` / `witness.dev.dnsid.ai` appear in source only as witness *key names* inside
 the bundled tlog policy. Witness cosignatures are delivered inside the log's checkpoint and verified offline; no
 SDK ever opens a connection to a witness.
 
@@ -18,8 +19,8 @@ SDK ever opens a connection to a witness.
 | System DNS resolver | `verify(domain)` | Default — resolver is the OS/configured one; **no hardcoded public resolver** | TXT query for `_dnsid.<domain>` | TXT record: key URL, status URL, entity key URL, log ref, profile | go, ts, py |
 | JWKS URL from the TXT record (`ku`, `ek`) | `verify(domain)` | Default — host chosen by the domain owner | HTTPS GET, no body, no auth | Public keys | go, ts, py |
 | Status URL from the TXT record | `verify(domain)` | Default — host chosen by the domain owner | HTTPS GET, no body, no auth | Agent lifecycle state (active / suspended / revoked …) | go, ts, py |
-| `api.dnsid.ai` / `api.dnsid.dev` | Registry client (issuance, rotation, publication) | **Opt-in** — `DEFAULT_REGISTRY_URL` in ts/py registry packages; go has no default and requires the URL. Only reached from control-plane calls, never from `verify` | Signed publication requests: domain, public keys, governance ID | Status, receipts | ts, py (go: caller-supplied URL only) |
-| `log.dnsid.ai` / `log.dnsid.dev` | C2SP transparency-log read/write | **Opt-in** — only when a `c2sptlog` log registry is configured. Public trust roots for these logs are bundled in source | Log entries (public keys, domain, event type); checkpoint reads | Checkpoints (with embedded witness cosignatures), inclusion proofs | go, ts, py |
+| `api.dnsid.ai` / `api.dev.dnsid.ai` | Registry client (issuance, rotation, publication) | **Opt-in** — `DEFAULT_REGISTRY_URL` in ts/py registry packages; go has no default and requires the URL. Only reached from control-plane calls, never from `verify` | Signed publication requests: domain, public keys, governance ID | Status, receipts | ts, py (go: caller-supplied URL only) |
+| `log.dnsid.ai` / `log.dev.dnsid.ai` | C2SP transparency-log read/write | **Opt-in** — only when a `c2sptlog` log registry is configured. Public trust roots for these logs are bundled in source | Log entries (public keys, domain, event type); checkpoint reads | Checkpoints (with embedded witness cosignatures), inclusion proofs | go, ts, py |
 | OIDC issuer / `token_endpoint` (integrator-supplied) | OIDC token exchange helper | **Opt-in** — integrator passes the issuer | Signed client assertion (DNSid JWT) | Access token | go, ts, py |
 | AWS KMS (`kms.<region>.amazonaws.com`) | Signing with `key/aws` (go), `@dnsid-ai/key-aws` (ts), `AwsKmsKeyProvider` (py) | **Opt-in** — only if that provider is constructed | Digest to sign; AWS credentials from the integrator's environment | Signature | go, ts, py |
 | GCP Cloud KMS | Signing with `@dnsid-ai/key-gcp` | **Opt-in** | Digest to sign; GCP credentials from the integrator's environment | Signature | ts |
