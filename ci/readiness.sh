@@ -96,7 +96,7 @@ elif [ "$sdk" = cookbook ]; then warn "no telemetry" "recipe-level instrumentati
 else fail "no telemetry" "$(echo "$hits" | head -3 | tr '\n' ';') (DAT-003, Legal §5)"; fi
 hits=$(lib_rg '\baes\b|\bjwe\b|ecdh|hpke|chacha|xchacha' || true)
 [ -z "$hits" ] && ok "signature-only cryptography" "no confidentiality primitives; export classification unchanged" || fail "signature-only cryptography" "encryption primitive introduced — re-run export review (Legal §4): $(echo "$hits" | head -2 | tr '\n' ';')"
-hits=$(lib_rg -o 'https?://[a-zA-Z0-9._-]+' | sed -E 's#.*https?://##' | sort -u | grep -vE '^(docs\.dnsid\.ai|app\.dnsid\.ai|api\.dnsid\.(ai|dev)|oidc\.dnsid\.(ai|dev)|log\.dnsid\.(ai|dev)|witness\.dnsid\.(ai|dev)|c2sp\.org|github\.com|pkg\.go\.dev|datatracker\.ietf\.org|www\.rfc-editor\.org|.*\.example(\.[a-z]+)?\.?|.*\.test|.*\.invalid|localhost|\.\.\.)$' || true)
+hits=$(lib_rg -o 'https?://[a-zA-Z0-9._-]+' | sed -E 's#.*https?://##' | sort -u | grep -vE '^(docs\.dnsid\.ai|app\.dnsid\.ai|api\.(dev\.)?dnsid\.ai|oidc\.(dev\.)?dnsid\.ai|log\.(dev\.)?dnsid\.ai|witness\.(dev\.)?dnsid\.ai|c2sp\.org|github\.com|pkg\.go\.dev|datatracker\.ietf\.org|www\.rfc-editor\.org|.*\.example(\.[a-z]+)?\.?|.*\.test|.*\.invalid|localhost|\.\.\.)$' || true)
 [ -z "$hits" ] && ok "network destinations" "only first-party/spec/RFC 2606 hosts in library source" || warn "network destinations" "unlisted hosts, add to COM-003 inventory or allowlist: $(echo "$hits" | tr '\n' ' ')"
 
 # --- test fixtures ----------------------------------------------------------------

@@ -1155,7 +1155,7 @@ The initial managed catalog is:
 
 | Scope | Canonical log prefix | Embedded trust |
 |---|---|---|
-| `public` | `https://log.dnsid.dev` | One reviewed `dnsid-c2sp-tlog-trust-profile@v1` document. |
+| `public` | `https://log.dev.dnsid.ai` | One reviewed `dnsid-c2sp-tlog-trust-profile@v1` document. |
 | `public` | `https://log.dnsid.ai` | One reviewed `dnsid-c2sp-tlog-trust-profile@v1` document. |
 
 Both initial entries prefer verified stream bundles, with raw scanning only under
