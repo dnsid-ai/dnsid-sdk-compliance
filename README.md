@@ -287,6 +287,13 @@ verifier. It also exercises a Python-to-TypeScript split ISSUANCE handoff and
 requires every verifier to reject each checked-in negative mutation for the
 declared reason.
 
+`fixtures/c2sp-trust-profile-epochs-v1.json` is the authoritative vector for
+C2SP trust profile version 2 (epochs), with its format document beside it.
+The dnsid-go generator produces it, and this repository holds the reviewed copy.
+The harness does not run it. Each SDK runs every case in its own suite against
+a byte-identical copy pinned by SHA-256. The pin and the update procedure are in
+[`docs/sdk-design/conformance/README.md`](docs/sdk-design/conformance/README.md#c2sp-trust-profile-epochs).
+
 SDK PR workflows and manual smoke tests use the shared default-branch harness
 and fixtures. Merge coordinated compliance changes before SDK updates; there
 is no per-SDK fixture-ref override. Manual smoke tests require zero failures.

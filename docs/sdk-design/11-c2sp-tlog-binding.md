@@ -752,7 +752,9 @@ Before returning a verified event, the reader:
 1. obtains a C2SP policy from a source accepted independently of the log;
 2. parses the signed checkpoint and requires its origin to match the bound
    reference;
-3. verifies the accepted log signature and witness quorum;
+3. verifies the accepted log signature and witness quorum (under a version 2
+   trust profile, those of one [trust epoch](#checkpoint-acceptance), never
+   pooled across epochs);
 4. verifies checkpoint consistency with previously trusted state when one
    exists;
 5. verifies the entry index, RFC 6962/SHA-256 leaf hash, inclusion proof, and
@@ -911,7 +913,11 @@ witness keys, accountable-entity keys, and operational keys are separate roles.
 
 A DNSid C2SP trust profile is versioned, independently distributed JSON that
 binds one exact log scope and prefix to its C2SP policy and accepted stream-bundle
-signers:
+signers. Version 1 carries one policy. Version 2 carries a list of trust epochs,
+so that the log signing key, witness keys, and bundle signers of one log can
+rotate together while its origin and tree stay the same.
+
+### Version 1
 
 ```json
 {
@@ -935,6 +941,271 @@ malformed policy or keys, overlapping key roles, and mismatched origins fail
 closed. Runtime limits, freshness, fallback, and checkpoint persistence are
 local application policy and are not profile members.
 
+Member names match exactly, including case. A case variant such as `Scope` is
+an unknown member and fails closed like any other unknown member.
+
+> **Strictness fix.** JSON member names are case-sensitive, so exact-case
+> matching is the version 1 rule, not a new one. dnsid-go before
+> [dnsid-go#40](https://github.com/dnsid-ai/dnsid-go/pull/40) decoded profiles
+> case-insensitively and accepted a variant such as `"Scope"` as the real
+> member. That was a defect. Correctly spelled version 1 profiles are
+> unaffected. A profile that relied on a case variant is now rejected.
+
+### Version 2: trust epochs
+
+Version 2 is additive. Version 1 documents parse and verify exactly as before.
+
+```json
+{
+  "version": 2,
+  "scope": "public",
+  "log_prefix": "https://log.example",
+  "epochs": [
+    {
+      "id": "legacy",
+      "tlog_policy": "log log.example+<old-key-hash>+...\nwitness ...\nquorum ...\n",
+      "bundle_verifier_keys": ["dnsid-stream-bundle+...+..."],
+      "max_tree_size": 1234
+    },
+    {
+      "id": "successor",
+      "tlog_policy": "log log.example+<new-key-hash>+...\nwitness ...\nquorum ...\n",
+      "bundle_verifier_keys": ["dnsid-stream-bundle+...+..."],
+      "min_tree_size": 1234
+    }
+  ]
+}
+```
+
+An epoch is a complete version 1 trust (one policy and the bundle signers
+bound to it) for the same log, plus optional inclusive tree-size bounds. A
+version 1 profile verifies as a single unbounded epoch whose id is the empty
+string `""`. SDKs report that id for evidence accepted under a version 1
+profile.
+
+#### Schema
+
+Members:
+
+| Object | Allowed members | Required |
+|---|---|---|
+| Version 1 profile | `version`, `scope`, `log_prefix`, `tlog_policy`, `bundle_verifier_keys` | all |
+| Version 2 profile | `version`, `scope`, `log_prefix`, `epochs` | all |
+| Epoch | `id`, `tlog_policy`, `bundle_verifier_keys`, `min_tree_size`, `max_tree_size` | `id`, `tlog_policy`, `bundle_verifier_keys` |
+
+- Any member not allowed for the document's version is rejected, **even when
+  its value is empty or `null`**. A version 1 profile MUST NOT contain `epochs`.
+  A version 2 profile MUST NOT contain a top-level `tlog_policy` or
+  `bundle_verifier_keys`. Each document therefore has exactly one reading.
+- Member names match exactly, including case, at the top level and in every
+  epoch. A case variant (`Scope`, `Max_Tree_Size`) is an unknown member, and a
+  document that pairs a member with its case variant is rejected. Decoders that
+  match names case-insensitively MUST check the raw member names separately.
+- Duplicate JSON members are rejected at every level, as for version 1.
+- `version` is the JSON number `1` or `2`. Every other value is an unsupported
+  version.
+- `scope` and `log_prefix` appear only at the top level, use the canonical `lr`
+  rules, and apply to every epoch.
+- `epochs` is an array of 1 to 8 epoch objects. Profile order is significant:
+  it decides which epoch reports an acceptance and which failure is reported.
+- `id` is 1 to 64 characters from `A-Z`, `a-z`, `0-9`, `.`, `_` and `-`, and is
+  unique within the profile.
+- `tlog_policy` MUST parse as the pinned C2SP policy revision with exactly one
+  `log` line. Its log key name MUST equal the origin derived from `log_prefix`,
+  so every epoch names the same origin. A rotation is written as separate
+  epochs, never as several `log` lines in one policy. The string is the exact
+  byte sequence that a stream bundle's `policy_hash` covers, so it MUST be
+  byte-identical to the policy the log publishes for that epoch.
+- `bundle_verifier_keys` contains one or more signed-note Ed25519 verifier keys
+  named `dnsid-stream-bundle`. Within an epoch their public keys are distinct,
+  their key IDs are unique, and none equals one of that epoch's log or witness
+  keys.
+- `min_tree_size` and `max_tree_size` are inclusive bounds on the checkpoint
+  tree size. An absent or `null` bound is unbounded on that side. A present,
+  non-null bound is **lexical**: it MUST be a JSON number token matching
+  `^[1-9][0-9]*$` whose value is at most 2^53−1 (`9007199254740991`), so every
+  language reads it exactly. `0`, `-1`, `05`, `5.0`, `5e0`, `5E0`, `true`, `"5"`,
+  and `9007199254740992` are all rejected, including where the value equals
+  an accepted one. A parser that does not expose number tokens (for example
+  `JSON.parse` or `json.loads`) MUST check the token from the raw text and MUST
+  NOT accept a boolean as an integer. When both bounds are present,
+  `min_tree_size` MUST NOT exceed `max_tree_size`.
+- Across epochs, no two epochs may share both a bundle key ID and a
+  byte-identical `tlog_policy`, because a bundle could not then select one
+  epoch. One bundle key MAY appear in several epochs whose policies differ, and
+  `policy_hash` then selects the epoch.
+- Key-role independence is checked within each epoch. This revision does not
+  reject a profile in which a bundle key of one epoch equals a log or witness
+  key of another epoch.
+
+Every violation fails closed as a parse error (reason `profile_invalid`).
+
+#### Checkpoint acceptance
+
+Under a version 2 profile, a checkpoint is accepted only when **one epoch
+accepts it completely**. The verifier evaluates epochs separately, in profile
+order, using only the keys of the epoch it is evaluating:
+
+1. **Relevance.** An epoch is relevant when the note carries at least one
+   signature line whose key name and key hash equal that epoch's log key,
+   **whether or not the signature bytes verify**. The verifier skips an
+   irrelevant epoch.
+2. **Signatures.** Verify the note under the epoch's own log and witness keys
+   using C2SP signed-note rules. The first line under each of those keys MUST
+   verify. Later duplicate lines under the same key are ignored. Lines under
+   keys the epoch does not hold, including other epochs' keys, are ignored.
+   The epoch's log signature MUST be present and valid and the checkpoint
+   origin MUST match. Failure: `log_signature`.
+3. **Bounds.** A size above `max_tree_size` fails with `max_tree_size`. A size
+   below `min_tree_size` fails with `min_tree_size`.
+4. **Witness quorum.** The epoch's own quorum MUST be met by cosignatures
+   under the epoch's own witness keys, matched by witness name **and** key
+   hash. Failure: `witness_quorum`.
+5. **Freshness.** The accepted witness time is checked against the configured
+   checkpoint maximum age and clock skew exactly as under
+   [Checkpoint, Proof, and Policy Verification](#checkpoint-proof-and-policy-verification).
+   Epochs do not relax freshness. Failure: `stale`.
+
+The checkpoint is accepted under the first epoch that passes every step, and
+the verifier reports that epoch's id. Signatures are never pooled across
+epochs: a checkpoint signed by one epoch's log key and cosigned by another
+epoch's witness satisfies neither epoch. Tree size, a bundle `kid`, and a
+`policy_hash` can only narrow the choice among fully satisfied epochs. None of
+them can select an epoch whose checks did not all pass.
+
+When no epoch accepts, the reason is the failure of the **first relevant
+epoch** in profile order, or `log_signature` when no epoch is relevant. An
+invalid line under one epoch's key MUST NOT fail the note for another epoch.
+An accepted checkpoint then continues through consistency, inclusion, and
+lifecycle verification unchanged.
+
+#### Stream-bundle acceptance
+
+Under a version 2 profile, `VerifyStreamBundle` (or equivalent) selects one
+epoch as follows:
+
+1. The candidate epochs are **all** epochs whose `bundle_verifier_keys`
+   contain the bundle's `sig.kid`, in profile order. The verifier MUST NOT stop
+   at the first match. No candidate: `bundle_signer`.
+2. The bundle signature MUST verify under a candidate's key. Candidates whose
+   key does not verify it are discarded. If none remain, the bundle is
+   rejected as a bundle signature failure.
+3. Format, type, and expiry checks are unchanged from version 1.
+4. The selected epoch is the remaining candidate whose `tlog_policy` SHA-256
+   equals `policy_hash`. No such candidate: `policy_hash`. Profile validation
+   guarantees at most one.
+5. The embedded checkpoint MUST satisfy the selected epoch alone, meaning
+   checkpoint acceptance steps 2 to 5 with that one epoch, including its
+   bounds. The rest of bundle verification is unchanged from version 1.
+
+The verifier reports the selected epoch's id with the verified bundle.
+
+#### Semantics at the rotation size N
+
+Let N be the tree size at which the log's keys rotate. The legacy epoch holds
+the old keys with `max_tree_size = N`. The successor epoch holds the new keys
+with `min_tree_size = N`. The tree does not change at the rotation.
+
+- **Both epochs accept exactly N.** A legacy checkpoint at a size of N or less
+  verifies under the legacy epoch. A successor checkpoint at a size of N or
+  more verifies under the successor epoch. A legacy checkpoint above N fails
+  with `max_tree_size`. A successor checkpoint below N fails with
+  `min_tree_size`.
+- **Trusted state is keyed by origin.** The trusted checkpoint store holds
+  `(origin, tree_size, root_hash)` with no key or epoch, so continuity carries
+  across the rotation. Every epoch names the same origin.
+- **An equal root at N is a no-op.** A successor checkpoint at N whose root
+  equals the stored legacy root at N leaves the store unchanged and needs no
+  consistency proof.
+- **A different root at N is `root_conflict`.** A validly signed checkpoint at
+  the stored size with a different root is rejected and the store is unchanged.
+- **Growth needs consistency.** A larger checkpoint from either epoch advances
+  the store only with a valid RFC 6962 consistency proof from the stored size.
+  Failure: `consistency_failed`.
+- **Rollback is rejected.** A checkpoint smaller than the stored one is a
+  `rollback`, whichever epoch signed it. For example, a legacy checkpoint at N
+  after the store advanced under the successor is refused.
+- A checkpoint that fails epoch acceptance never reaches the store.
+
+#### Stateless and stateful verification
+
+Stateless verification applies the profile rules alone. It is how archived
+historical evidence, such as a `tlog-proof@v1` against a legacy checkpoint at a
+size of N or less, is checked. Only the bounds constrain it: under an
+unbounded profile, a stateless verifier accepts a successor checkpoint below N
+and a legacy checkpoint above N.
+
+Stateful verification adds the origin-keyed trusted checkpoint store and the
+continuity rules above, which reject rollback and root conflicts. The
+configured checkpoint maximum age stops an old but correctly signed checkpoint
+from being taken as the latest state. After the store has advanced past a
+size, a stateful reader refuses a smaller legacy checkpoint as rollback. It
+verifies older entries by inclusion against its current checkpoint, and that
+check does not depend on which key signed the checkpoint.
+
+#### Reason codes
+
+The shared vector uses these language-neutral codes. They are test categories,
+not error strings. Each SDK maps its own errors onto them in its test harness,
+and onto the [error taxonomy](#errors) in its public API.
+
+| Code | Meaning |
+|---|---|
+| `profile_invalid` | The trust profile is rejected at parse time. |
+| `log_signature` | No epoch's log key (name and key hash) signed the checkpoint, or a relevant or selected epoch's signature step failed. |
+| `max_tree_size` | The checkpoint size is above the epoch's `max_tree_size`. |
+| `min_tree_size` | The checkpoint size is below the epoch's `min_tree_size`. |
+| `witness_quorum` | An epoch's log key signed the checkpoint, but that same epoch's witness quorum is not met. |
+| `stale` | The accepted witness time is older than the configured checkpoint maximum age. |
+| `bundle_signer` | The bundle's `sig.kid` is in no epoch's `bundle_verifier_keys`. |
+| `policy_hash` | The bundle's `policy_hash` is not the SHA-256 of the `tlog_policy` of an epoch that accepts its signer. |
+| `rollback` | The checkpoint is smaller than the trusted checkpoint stored for the origin. |
+| `root_conflict` | The checkpoint has the stored size but a different root. |
+| `consistency_failed` | The consistency proof from the stored checkpoint does not verify. |
+
+Other rejections, such as an invalid bundle signature, an expired bundle, or a
+future witness timestamp, remain rejections under the existing rules. This
+revision of the vector gives them no code.
+
+#### Shared vector
+
+[`fixtures/c2sp-trust-profile-epochs-v1.json`](../../fixtures/c2sp-trust-profile-epochs-v1.json)
+(format `dnsid-c2sp-trust-profile-epochs@v1`, 79 cases) is the authoritative
+conformance vector for version 2 and for version 1 compatibility under it. Its
+[format document](../../fixtures/c2sp-trust-profile-epochs.md) defines the
+encodings and case types. Every SDK MUST pass every case in that exact file.
+The [conformance index](conformance/README.md#c2sp-trust-profile-epochs) records
+its SHA-256 pin and the regeneration procedure.
+
+#### Operational lifecycle (non-normative)
+
+A same-origin key rotation at an initially unknown N proceeds in releases:
+
+1. **Unbounded release.** Ship a version 2 profile whose first epoch is the
+   current version 1 trust, with its policy and bundle keys unchanged, and
+   whose second epoch holds the new keys. Neither epoch has bounds, because N
+   is not yet known. As an option, the successor epoch MAY carry
+   `min_tree_size` equal to the legacy log's size when the release is cut.
+   That floor is safe because the log only grows, so it cannot exceed N.
+   Until the bounded release, old-key acceptance is unbounded, so the operator
+   limits it by other means, such as freezing the legacy writer and requiring
+   the old witness's cosignature.
+2. **Rotation.** The legacy log stops at N. The first new-key checkpoint is
+   over the same tree and is consistent with the legacy checkpoint at N.
+3. **Bounded release.** Set `max_tree_size = N` on the legacy epoch and
+   `min_tree_size = N` on the successor epoch. **Cap** the legacy epoch rather
+   than dropping it, so historical old-key evidence at a size of N or less
+   stays verifiable. Disable the legacy log signer and witness no later than
+   this release.
+
+Keep epoch ids stable across releases so reported ids stay meaningful. The
+8-epoch limit means epochs cannot accumulate indefinitely, and dropping an
+epoch ends verification of its historical evidence. Clients still on a version
+1 profile fail closed on successor keys once the log serves them. They never
+downgrade to raw scanning.
+
+### Distribution and signer rotation
+
 An official service profile is selected explicitly and shipped through a
 versioned SDK or release/configuration channel. SDKs MUST also accept a
 caller-supplied profile in the same format. They MUST NOT infer a profile from
@@ -947,7 +1218,9 @@ during rotation. The operator distributes `[old, new]` before changing the
 active signer and removes `old` only after the compatibility window. A client
 that did not receive the transition fails closed after cutover. Automatic
 root-key update requires a separately designed signed-metadata system and is
-not part of this profile.
+not part of this profile. A rotation of only the bundle signer stays within one
+epoch this way. A rotation of the log signing key or witness keys uses
+version 2 epochs.
 
 ## Verification Convenience Factory
 
@@ -1006,7 +1279,9 @@ capability declarations idiomatically, but it preserves the same behavior.
 Exactly one of `trustProfile`, `policyDocument`, and `policyUrl` is required.
 When `trustProfile` is selected, direct bundle verifier keys MUST NOT also be
 supplied; its exact scope and log prefix constrain every reader created by the
-factory. `policyDocument` is already trusted caller input. `policyUrl` is an explicitly caller-selected
+factory. For a version 2 profile, the effective bundle verifier keys are those
+of all its epochs, and checkpoints and bundles are accepted per epoch as
+defined under [Version 2: trust epochs](#version-2-trust-epochs). `policyDocument` is already trusted caller input. `policyUrl` is an explicitly caller-selected
 absolute HTTPS trust-policy location. The factory MUST NOT infer a policy URL
 from an unverified identity record, its `lr`, or its log prefix. In particular,
 the advisory `<log-prefix>/dnsid-policy` location does not become a trust anchor
@@ -1158,6 +1433,9 @@ The initial managed catalog is:
 | `public` | `https://log.dev.dnsid.ai` | One reviewed `dnsid-c2sp-tlog-trust-profile@v1` document. |
 | `public` | `https://log.dnsid.ai` | One reviewed `dnsid-c2sp-tlog-trust-profile@v1` document. |
 
+A catalog entry MAY carry a version 2 trust profile. Catalog construction
+validates it like any other profile. Both initial entries are version 1.
+
 Both initial entries prefer verified stream bundles, with raw scanning only under
 the availability and missing-consistency-evidence fallback rules below.
 
@@ -1292,8 +1570,14 @@ Each SDK implementation provides tests for:
   fallback after invalid bundle bytes or consistency contradictions;
 - trust-profile conformance covering exact scope/prefix binding, multiple
   bundle verifier keys for rotation, caller-supplied profiles, and rejection of
-  unknown or duplicate members, malformed or colliding keys, bundle/checkpoint
-  key-role overlap, and policy-origin mismatch;
+  unknown, duplicate, or case-variant members, malformed or colliding keys,
+  bundle/checkpoint key-role overlap, and policy-origin mismatch;
+- version 2 trust-epoch conformance: every case of the shared
+  [`c2sp-trust-profile-epochs-v1.json`](../../fixtures/c2sp-trust-profile-epochs-v1.json)
+  vector, from the pinned file bytes, covering schema and lexical bounds,
+  epoch relevance and error precedence, cross-epoch and forged signature
+  lines, shared bundle key IDs, `policy_hash` selection, the boundary at N,
+  and origin-keyed continuity;
 - managed-catalog selection covering exact development and production
   selectors, wrong scopes, unknown and deceptive prefixes, and malformed or
   noncanonical references; and

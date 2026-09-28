@@ -141,6 +141,55 @@ loaded as an SDK trust catalog. Operational trust material remains the reviewed
 snapshot vendored by each SDK release. `reason` text documents the expected
 selection outcome but is not a normative error string.
 
+## C2SP trust profile epochs
+
+[`c2sp-trust-profile-epochs-v1.json`](../../../fixtures/c2sp-trust-profile-epochs-v1.json)
+(format `dnsid-c2sp-trust-profile-epochs@v1`) is the shared vector for
+[trust profile version 2](../11-c2sp-tlog-binding.md#version-2-trust-epochs)
+and for version 1 compatibility under it. It holds 79 cases: 37 profile, 20
+checkpoint, 15 bundle, and 7 continuity. Its
+[format document](../../../fixtures/c2sp-trust-profile-epochs.md) defines the
+encodings, verifier configuration, and case types. Both files are byte-for-byte
+copies of the dnsid-go originals at commit
+`70da783a6c7504aa0c9968aca13de5dfef558ffc`
+(`log/c2sptlog/testdata/`, from
+[dnsid-go#40](https://github.com/dnsid-ai/dnsid-go/pull/40)).
+
+| File | SHA-256 |
+|---|---|
+| `fixtures/c2sp-trust-profile-epochs-v1.json` | `9ee8e63a394aaa3abc55c6c0900783a444ac8ab259032a08db828ebf1abb5fdf` |
+| `fixtures/c2sp-trust-profile-epochs.md` | `2acff5877872d395f9d49dbe6fb1805fdbcb1672b937f494cb9cb17a9d5dcd35` |
+
+The dnsid-go generator `log/c2sptlog/trust_epoch_vectors_gen_test.go`
+produces the vector deterministically from fixed, published Ed25519 test
+seeds. The `generator` and `documentation` fields inside the file name those
+dnsid-go paths. Every key in it is a disposable test key and none protects a
+deployment. The vector carries signed checkpoints and bundles as text, and
+profiles as raw JSON text so that lexical bound cases survive. Never parse and
+re-serialize a profile before handing it to an SDK.
+
+This harness does not execute the vector yet. Each SDK runs every case in its
+own test suite against a byte-identical copy and pins it by SHA-256.
+dnsid-go also fails its test if the checked-in file differs from a fresh
+generation.
+
+To change the vector:
+
+1. Change the generator in dnsid-go and regenerate:
+   `DNSID_UPDATE_TRUST_EPOCH_VECTORS=1 go test -run TestTrustEpochVectors ./log/c2sptlog`.
+   Never hand-edit the JSON. If the change alters an expectation, first change
+   the [normative rules](../11-c2sp-tlog-binding.md#version-2-trust-epochs)
+   here. A new rule or reason code is a spec change, not a vector refresh.
+2. Copy the regenerated JSON and its format document byte-for-byte into
+   `fixtures/` here, update the commit and SHA-256 values above, and merge that
+   change before any SDK adopts it.
+3. In each SDK (dnsid-go `log/c2sptlog/testdata/`, dnsid-ts `test/fixtures/`,
+   dnsid-py `tests/vectors/`), replace the copy and bump the pinned SHA-256
+   and, when it changed, the expected case count.
+
+A change that breaks the format of existing cases gets a new format label
+(`@v2`) and file name rather than rewriting `@v1` in place.
+
 ## Stable error categories
 
 | Category | Meaning |
