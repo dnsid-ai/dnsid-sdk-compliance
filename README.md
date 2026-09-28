@@ -291,7 +291,8 @@ declared reason.
 C2SP trust profile version 2 (epochs), with its format document beside it.
 The dnsid-go generator produces it, and this repository holds the reviewed copy.
 The harness does not run it. Each SDK runs every case in its own suite against
-a byte-identical copy pinned by SHA-256. The pin and the update procedure are in
+a byte-identical copy: dnsid-ts and dnsid-py pin it by SHA-256, and dnsid-go
+checks it against a fresh generation. The pin and the update procedure are in
 [`docs/sdk-design/conformance/README.md`](docs/sdk-design/conformance/README.md#c2sp-trust-profile-epochs).
 
 SDK PR workflows and manual smoke tests use the shared default-branch harness

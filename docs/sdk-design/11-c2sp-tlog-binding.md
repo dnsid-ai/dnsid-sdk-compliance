@@ -953,7 +953,8 @@ an unknown member and fails closed like any other unknown member.
 
 ### Version 2: trust epochs
 
-Version 2 is additive. Version 1 documents parse and verify exactly as before.
+Version 2 is additive. Apart from the strictness fix above, version 1 documents
+parse and verify exactly as before.
 
 ```json
 {
@@ -1120,8 +1121,10 @@ with `min_tree_size = N`. The tree does not change at the rotation.
 - **A different root at N is `root_conflict`.** A validly signed checkpoint at
   the stored size with a different root is rejected and the store is unchanged.
 - **Growth needs consistency.** A larger checkpoint from either epoch advances
-  the store only with a valid RFC 6962 consistency proof from the stored size.
-  Failure: `consistency_failed`.
+  the store only with consistency evidence from the stored size, as under
+  [Checkpoint, Proof, and Policy Verification](#checkpoint-proof-and-policy-verification):
+  an RFC 6962 consistency proof, or the old prefix root recomputed from a
+  verified complete scan. Failure: `consistency_failed`.
 - **Rollback is rejected.** A checkpoint smaller than the stored one is a
   `rollback`, whichever epoch signed it. For example, a legacy checkpoint at N
   after the store advanced under the successor is refused.
@@ -1131,7 +1134,8 @@ with `min_tree_size = N`. The tree does not change at the rotation.
 
 Stateless verification applies the profile rules alone. It is how archived
 historical evidence, such as a `tlog-proof@v1` against a legacy checkpoint at a
-size of N or less, is checked. Only the bounds constrain it: under an
+size of N or less, is checked, without a freshness requirement as for any
+historical inclusion. Only the bounds constrain it: under an
 unbounded profile, a stateless verifier accepts a successor checkpoint below N
 and a legacy checkpoint above N.
 

@@ -169,9 +169,9 @@ profiles as raw JSON text so that lexical bound cases survive. Never parse and
 re-serialize a profile before handing it to an SDK.
 
 This harness does not execute the vector yet. Each SDK runs every case in its
-own test suite against a byte-identical copy and pins it by SHA-256.
-dnsid-go also fails its test if the checked-in file differs from a fresh
-generation.
+own test suite against a byte-identical copy. dnsid-ts and dnsid-py pin their
+copy by SHA-256. dnsid-go, which holds the generator, fails its test if its
+checked-in file differs from a fresh generation.
 
 To change the vector:
 
@@ -183,9 +183,10 @@ To change the vector:
 2. Copy the regenerated JSON and its format document byte-for-byte into
    `fixtures/` here, update the commit and SHA-256 values above, and merge that
    change before any SDK adopts it.
-3. In each SDK (dnsid-go `log/c2sptlog/testdata/`, dnsid-ts `test/fixtures/`,
-   dnsid-py `tests/vectors/`), replace the copy and bump the pinned SHA-256
-   and, when it changed, the expected case count.
+3. In dnsid-ts (`test/fixtures/`) and dnsid-py (`tests/vectors/`), replace
+   the copy and bump the pinned SHA-256 and, when it changed, the expected case
+   count. dnsid-go's copy under `log/c2sptlog/testdata/` is the one step 1
+   regenerated.
 
 A change that breaks the format of existing cases gets a new format label
 (`@v2`) and file name rather than rewriting `@v1` in place.
