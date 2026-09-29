@@ -810,7 +810,7 @@ SDK validation must cover:
 |---|---|
 | DNS acquired at `t=0`, TTL 30 s, verification completes at `t=35` | Fail/retry; do not grant a new 30 s cache lifetime. |
 | A cache hit expires while a required status fetch is in progress | No stale successful return or cache reinsertion. |
-| DNS TTL is zero and other evidence is valid | Current fresh-lookup operation may succeed; the next call needs a new lookup. |
+| DNS TTL is zero or unavailable on a fresh lookup, and other evidence is valid | Current operation may succeed; the next call needs a new lookup. |
 | TLS/key-age evidence expires during verification, including with zero DNS TTL | Fail; the zero-TTL exception applies only to DNS reuse. |
 
 ---
@@ -1156,7 +1156,7 @@ The default implementation used when no `DNSResolver` is supplied:
 - If `TransportConfig.dnsServer` is set and the language binding provides a default resolver, query that resolver for TXT records.
 - Otherwise, query the host language/runtime resolver when the binding supports a safe default.
 - `RegistryConfig.registryUrl` is not resolver configuration; it is used only for registry control-plane API calls.
-- Return non-negative finite TTLs with acquisition timing sufficient to preserve absolute DNS expiry. `DNSResponseAcquiredAt` above denotes this internal timing, not a required resolver API. Capture receipt time before further verification; cached resolvers must return remaining TTLs or the original absolute expiry. If timing is unavailable, using lookup start time is conservative. An expired cached DNS answer is not a newly acquired zero-TTL response. A conservative default such as 300 seconds is permitted only when the TTL itself is unavailable, never when it is zero.
+- Return non-negative finite TTLs with acquisition timing sufficient to preserve absolute DNS expiry. `DNSResponseAcquiredAt` above denotes this internal timing, not a required resolver API. Capture receipt time before further verification; cached resolvers must return remaining TTLs or the original absolute expiry. If timing is unavailable, using lookup start time is conservative. When the TTL of a freshly acquired answer is unavailable, return zero so that answer is used only by the acquiring verification operation. An expired cached DNS answer is not a newly acquired zero-TTL response.
 - A resolver that performs DNSSEC validation MUST return `VALID`, `UNSIGNED`, or `FAILED` as appropriate. A resolver that cannot determine DNSSEC validation state MUST return `UNKNOWN`; it MUST NOT claim that an unvalidated response is `UNSIGNED`.
 - A binding MAY require explicit resolver injection when its runtime has no safe default DNS lookup facility. It MUST NOT require DNSSEC-aware resolver injection merely because the default resolver returns `UNKNOWN`; the default `auto` policy intentionally supports that reduced-assurance result.
 - A stub resolver MUST trust an upstream resolver's authenticated-data indication only when that resolver is explicitly trusted and reached over a secure channel or equivalent trusted local path. DoH or DoT protects the channel but does not by itself prove that the upstream performs DNSSEC validation.
