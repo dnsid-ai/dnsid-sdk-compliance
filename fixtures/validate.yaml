@@ -9,8 +9,8 @@ cases:
     version: dnsid-draft-01
     op: validate
     input:
-      raw: "v=dnsid-draft-01;gi=agent.example.com;ek=https://agent.example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
-      identity_fqdn: agent.example.com
+      raw: "v=dnsid-draft-01;gi=agent.test;ek=https://agent.test/entity-keys.json;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=AAAA"
+      identity_fqdn: agent.test
     expect:
       ok: true
 
@@ -21,8 +21,8 @@ cases:
     version: dnsid-draft-01
     op: validate
     input:
-      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
-      identity_fqdn: agent.example.com
+      raw: "v=dnsid-draft-01;gi=example.test;ek=https://example.test/entity-keys.json;ku=https://agent.example.test/jwks.json;lr=microledger:abc123;su=https://agent.example.test/status;sg=AAAA"
+      identity_fqdn: agent.example.test
     expect:
       ok: true
 
@@ -33,8 +33,8 @@ cases:
     version: dnsid-draft-01
     op: validate
     input:
-      raw: "v=dnsid-draft-01;gi=other.example;ek=https://other.example/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
-      identity_fqdn: agent.example.com
+      raw: "v=dnsid-draft-01;gi=other.test;ek=https://other.test/entity-keys.json;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=AAAA"
+      identity_fqdn: agent.test
     expect:
       ok: true
 
@@ -45,8 +45,8 @@ cases:
     version: dnsid-draft-01
     op: validate
     input:
-      raw: "v=dnsid-draft-01;gi=ample.example;ek=https://ample.example/entity-keys.json;ku=https://sample.example/jwks.json;lr=microledger:abc123;su=https://sample.example/status;sg=AAAA"
-      identity_fqdn: sample.example
+      raw: "v=dnsid-draft-01;gi=ample.test;ek=https://ample.test/entity-keys.json;ku=https://sample.test/jwks.json;lr=microledger:abc123;su=https://sample.test/status;sg=AAAA"
+      identity_fqdn: sample.test
     expect:
       ok: true
 
@@ -57,8 +57,8 @@ cases:
     version: dnsid-draft-01
     op: validate
     input:
-      raw: "v=dnsid-draft-01;gi=microledger:someorgaddr;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
-      identity_fqdn: agent.example.com
+      raw: "v=dnsid-draft-01;gi=microledger:someorgaddr;ek=https://agent.test/entity-keys.json;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=AAAA"
+      identity_fqdn: agent.test
     expect:
       ok: false
       error: ValidationError
@@ -70,8 +70,8 @@ cases:
     version: dnsid-draft-01
     op: validate
     input:
-      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://other.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
-      identity_fqdn: agent.example.com
+      raw: "v=dnsid-draft-01;gi=agent.test;ek=https://agent.test/entity-keys.json;ku=https://other.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=AAAA"
+      identity_fqdn: agent.test
     expect:
       ok: false
       error: ValidationError
@@ -84,8 +84,8 @@ cases:
     version: dnsid-draft-01
     op: validate
     input:
-      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=http://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
-      identity_fqdn: agent.example.com
+      raw: "v=dnsid-draft-01;gi=agent.test;ek=https://agent.test/entity-keys.json;ku=http://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=AAAA"
+      identity_fqdn: agent.test
     expect:
       ok: false
       error: ValidationError
@@ -98,8 +98,8 @@ cases:
     version: dnsid-draft-01
     op: validate
     input:
-      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=http://agent.example.com/status;sg=AAAA"
-      identity_fqdn: agent.example.com
+      raw: "v=dnsid-draft-01;gi=agent.test;ek=https://agent.test/entity-keys.json;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=http://agent.test/status;sg=AAAA"
+      identity_fqdn: agent.test
     expect:
       ok: false
       error: ValidationError
@@ -112,8 +112,8 @@ cases:
     version: dnsid-draft-01
     op: validate
     input:
-      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;cu=http://agent.example.com/agents.md;sg=AAAA"
-      identity_fqdn: agent.example.com
+      raw: "v=dnsid-draft-01;gi=agent.test;ek=https://agent.test/entity-keys.json;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;cu=http://agent.test/agents.md;sg=AAAA"
+      identity_fqdn: agent.test
     expect:
       ok: false
       error: ValidationError
@@ -126,8 +126,8 @@ cases:
     version: dnsid-draft-01
     op: validate
     input:
-      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;ka=12h;sg=AAAA"
-      identity_fqdn: agent.example.com
+      raw: "v=dnsid-draft-01;gi=agent.test;ek=https://agent.test/entity-keys.json;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;ka=12h;sg=AAAA"
+      identity_fqdn: agent.test
     expect:
       ok: false
       error: ValidationError
@@ -140,8 +140,8 @@ cases:
     version: dnsid-draft-01
     op: validate
     input:
-      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;ka=90d;sg=AAAA"
-      identity_fqdn: agent.example.com
+      raw: "v=dnsid-draft-01;gi=agent.test;ek=https://agent.test/entity-keys.json;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;ka=90d;sg=AAAA"
+      identity_fqdn: agent.test
     expect:
       ok: true
 
@@ -152,8 +152,8 @@ cases:
     version: dnsid-draft-01
     op: validate
     input:
-      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
-      identity_fqdn: "Agent.Example.COM."
+      raw: "v=dnsid-draft-01;gi=agent.test;ek=https://agent.test/entity-keys.json;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=AAAA"
+      identity_fqdn: "Agent.TEST."
     expect:
       ok: true
 
@@ -164,8 +164,8 @@ cases:
     version: dnsid-draft-01
     op: validate
     input:
-      raw: "v=dnsid-draft-01;gi=Example.COM;ek=https://Example.COM/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
-      identity_fqdn: agent.example.com
+      raw: "v=dnsid-draft-01;gi=Agent.TEST;ek=https://Agent.TEST/entity-keys.json;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=AAAA"
+      identity_fqdn: agent.test
     expect:
       ok: false
       error: ValidationError
@@ -177,7 +177,7 @@ cases:
     version: dnsid-draft-01
     op: validate
     input:
-      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=AAAA"
       identity_fqdn: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com"
       identity_fqdn_note: "4x63-octet labels + example.com = 251 octets"
     expect:
@@ -191,8 +191,8 @@ cases:
     version: dnsid-draft-01
     op: validate
     input:
-      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=not-a-log-ref;su=https://agent.example.com/status;sg=AAAA"
-      identity_fqdn: agent.example.com
+      raw: "v=dnsid-draft-01;gi=agent.test;ek=https://agent.test/entity-keys.json;ku=https://agent.test/jwks.json;lr=not-a-log-ref;su=https://agent.test/status;sg=AAAA"
+      identity_fqdn: agent.test
     expect:
       ok: false
       error: ValidationError

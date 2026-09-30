@@ -68,7 +68,7 @@ supported lifecycle-log reader, that was not supplied.
 
 | Field               | Type     | Required | Description |
 |---------------------|----------|----------|-------------|
-| `domain`            | string   | yes      | FQDN of the DNSid identity (e.g. `billing-agent.acme.example`). Normalized with `NormalizeFQDN()` on construction. |
+| `domain`            | string   | yes      | FQDN of the DNSid identity (e.g. `billing-agent.test`). Normalized with `NormalizeFQDN()` on construction. |
 | `governanceId`      | string   | yes      | Registrant/accountable-entity domain (`gi` tag). For the draft 01 behavior, lowercase ASCII DNS domain only, normalized with `NormalizeFQDN()`. If not equal to or a parent of `domain`, the bilateral ISSUANCE event must prove the relationship. |
 | `logRef`         | string   | yes      | Log reference for the `lr` tag. Format: `{method}:{entry-ref}` where method matches `[a-z][a-z0-9-]*` (e.g. `algorand:ADDR`). See [LogRegistry](06-log-bindings.md#logregistry) for parse rules. |
 | `statusUrl`         | string   | yes      | HTTPS URL for the identity's status endpoint (`su` tag). |
@@ -266,14 +266,14 @@ processes as `DNSID_CONFIG_DIR`. Both config files use the same snake_case shape
 
 ```json
 {
-  "server_url": "https://api.example",
+  "server_url": "https://api.test",
   "agent_id": "ag_...",
-  "domain": "agent.example.com",
-  "governance_id": "example.com",
-  "status_url": "https://api.example/api/v1/agent/agent.example.com/status",
-  "ku_url": "https://agent.example.com/.well-known/jwks.json",
-  "ek_url": "https://example.com/.well-known/dnsid/entity.jwks",
-  "entity_key_path": "/secure/keys/example.com.jwk",
+  "domain": "agent.test",
+  "governance_id": "example.test",
+  "status_url": "https://api.test/api/v1/agent/agent.test/status",
+  "ku_url": "https://agent.test/.well-known/jwks.json",
+  "ek_url": "https://example.test/.well-known/dnsid/entity.jwks",
+  "entity_key_path": "/secure/keys/example.test.jwk",
   "log_ref": "c2sp-tlog:public:https://log.dnsid.ai#Q2hWbW5Ta0x5R0JtM3B0dw",
   "publish_profile": "dnsid-draft-01",
   "max_key_age": "90d",
@@ -1144,7 +1144,7 @@ Pluggable DNS resolver dependency. Decouples `VerifyDomain` from the system reso
 INTERFACE DNSResolver
 
   // Fetches TXT records for the given DNS owner name.
-  // name is a normalized FQDN without trailing dot (e.g. "_dnsid.agent.example.com").
+  // name is a normalized FQDN without trailing dot (e.g. "_dnsid.agent.test").
   // Implementations MUST treat it as an absolute name — no search-domain expansion.
   // Returns the record set and the DNSSEC validation state of the response.
   FetchTXT(name: string) -> ([]TXTRecord, DNSSECState)

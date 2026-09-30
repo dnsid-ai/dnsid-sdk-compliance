@@ -9,16 +9,16 @@ cases:
     version: dnsid-draft-01
     op: parse
     input:
-      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=AAAA"
     expect:
       ok: true
       record:
         v: dnsid-draft-01
         gi: example.com
         ek: https://example.com/entity-keys.json
-        ku: https://agent.example.com/jwks.json
+        ku: https://agent.test/jwks.json
         lr: microledger:abc123
-        su: https://agent.example.com/status
+        su: https://agent.test/status
         sg: AAAA
         fl: null
         ka: null
@@ -32,13 +32,13 @@ cases:
     version: dnsid-draft-01
     op: parse
     input:
-      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;fl=mtls,logchk;ka=24h;cu=https://agent.example.com/agents.md;sg=AAAA"
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;fl=mtls,logchk;ka=24h;cu=https://agent.test/agents.md;sg=AAAA"
     expect:
       ok: true
       record:
         fl: mtls,logchk
         ka: 24h
-        cu: https://agent.example.com/agents.md
+        cu: https://agent.test/agents.md
 
   - id: parse-valid-unknown-tag
     description: Unknown tag is preserved for forward compatibility
@@ -47,7 +47,7 @@ cases:
     version: dnsid-draft-01
     op: parse
     input:
-      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;zz=custom-value;sg=AAAA"
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;zz=custom-value;sg=AAAA"
     expect:
       ok: true
       record:
@@ -60,7 +60,7 @@ cases:
     version: dnsid-draft-01
     op: parse
     input:
-      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;zz=a=b;sg=AAAA"
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;zz=a=b;sg=AAAA"
     expect:
       ok: true
       record:
@@ -73,7 +73,7 @@ cases:
     version: dnsid-draft-01
     op: parse
     input:
-      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA;"
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=AAAA;"
     expect:
       ok: true
       record:
@@ -87,12 +87,12 @@ cases:
     version: dnsid-draft-01
     op: parse
     input:
-      raw: "v=dnsid-draft-01; gi=example.com; ek=https://example.com/entity-keys.json; ku=https://agent.example.com/jwks.json; lr=microledger:abc123; su=https://agent.example.com/status; sg=AAAA"
+      raw: "v=dnsid-draft-01; gi=example.com; ek=https://example.com/entity-keys.json; ku=https://agent.test/jwks.json; lr=microledger:abc123; su=https://agent.test/status; sg=AAAA"
     expect:
       ok: true
       record:
         gi: example.com
-        su: https://agent.example.com/status
+        su: https://agent.test/status
 
   - id: parse-valid-value-symbol-characters
     description: Tag values accept full printable-ASCII range minus space and semicolon
@@ -101,7 +101,7 @@ cases:
     version: dnsid-draft-01
     op: parse
     input:
-      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;zz=!$%&()*+,-./:<>?@[]^_{|}~;sg=AAAA"
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;zz=!$%&()*+,-./:<>?@[]^_{|}~;sg=AAAA"
     expect:
       ok: true
       record:
@@ -114,7 +114,7 @@ cases:
     version: dnsid-draft-01
     op: parse
     input:
-      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;fl=;sg=AAAA"
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;fl=;sg=AAAA"
     expect:
       ok: true
       record:
@@ -127,7 +127,7 @@ cases:
     version: dnsid-draft-01
     op: parse
     input:
-      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;a_1=x;sg=AAAA"
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;a_1=x;sg=AAAA"
     expect:
       ok: true
       record:
@@ -140,7 +140,7 @@ cases:
     version: dnsid-draft-01
     op: parse
     input:
-      raw: "v=dnsid-draft-01;gi=example.com;GI=other.example;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
+      raw: "v=dnsid-draft-01;gi=example.com;GI=other.example;ek=https://example.com/entity-keys.json;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=AAAA"
     expect:
       ok: true
       record:
