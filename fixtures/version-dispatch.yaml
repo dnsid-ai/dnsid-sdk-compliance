@@ -21,7 +21,7 @@ cases:
     version: dnsid-draft-00
     op: parse
     input:
-      raw: "v=dnsid-draft-00;oi=example.com;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=EdDSA:AAAA"
+      raw: "v=dnsid-draft-00;oi=example.com;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=EdDSA:AAAA"
     expect:
       ok: true
       record:
@@ -37,7 +37,7 @@ cases:
     version: dnsid-draft-01-20260504
     op: parse
     input:
-      raw: "v=dnsid-draft-01-20260504;gi=example.com;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=EdDSA:AAAA"
+      raw: "v=dnsid-draft-01-20260504;gi=example.com;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=EdDSA:AAAA"
     expect:
       ok: true
       record:
@@ -52,7 +52,7 @@ cases:
     version: dnsid-draft-01-20260527
     op: parse
     input:
-      raw: "v=dnsid-draft-01-20260527;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=EdDSA:AAAA"
+      raw: "v=dnsid-draft-01-20260527;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=EdDSA:AAAA"
     expect:
       ok: true
       record:
@@ -66,7 +66,7 @@ cases:
     version: dnsid-draft-01-20260626
     op: parse
     input:
-      raw: "v=dnsid-draft-01-20260626;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=EdDSA:AAAA"
+      raw: "v=dnsid-draft-01-20260626;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=EdDSA:AAAA"
     expect:
       ok: true
       record:
@@ -79,7 +79,7 @@ cases:
     version: dnsid-draft-01
     op: parse
     input:
-      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=AAAA"
     expect:
       ok: true
       record:
@@ -92,7 +92,7 @@ cases:
     tags: [required, security]
     op: parse
     input:
-      raw: "v=dnsid-draft-99;gi=example.com;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=EdDSA:AAAA"
+      raw: "v=dnsid-draft-99;gi=example.com;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=EdDSA:AAAA"
     expect:
       ok: false
       error: ParseError
@@ -108,7 +108,7 @@ cases:
     tags: [required, version-specific]
     op: parse
     input:
-      raw: "v=DNSid1;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=AAAA"
+      raw: "v=DNSid1;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=AAAA"
     expect:
       ok: true
       record:
@@ -122,7 +122,7 @@ cases:
     version: dnsid-draft-00
     op: parse
     input:
-      raw: "v=dnsid-draft-00;oi=example.com;gi=example.com;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=EdDSA:AAAA"
+      raw: "v=dnsid-draft-00;oi=example.com;gi=example.com;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=EdDSA:AAAA"
     expect:
       ok: false
       error: ValidationError
@@ -134,7 +134,7 @@ cases:
     version: dnsid-draft-00
     op: parse
     input:
-      raw: "v=dnsid-draft-00;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=EdDSA:AAAA"
+      raw: "v=dnsid-draft-00;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=EdDSA:AAAA"
     expect:
       ok: false
       error: ValidationError
@@ -147,7 +147,7 @@ cases:
     version: dnsid-draft-01-20260504
     op: parse
     input:
-      raw: "v=dnsid-draft-01-20260504;gi=example.com;oi=example.com;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=EdDSA:AAAA"
+      raw: "v=dnsid-draft-01-20260504;gi=example.com;oi=example.com;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=EdDSA:AAAA"
     expect:
       ok: false
 
@@ -158,7 +158,7 @@ cases:
     version: dnsid-draft-01-20260504
     op: parse
     input:
-      raw: "v=dnsid-draft-01-20260504;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=EdDSA:AAAA"
+      raw: "v=dnsid-draft-01-20260504;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=EdDSA:AAAA"
     expect:
       ok: false
 
@@ -169,7 +169,7 @@ cases:
     version: dnsid-draft-01-20260527
     op: parse
     input:
-      raw: "v=dnsid-draft-01-20260527;gi=example.com;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;sg=EdDSA:AAAA"
+      raw: "v=dnsid-draft-01-20260527;gi=example.com;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=EdDSA:AAAA"
     expect:
       ok: false
       error: ParseError

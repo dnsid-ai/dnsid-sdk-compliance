@@ -7,12 +7,12 @@ cases:
     op: create_txt_record
     input:
       config:
-        domain: agent.example.com
-        governanceId: example.com
+        domain: agent.test
+        governanceId: agent.test
         logRef: microledger:abc123
-        statusUrl: https://agent.example.com/status
-        ekUrl: https://example.com/entity-keys.json
-        kuUrl: https://agent.example.com/jwks.json
+        statusUrl: https://agent.test/status
+        ekUrl: https://agent.test/entity-keys.json
+        kuUrl: https://agent.test/jwks.json
       entityKey:
         kid: entity-1
         seed: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE
@@ -25,13 +25,13 @@ cases:
       ok: true
       record:
         v: dnsid-draft-01
-        gi: example.com
-        ek: https://example.com/entity-keys.json
-        ku: https://agent.example.com/jwks.json
+        gi: agent.test
+        ek: https://agent.test/entity-keys.json
+        ku: https://agent.test/jwks.json
         lr: microledger:abc123
-        su: https://agent.example.com/status
-        sg: DL3QZjpgZpeHldJWUG_F7pyHkmn8CNX_Nv5e8R0kawTGGFkRHWZBgA3e-W7sJW2NSj-IFMv40L8SM3PmnLARBA
-      signedPayload: "ek=https://example.com/entity-keys.json;gi=example.com;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;v=dnsid-draft-01"
+        su: https://agent.test/status
+        sg: p61_1APaUUJctWR47vMSoNj3nOKcXM30AmXqJ3V0vLjNZyw14rjs627JSzvAY9b72QokUQZ8YRA50s8r1UHAAg
+      signedPayload: "ek=https://agent.test/entity-keys.json;gi=agent.test;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;v=dnsid-draft-01"
       signatureSource: entity
       signatureVerified: true
 
@@ -42,15 +42,15 @@ cases:
     op: create_txt_record
     input:
       config:
-        domain: agent.example.com
-        governanceId: example.com
+        domain: agent.test
+        governanceId: agent.test
         logRef: microledger:abc123
-        statusUrl: https://agent.example.com/status
-        ekUrl: https://example.com/entity-keys.json
-        kuUrl: https://agent.example.com/jwks.json
+        statusUrl: https://agent.test/status
+        ekUrl: https://agent.test/entity-keys.json
+        kuUrl: https://agent.test/jwks.json
         policyFlags: mtls,logchk
         maxKeyAge: 30d
-        capabilitiesUrl: https://agent.example.com/agents.md
+        capabilitiesUrl: https://agent.test/agents.md
       entityKey:
         kid: entity-1
         seed: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE
@@ -64,9 +64,9 @@ cases:
       record:
         fl: mtls,logchk
         ka: 30d
-        cu: https://agent.example.com/agents.md
-        sg: X0KlqvSaPRRbtPlQiqjtzbiYtW0A20eVesU_qpjfpwo1dUcOC7sf5ygbxY6UGgfTmejOScP4vSqCX6VlkrutAg
-      signedPayload: "cu=https://agent.example.com/agents.md;ek=https://example.com/entity-keys.json;fl=mtls,logchk;gi=example.com;ka=30d;ku=https://agent.example.com/jwks.json;lr=microledger:abc123;su=https://agent.example.com/status;v=dnsid-draft-01"
+        cu: https://agent.test/agents.md
+        sg: Fb56cVpevqs1cwi2pi6jZy-_dZVhbXtzcz-sCmgBDexnya1-5KrH57hVc2BHItwe8L_NYr5_vh9v3ZLRjHpgDg
+      signedPayload: "cu=https://agent.test/agents.md;ek=https://agent.test/entity-keys.json;fl=mtls,logchk;gi=agent.test;ka=30d;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;v=dnsid-draft-01"
       signatureSource: entity
       signatureVerified: true
 
@@ -77,12 +77,12 @@ cases:
     op: create_txt_record
     input:
       config:
-        domain: agent.example.com
-        governanceId: example.com
+        domain: agent.test
+        governanceId: agent.test
         logRef: microledger:abc123
-        statusUrl: https://agent.example.com/status
-        ekUrl: https://example.com/entity-keys.json
-        kuUrl: https://agent.example.com/jwks.json
+        statusUrl: https://agent.test/status
+        ekUrl: https://agent.test/entity-keys.json
+        kuUrl: https://agent.test/jwks.json
         publishProfile: DNSid1
       entityKey:
         kid: entity-1
@@ -105,12 +105,12 @@ cases:
     input:
       sameKey: true
       config:
-        domain: agent.example.com
-        governanceId: example.com
+        domain: agent.test
+        governanceId: agent.test
         logRef: microledger:abc123
-        statusUrl: https://agent.example.com/status
-        ekUrl: https://example.com/entity-keys.json
-        kuUrl: https://agent.example.com/jwks.json
+        statusUrl: https://agent.test/status
+        ekUrl: https://agent.test/entity-keys.json
+        kuUrl: https://agent.test/jwks.json
       entityKey:
         kid: entity-1
         seed: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE
@@ -131,12 +131,12 @@ cases:
     op: create_txt_record
     input:
       config:
-        domain: agent.example.com
-        governanceId: example.com
+        domain: agent.test
+        governanceId: agent.test
         logRef: microledger:abc123
-        statusUrl: https://agent.example.com/status
-        ekUrl: https://example.com/entity-keys.json
-        kuUrl: https://agent.example.com/jwks.json
+        statusUrl: https://agent.test/status
+        ekUrl: https://agent.test/entity-keys.json
+        kuUrl: https://agent.test/jwks.json
       operationalKey:
         kid: operational-1
         seed: AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI

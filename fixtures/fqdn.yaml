@@ -74,10 +74,10 @@ cases:
     tags: [edge-case]
     op: normalize_fqdn
     input:
-      name: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com"
+      name: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.test"
     expect:
       ok: true
-      value: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com"
+      value: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.test"
 
   - id: fqdn-64-octet-label
     description: A 64-octet label exceeds the DNS label limit
@@ -85,7 +85,7 @@ cases:
     tags: [edge-case]
     op: normalize_fqdn
     input:
-      name: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com"
+      name: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.test"
     expect:
       ok: false
 
@@ -116,7 +116,7 @@ cases:
     tags: [edge-case, security]
     op: normalize_fqdn
     input:
-      name: "-foo.example.com"
+      name: "-foo.test"
     expect:
       ok: false
 
