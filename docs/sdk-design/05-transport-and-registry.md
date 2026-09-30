@@ -48,9 +48,9 @@ way to reach those services without weakening the guard elsewhere.
 
 Semantics:
 
-- Entries are hostnames or leading-dot suffixes. `agent.example.test` matches
+- Entries are hostnames or leading-dot suffixes. `agent.test` matches
   only that name; `.test` matches `test` and every name beneath it, with
-  DNS-label boundary matching (`evil-test` and `evil.test.example` do not
+  DNS-label boundary matching (`evil-test` and `test.example` do not
   match `.test`). Matching is case-insensitive and ignores a trailing dot.
 - A matching host may resolve to loopback (`127.0.0.0/8`, `::1`) or private-use
   (RFC 1918, RFC 4193) addresses. Link-local, multicast, reserved, unspecified,

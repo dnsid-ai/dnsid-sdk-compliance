@@ -104,14 +104,14 @@ cases:
     op: parse                        # record, FQDN, JWK, or JWKS operation listed above
     input:
       raw: "v=dnsid-draft-01;..."    # for record ops
-      identity_fqdn: agent.example.com   # for validate
-      name: example.com              # for normalize_fqdn
+      identity_fqdn: agent.test          # for validate
+      name: example.test             # for normalize_fqdn
       jwk: {kty: OKP, crv: Ed25519, x: ..., kid: key-1}  # for JWK ops
       jwks: {keys: [...]}             # for JWKS ops
       kid: key-1                      # for jwks_key_by_id
     expect:
       ok: true
-      record: {gi: example.com, unknown: {}}   # subset match — only listed keys compared
+      record: {gi: example.test, unknown: {}}   # subset match — only listed keys compared
       value: "..."                   # exact match (canonical/serialized/normalized output)
       # or, for rejections:
       # ok: false
