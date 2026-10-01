@@ -1,131 +1,102 @@
 # SDK Implementation Coverage
 
-This directory tracks implementation coverage for the [SDK Design](../README.md) across the Go, TypeScript, and Python SDKs.
+This directory tracks coverage of the [SDK Design](../README.md) across the Go,
+TypeScript, and Python SDKs. Each tracker's `Analysis Details` table is the
+**authoritative review baseline**; use its full commits, not this summary.
+Historical review scopes and resolved findings remain available in Git history.
 
-Use the per-SDK files for implementation evidence:
+## Latest Review — 2026-10-01
 
-| SDK | Coverage File | Last Reviewed Branch | Last Reviewed Commit | Package Version | Last Analysis Date | Status |
-| --- | --- | --- | --- | --- | --- | --- |
-| Go | [go.md](./go.md) | `main` | `089fe48` | `v0.36.0` | 2026-09-24 | Missing design 12 deployment-file loader; partial construction validation ordering |
-| TypeScript | [typescript.md](./typescript.md) | `main` | `86b708a` | `0.23.0` | 2026-09-24 | Partial design 12 construction validation ordering |
-| Python | [python.md](./python.md) | `main` | `a07070a` | `0.22.0` | 2026-09-24 | Partial prepared-event metadata, OIDC response bounds, conformance metadata, and issuance-recovery evidence |
-
-The 2026-09-24 review covers design 12 configuration loading on design `main`
-(`615f182`) and SDK implementation commits through `a255586` (Go), `bb70f74`
-(TypeScript), and `68ba790` (Python). The next commit in each SDK is a release:
-`v0.36.0`, `v0.23.0`, and `v0.22.0`, respectively. The design repo's
-`9326f7a` tracker commit changes no requirements or fixtures; release commits
-change no implementation source or tests. All three native suites, the shared
-193-expectation harness and the C2SP matrix passed at the release heads. Go still
-lacks the design 12 deployment-file loader; Go and TypeScript still defer an
-injected-transport conflict check until after a policy fetch can occur. The
-Python partials listed above remain open. Python's released `uv.lock` still
-records the editable package as `0.21.0` rather than `0.22.0`.
-
-The 2026-09-23 review records the releases cut from the `private-address-hosts`
-branches (Go `v0.35.0`, TypeScript `0.22.0`, Python `0.21.0`). Each branch was
-squash-merged to `main`, so the prior baselines are not literal ancestors; the Go
-and Python squash commits are tree-identical to the reviewed tips, and the
-TypeScript squash additionally enables `stripInternal` and un-exports
-`RegistryPublicationVerifier`, resolving the acceptance-free-method finding. The
-design repo changed only under `implementations/`. Native suites, the
-193-expectation harness, and the C2SP matrix were rerun at the release heads and
-passed.
-
-The 2026-09-22 second pass reviews the three `private-address-hosts` SDK branches
-against design branch `design/private-address-hosts` (`5cc35bc`), which replaced
-the unspecified hostname-scoped allowlist with `TransportConfig.privateAddressHosts`
-(no built-in `.test` exemption) and rewrote the `AgentRegistrationInput` defaults.
-All three SDKs implement the new field; the earlier `.test` and
-registration-default findings are resolved. Native suites, the 193-expectation
-harness, and the C2SP matrix were rerun at the branch heads and passed.
-
-The earlier 2026-09-22 review followed the move from the `Identity-Digital` organization
-to `dnsid-ai`, which rewrote history in every repository. The old baselines were
-recovered from pre-migration clones and shown to be content-identical (modulo
-org/module renames) to each repository's new "Initial public release" root, so
-the trackers proceed incrementally from those roots. Design changes since
-`1d3fbb5` are wording and RFC 2606 fixture domains only. SDK changes common to
-all three bindings: an implicit `.test`-TLD exemption in the SSRF guard (design
-01 requires an explicit hostname-scoped allowlist), registration defaults that
-invert design 05's documented product default (`production`, `managed` requires a
-zone), a loopback `dnsid local` default registry URL, explicit registry
-environment loaders, and a transport option on the C2SP verification factory.
-Because the transport guard and (TS/Python) `verifyDomain` fan-out are
-cross-cutting, native suites, the 193-expectation shared harness, and the C2SP
-matrix were rerun at the heads recorded below and passed.
-
-The 2026-09-15 review covered design commits `dd5ef3b..1d3fbb5` (the consolidated
-`DnsidConfig` and `trustedEntities` contract); each tracker's
-`SDK Configuration and Counterparty Acceptance` section carries that evidence.
-
-The 2026-09-09 review reconciled the earlier tracker edits and superseded the
-historical correction notices. Per-SDK files retain authoritative review scope,
-source citations, findings, and hosting preconditions. Passing shared tests does
-not establish complete SDK conformance or eliminate the documented Python gaps.
-Python's standalone migration-verifier limitation does not imply missing
-migration support in configured readers.
-
-## Last Run Details
-
-| Repository | Branch | Version / Commit | Package Version | Analysis Date | Notes |
+| SDK | Coverage File | Reviewed Branch | Reviewed Commit | Package Version | Open Findings |
 | --- | --- | --- | --- | --- | --- |
-| dnsid design docs baseline | `chore/impl-tracker-updates` | `9326f7a7407d68376f8484e1122a696f01b01ee0` | N/A | 2026-09-24 | Tracker-only change since design `main` `615f182`; no fixture or design requirement changes. |
-| dnsid-go | `main` | `089fe482a1ec757b0d27fb4168e5af1a9bb4e0d8` | `v0.36.0` | 2026-09-24 | `go vet ./...`, `go test -count=1 ./...`, `go test -race ./...`, `key/aws` module tests, 193/193 shared expectations, and C2SP matrix passed. |
-| dnsid-ts | `main` | `86b708a977ffa43414719d7ebf10fa7d74cfdc2b` | `0.23.0` | 2026-09-24 | 866 tests passed, 1 skipped; typecheck, build, 193/193 shared expectations, and C2SP matrix passed. |
-| dnsid-py | `main` | `a07070a53a9191ce158b43dd17be7e0619a945e7` | `0.22.0` | 2026-09-24 | 1376 tests, `ruff`, `mypy`, 193/193 shared expectations, and C2SP matrix passed. |
+| Go | [go.md](./go.md) | `main` | `9850ba2` | `v0.37.1` | Missing deployment-file loader; partial construction ordering, unavailable-TTL handling, and conformance metadata |
+| TypeScript | [typescript.md](./typescript.md) | `main` | `50d5573` | `0.24.1` | Partial construction validation ordering |
+| Python | [python.md](./python.md) | `fix/leftover-sandbox` | `b218b81` | `0.23.1` | Partial missing-DoH-TTL handling, prepared-event metadata, OIDC response bounds, conformance metadata, and issuance-recovery evidence |
+
+Design baseline: `main` at
+`4de3e4545bf665dbe8b74d1693b4823604f798d1`. Package versions identify the reviewed
+source; these post-release heads are not claims about published release contents.
+
+Design changes since `9326f7a`:
+
+- `def611a` changes the managed development selector and conformance vectors to
+  `https://log.dev.dnsid.ai`.
+- `a858525` requires zero TTL when a fresh DNS answer's TTL is unavailable.
+- `ac7ffda` updates identity examples; `c832a7e` moves root wire/generation vectors
+  to second-level `.test` identities and regenerates signatures.
+
+No identity-record profile or C2SP method revision changed. All three SDKs replace
+managed development/production trust pins without legacy overlap. Go now captures
+wire TTLs but errors when capture is unavailable; TypeScript captures wire TTLs
+and uses zero on native fallback. Python still invents a 300-second TTL when DoH
+omits it. Go and TypeScript still permit a policy fetch before rejecting injected
+transport conflicts; Go still lacks the design 12 deployment-file loader.
+
+Python's checked-in `uv.lock` labels the editable package `0.21.0`, not `0.23.1`.
+Its untracked `tests/test_validate_domain_example.py` was inspected but excluded
+from the committed-head test count. See the tracker for remaining implementation
+and evidence gaps; its standalone migration-verifier limitation does not imply
+missing recursive migration support in configured readers.
+
+## Native Validation
+
+Commands were run in each SDK checkout at the heads above.
+
+| SDK | Commands | Result |
+| --- | --- | --- |
+| Go | `go vet ./...`, `go test -count=1 ./...`, `go test -race ./...`, `(cd key/aws && go test ./...)` | All passed |
+| TypeScript | `npm run typecheck`, `npm run build`, `npm test -- --run` | Typecheck/build passed; 877 tests passed, 1 skipped |
+| Python | `.venv/bin/pytest -q --ignore=tests/test_validate_domain_example.py`, `.venv/bin/ruff check dnsid tests`, `.venv/bin/mypy dnsid` | 1378 tests passed; lint/types clean; existing virtualenv used without refreshing `uv.lock` |
 
 ## Shared Compliance Harness
 
-The latest recorded three-SDK run (2026-09-24) used Go commit `089fe48`,
-TypeScript commit `86b708a`, and Python commit `a07070a`. Each SDK matched all 193 expectations:
-182 passes plus 11 fail-closed rejections of retired selectors, with no
-unexpected failures or known-bug allowances. This includes release conformance
-metadata, signed TXT generation, all seven managed trust-selection vectors, and
-all 12 RFC 9421 vectors.
+The 2026-10-01 run matched all 193 expectations per SDK: 182 passes and 11
+fail-closed rejections of retired selectors, with no unexpected failures or
+known-bug allowances. Coverage includes release conformance metadata, signed TXT
+generation, seven managed trust-selection vectors, and 12 RFC 9421 vectors.
 
-The C2SP interoperability gate passed at those same SDK heads. Go,
-TypeScript, and Python independently produced the same canonical ISSUANCE to
-KEY_ROTATION stream, all three verifiers accepted every writer for nine
-interoperable paths, the Python-to-TypeScript split ISSUANCE handoff matched,
-and all three verifiers rejected all six negative bundle mutations. These results
-use the corrected logical-event-chain contract. The matrix does not establish
-full recursive migration interoperability. The shared harness does not cover the
-registry Live workflow; that area is tracked in the per-SDK files.
+The C2SP matrix also passed at those heads: all three writers produced the same
+canonical ISSUANCE → KEY_ROTATION stream; all nine writer/verifier paths succeeded;
+the Python-to-TypeScript split-signing handoff matched; and every verifier
+rejected all six mutated bundles.
 
-Validation used `harness/run.py` and `harness/c2sp_matrix.py` with a rebuilt
-Go shim, rebuilt TypeScript packages, and the installed local Python package.
-The earlier 33 focused event-identity checks are not included in the 193 SDK
-expectations and were not rerun at these release heads.
+Validation used a rebuilt Go shim, rebuilt TypeScript packages, and the installed
+local Python package. Shared commands ran from the compliance repository root:
+
+```sh
+.venv/bin/python harness/run.py --out /tmp/dnsid-2026-10-01-harness.md
+DNSID_GO_DIR="$HOME/dnsid-go" DNSID_TS_DIR="$HOME/dnsid-ts" DNSID_PY_DIR="$HOME/dnsid-py" .venv/bin/python harness/c2sp_matrix.py
+```
+
+Passing tests do **not** establish complete SDK conformance or close the documented
+gaps. The harness does not cover the registry Live workflow or the newly recorded
+unavailable-TTL paths; the matrix does not establish full recursive migration
+interoperability. Earlier focused event-identity checks are not included in the
+193 expectations and were not rerun in this review.
 
 ## Agent Update Instructions
 
-Follow [AGENTS.md](../AGENTS.md) for the authoritative review procedure. Use an incremental review when the recorded history is available and the impact can be bounded confidently.
+Follow [AGENTS.md](../AGENTS.md#updating-sdk-implementation-coverage) for the review
+procedure, including baseline checks, delta enumeration, impact mapping, evidence
+refresh, validation, and full-review triggers.
 
-1. Read the target SDK file first. Its `Analysis Details` table—not this summary—is the authoritative baseline for that SDK.
-2. Record the current design commit, SDK branch and commit, package version, and analysis date. Verify that the recorded commits resolve and are ancestors of the current heads.
-3. Review both deltas:
-   - Every design-repo commit after the recorded design baseline that touched `docs/sdk-design/` or root `fixtures/`, excluding `docs/sdk-design/implementations/` and `docs/sdk-design/AGENTS.md` but including `conformance/`, wire/generation fixtures, and conformance metadata. Inspect current uncommitted changes separately.
-   - Every SDK-repo commit after the recorded SDK baseline across the entire repository.
-4. Inspect commit subjects and name/status changes, then aggregate diffs. Map changed requirements and implementation paths to coverage rows before loading files. Follow callers for cross-cutting changes and refresh line references in every cited file that changed.
-5. Re-review every impacted row and add rows for new requirements. Preserve a row only after confirming neither delta affects it. Perform a full review when baselines are unavailable, history was rewritten, impact cannot be bounded, or broad security-critical/API changes occurred.
-6. For each reviewed item, use:
-   - `Implemented: path/to/file.ext:line` when behavior matches the design.
-   - `Partial: path/to/file.ext:line` with the missing or divergent behavior stated.
-   - `Missing` when no implementation is found.
-   - `Not applicable` only when the item genuinely does not apply.
-7. Prefer direct implementation references over tests. Verify behavior, validation, errors, and defaults rather than exported names alone. Keep findings separate from evidence and record validation commands actually run.
-8. Update the target file's exact-head metadata even if statuses do not change. Update this summary only when the user requests it or the review scope includes shared run metadata.
+- Read the target tracker first; record exact reviewed heads and actual commands.
+- Use the statuses below and concrete implementation paths/line numbers. Verify
+  behavior, validation, errors, and defaults, not exported names alone.
+- Keep current findings distinct from evidence; preserve unaffected coverage only
+  after checking both SDK and design deltas.
+- Update only the requested trackers. Update this summary when requested or when
+  the review scope includes shared run metadata; keep it consistent with them.
 
 ## Status Legend
 
 | Status | Meaning |
 | --- | --- |
-| TBD | Not reviewed yet. |
-| Implemented | Reviewed and matches the design item. |
-| Partial | Reviewed and present, but incomplete or divergent. |
-| Missing | Reviewed and no implementation found. |
-| Not applicable | Reviewed and intentionally does not apply. |
+| TBD | Not reviewed yet |
+| Implemented | Reviewed and matches the design item |
+| Partial | Reviewed and present, but incomplete or divergent |
+| Missing | Reviewed and no implementation found |
+| Not applicable | Reviewed and intentionally does not apply |
 
 ## Coverage Scope
 
