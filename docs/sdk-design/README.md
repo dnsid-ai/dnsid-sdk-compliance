@@ -16,15 +16,10 @@ C2SP log-method specification and its SDK binding.
 
 Implementation coverage for each SDK is tracked in [implementations/README.md](implementations/README.md).
 
-The [unified registration profile](05-transport-and-registry.md#unified-registration-profile-proposed)
-is proposed for independent maintainer review and coordinated registry/SDK
-release. It replaces creation selectors with domain, governance-domain, and
-root-domain inputs; defines authoritative publication and replay behavior; and
-disables unsupported new Live admission without removing existing proof/reissue
-operations. It is registry product policy, not a protocol/profile change.
-[Open integration questions](08-open-questions.md#unified-registration-profile)
-remain explicit. Existing implementation trackers describe their recorded
-baselines, not implementation of this proposal.
+Registration changes are defined in the
+[proposed unified registration profile](05-transport-and-registry.md#unified-registration-profile-proposed);
+its [open integration questions](08-open-questions.md#unified-registration-profile)
+remain pending.
 
 The documents are organized by SDK responsibility:
 

@@ -95,20 +95,15 @@ END
 
 ### Unified Registration Profile (Proposed)
 
-The registration input, resolution, replay, and Live-admission changes below
-are a proposed Identity Digital registry profile based on
+This proposed Identity Digital registry profile follows
 [agent creation #2598](https://github.com/Identity-Digital/dnsid/issues/2598) and
-[PR #2631](https://github.com/Identity-Digital/dnsid/pull/2631).
-They replace the environment/tier/managed/zone-ID creation contract, not DNSid
-protocol behavior. They require independent maintainer review and coordinated
-registry/SDK releases; they are not claims of shipped implementation or passing
-compliance. Lifecycle consolidation and replacement Live admission remain
-subject to [#2599](https://github.com/Identity-Digital/dnsid/issues/2599).
-
-The profile applies to every language binding and public registration entry
-point. Protocol verification, immutable identity-record profiles, and
-counterparty acceptance are unchanged. Implementation trackers retain their
-reviewed baselines until the SDKs are separately reviewed against this change.
+[PR #2631](https://github.com/Identity-Digital/dnsid/pull/2631). It replaces the
+creation selectors across language bindings, not DNSid protocol behavior,
+identity-record profiles, verification, or counterparty acceptance. Independent
+maintainer review and coordinated registry/SDK releases are required;
+implementation trackers retain their reviewed baselines, not claims that this
+proposal is shipped or passing compliance. See the
+[open integration questions](08-open-questions.md#unified-registration-profile).
 
 Registry workflows are operator/control-plane operations. `RegistryConfig` contains registry control-plane settings such as `registryUrl`. `VerifyDomain` must continue to verify external identities from the signed DNSid record and the record's `su` endpoint, not from `RegistryConfig.registryUrl`. In pseudocode, `config.identity` refers to the manager's `IdentityConfig`.
 Registry settings are owned by `RegistryClient`, not `DnsidConfig`. Configuring
@@ -278,10 +273,10 @@ END
 The current product API uses registry-managed publication for managed draft 01
 identities: the registry holds the entity signer and publishes automatically
 after accepted lifecycle issuance. For self-managed identities, `/record`
-selects the single current accountable-entity key at
-`https://{gi}/.well-known/dnsid/entity.jwks`, and `/signature` accepts the bare
-draft 01 signature produced by that key. The operational key at `ku` remains
-separate and does not sign the TXT record.
+selects the single current accountable-entity key at the registration's
+[`PublicationConfig.ekUrl`](#publicationconfig), and `/signature` accepts the
+bare draft 01 signature produced by that key. The operational key at `ku`
+remains separate and does not sign the TXT record.
 
 #### Registry Custody and Pins
 
@@ -589,13 +584,15 @@ sandbox or self-managed fallback.
 
 ##### Registration Replay and Recovery
 
-The portable SDK registration operation requires a caller-supplied, per-request
-`Idempotency-Key`, supplied as transport metadata rather than JSON. Bindings
-validate a non-empty value, at most 200 UTF-8 bytes, with no surrounding
-whitespace or control characters. The registry scopes claims to the authenticated
-organization. Retries retain the same selectors, public key, name, capabilities
-URL, and idempotency key; SDKs MUST NOT generate a replacement key or fill an omitted domain
-with the previously assigned name.
+As SDK retry-safety policy, the portable registration operation requires a
+caller-supplied, per-request `Idempotency-Key` as transport metadata, not JSON.
+Bindings validate a non-empty value, at most 200 UTF-8 bytes, with no surrounding
+whitespace or control characters. These client-side validation and recovery
+rules are not protocol requirements; the product creation endpoint permits an
+omitted header. The registry scopes claims to the authenticated organization.
+Retries retain the same selectors, public key, name, capabilities URL, and key;
+SDKs MUST NOT generate a replacement key or fill an omitted domain with the
+previously assigned name.
 
 Only HTTP 201 is decoded as ordinary creation success. Preserve the immutable
 agent ID, resolved domain, publication configuration, and any OIDC issuer before
@@ -607,10 +604,12 @@ HTTP 202 is not ordinary creation success and is not evidence of Live admission.
 
 Within the registry's idempotency retention window, an identical successful
 retry must address the original identity and pinned accountability even if zone
-activation or organization defaults have since changed. Reusing a key with
-changed input returns HTTP 422 `IDEMPOTENCY_MISMATCH`; concurrent claim conflicts
-retain the same key for recovery. Stable replay is a registry obligation, not
-something an SDK can repair by changing the request or allocating another name.
+activation or organization defaults have since changed. The product validates
+changed input before reporting HTTP 422 `IDEMPOTENCY_MISMATCH`, so validation
+or authorization can instead return HTTP 400 or 403. SDKs preserve the actual
+status and error code, and retain the same key after concurrent claim conflicts.
+Stable replay is the registry's responsibility; SDKs never repair it by changing
+the request or allocating another name.
 
 #### LiveAgentRegistrationInput
 
@@ -760,22 +759,21 @@ normalized domain; a root-selected request must return a name strictly beneath
 that root at a DNS-label boundary. Mismatches and unknown publication-authority
 values fail closed while retaining any known creation result for recovery.
 Persist the assigned domain, this snapshot, and any returned OIDC issuer; do not
-re-derive accountability after organization configuration changes. The registry's internal accountable organization ID is
-not a new protocol tag or a required public SDK field.
+re-derive accountability after organization configuration changes. The registry's
+internal accountable organization ID is not a new protocol tag or a required
+public SDK field.
 
 The proposed create response carries `publication_config` but does not itself
 report resolved hosting mode or zone. Until that response is extended, obtain
 publication authority from authenticated agent detail (`managed="dnsid"` or
 `managed="self"`) before selecting a workflow. If that read fails, retain the
-creation result for recovery rather than guessing. Lifecycle consumers must
-honor persisted identity facts; completion of that server work is tracked in
-[#2599](https://github.com/Identity-Digital/dnsid/issues/2599).
+creation result for recovery rather than guessing.
 
 ##### Unified Registration Acceptance Cases
 
-These language-neutral cases are requirements for each binding's executable
-registry-client tests and coordinated server integration tests, not claims that
-the shared compliance harness already exercises registration.
+Each binding's registry-client tests MUST cover these SDK-observable outcomes.
+Cases marked as server integration require registry proof under #2598, not
+SDK-owned lifecycle coordination.
 
 | Case | Caller-observable expectation |
 |------|-------------------------------|
@@ -788,7 +786,7 @@ the shared compliance harness already exercises registration.
 | Domain plus root, missing key for an assigned name, invalid URL, or private JWK | Fails before network I/O. Include private members nested in JWKS-shaped input. |
 | Retired selectors or unavailable Live create | Fails before network I/O; creates no sandbox substitute. |
 | Identical replay after zone deactivation or organization-default change | Same immutable ID, domain, and accountability within retention; no second allocation. Requires server integration proof. |
-| Changed input with the same idempotency key | Surfaces `IDEMPOTENCY_MISMATCH`; does not choose a new key automatically. |
+| Changed input with the same idempotency key | Preserves `IDEMPOTENCY_MISMATCH` or the preceding validation/authorization error; does not choose a new key automatically. |
 | Same key used by different organizations | No cross-tenant replay or disclosure; requires server integration proof. |
 | Creation succeeds but follow-up read fails | Error retains the key and known creation result; retry uses the original request, not the assigned domain as new input. |
 | Existing Live proof/reissue | Original key/request binding and exact challenge-byte signing remain enforced. |
