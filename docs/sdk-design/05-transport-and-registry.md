@@ -93,7 +93,7 @@ END
 
 ## Registry Responsibilities
 
-### Unified Registration Profile (Proposed)
+### Unified Registration
 
 The SDK registration contract below follows
 [merged PR #2631](https://github.com/Identity-Digital/dnsid/pull/2631)

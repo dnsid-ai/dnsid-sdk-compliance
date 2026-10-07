@@ -2,12 +2,7 @@
 
 This document tracks SDK design questions that are not yet resolved.
 
-## Unified Registration Profile
-
-The [registration contract](05-transport-and-registry.md#unified-registration-profile-proposed)
-currently requires authenticated agent detail to establish publication authority.
-Should ordinary creation return it directly to avoid the extra read and
-partial-success recovery?
+There are no unresolved shared SDK design questions at this time.
 
 ## Resolved Questions
 
