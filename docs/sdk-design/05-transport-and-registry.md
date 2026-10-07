@@ -95,10 +95,12 @@ END
 
 ### Unified Registration Profile (Proposed)
 
-This proposed Identity Digital registry profile follows
+This proposed SDK profile follows the Identity Digital registry changes in
 [agent creation #2598](https://github.com/Identity-Digital/dnsid/issues/2598) and
-[PR #2631](https://github.com/Identity-Digital/dnsid/pull/2631). It replaces the
-creation selectors across language bindings, not DNSid protocol behavior,
+[merged PR #2631](https://github.com/Identity-Digital/dnsid/pull/2631)
+(commit `4d9c7b6789b29fb47a6266f1c9f8df16590bf776`). New ordinary registration
+uses GI/domain/root selectors; the registry retains released-client selectors
+and managed Live creation. These changes do not alter DNSid protocol behavior,
 identity-record profiles, verification, or counterparty acceptance. Independent
 maintainer review and coordinated registry/SDK releases are required;
 implementation trackers retain their reviewed baselines, not claims that this
@@ -387,9 +389,15 @@ RegistryClient.GetRegistration(domain: string) -> AgentRegistration
   // proof nonce. SDKs MUST NOT retry a failed authenticated read anonymously.
   // This management route is distinct from the record's public su endpoint.
 
-// RegisterLiveAgent is unavailable in the unified registration profile.
-// If a binding exposes the operation, it fails before network I/O; it MUST NOT
-// send retired discriminators to POST /agent. See LiveAgentRegistrationInput.
+RegistryClient.RegisterLiveAgent(input: LiveAgentRegistrationInput,
+                                 idempotencyKey: string) -> LiveProvisioningResponse
+  // POST {baseUrl}/api/v1/agent with tier="live" and managed=true.
+  // Send idempotencyKey as the required Idempotency-Key header. Supply public_key,
+  // omit domain, zone_id, governance_domain, and root_domain, and omit environment
+  // or set it to production. Accept only HTTP 202 as LiveProvisioningResponse,
+  // never AgentRegistration; provisioning has not completed at this point.
+  // Preserve requestId across retries. While status is challenge_pending, derive
+  // domain from the validated challenge transcript for the proof routes.
 
 RegistryClient.SubmitLiveProof(domain: string, request: LiveProofRequest,
                                idempotencyKey: string) -> LiveProofResponse
@@ -541,12 +549,35 @@ idiomatic public names and serialize the exact JSON wire names shown.
 | `name` | `name` | string | no | Human-readable registry metadata; at most 255 characters after trimming. Not published in the DNSid record. |
 | `capabilitiesUrl` | `capabilities_url` | string | no | HTTPS capabilities-document URL to publish as `cu`. |
 
-`environment`, `tier`, `managed`, and `zoneId`/`zone_id` are not registration
-inputs. SDKs MUST NOT emit them, translate them into guessed selectors, or
-silently discard them when supplied through an untyped registration surface.
-Reject obsolete selectors before network I/O. The server may ignore unknown
-JSON members; that is not a safe compatibility contract. No compatibility
-adapter or alternate legacy creation mode is part of this profile.
+New ordinary registration uses the fields above and MUST NOT inject legacy
+`environment`, `tier`, `managed`, or `zone_id` defaults. Existing registration
+entry points need not be disabled: the merged registry maps supported legacy
+selectors to their established behavior and rejects unsupported combinations.
+SDKs MUST NOT silently discard supplied selectors or translate them into
+invented GI/root values. Unknown JSON members are not a compatibility contract.
+
+##### Released-Client Selectors
+
+These are existing server behaviors, not a requirement to add SDK compatibility
+shims. Bindings that retain released entry points preserve their request fields
+and use the same response validation and recovery rules as new registration.
+
+| Legacy request | Registry behavior |
+|---|---|
+| `environment="sandbox"`, no domain or explicit root | Assign a sandbox name; `managed=true` is permitted. |
+| `environment="production", managed=true`, no other root selector | Assign a name under the configured production root; unavailable infrastructure returns 503, not a sandbox name. |
+| `zone_id`, no domain or `root_domain` | Assign a name under that caller-owned active zone. Environment is sandbox unless explicitly production. |
+| `domain`, with omitted or production environment | Resolve hosting from owned-zone facts, not the requested `managed` value. |
+| `root_domain` or GI-selected root, with legacy environment/managed selectors | The explicit root wins; legacy selectors do not move the identity to another root. |
+| `tier="live", managed=true` | Use the separate managed Live contract below; return 202, not ordinary 201 creation. |
+
+The server rejects unknown environment/tier values, sandbox plus exact domain,
+`zone_id` plus domain or `root_domain`, and production without a domain, zone,
+GI, root, or `managed=true` selector. SDKs preserve the actual error and MUST NOT
+retry after dropping a selector. Generic ordinary registration MUST reject
+`tier="live"` before network I/O and direct callers to `RegisterLiveAgent`.
+Legacy fields retained by an entry point remain unchanged across retries and
+participate in the ordinary request fingerprint.
 
 ##### Resolution and Validation
 
@@ -568,7 +599,7 @@ a domain, bypass admission, or establish protocol trust. Registry-owned assigned
 names cannot be claimed by supplying an exact domain unless the caller owns the
 applicable active zone; select the authorized root instead.
 
-A named root-registration helper accepts `rootDomain`, not a zone ID. A helper
+A new named root-registration helper accepts `rootDomain`, not a zone ID. A helper
 for an exact domain MUST NOT promise self-management or select a publication
 workflow before receiving authoritative hosting/publication facts. All helpers
 use the same registration validation and serialization path.
@@ -600,41 +631,60 @@ performing a follow-up authenticated status read. If that read or a response
 validation fails after creation, the SDK error retains the idempotency key and
 any known creation result for recovery; it MUST NOT imply that no agent exists.
 A timeout has an unknown creation outcome and is retried with the same request.
-HTTP 202 is not ordinary creation success and is not evidence of Live admission.
+HTTP 202 is accepted only by the dedicated managed Live operation, not ordinary
+creation, and does not mean Live provisioning has completed.
 
-Within the registry's idempotency retention window, an identical successful
-retry must address the original identity and pinned accountability even if zone
-activation or organization defaults have since changed. The product validates
-changed input before reporting HTTP 422 `IDEMPOTENCY_MISMATCH`, so validation
-or authorization can instead return HTTP 400 or 403. SDKs preserve the actual
-status and error code, and retain the same key after concurrent claim conflicts.
-Stable replay is the registry's responsibility; SDKs never repair it by changing
-the request or allocating another name.
+Within the registry's idempotency retention window, an identical ordinary retry
+addresses the original identity without resolving a new root, including after
+zone deactivation. Replay recomputes publication configuration against current
+governance evidence; it is not an unconditional replay of the original response.
+A stale or unverified managed GI returns HTTP 409
+`MANAGED_GOVERNANCE_UNAVAILABLE` rather than selecting another signer. An
+explicit registry governance rotation can re-pin accountability; SDKs MUST NOT
+silently replace their saved publication snapshot or trust policy.
+
+`MANAGED_GOVERNANCE_UNAVAILABLE` can also occur after durable creation and
+workflow handoff, before a creation response is returned. SDK errors retain the
+original request/key and any known creation facts; they MUST NOT imply that no
+agent exists. Recovery retries the same request after registry evidence is
+repaired, not a request for a replacement identity.
+
+The product validates changed input before reporting HTTP 422
+`IDEMPOTENCY_MISMATCH`, so validation, authorization, or infrastructure errors
+can precede it. SDKs preserve the actual status and error code, and retain the
+same key after concurrent claim conflicts. Stable identity replay is the
+registry's responsibility; SDKs never repair it by changing the request or
+allocating another name.
 
 #### LiveAgentRegistrationInput
 
-New Live admission is not defined by the unified creation endpoint. Its former
-`tier="live"` discriminators are removed, not mapped onto key-only sandbox
-creation. A binding that still exposes a Live-create entry point MUST fail with
-an explicit unsupported-operation error before network I/O. Detecting HTTP 201
-after sending an obsolete Live request is too late: an unintended sandbox
-identity may already have been created.
+Input for the retained managed Live operation. Fixed discriminators are set by
+`RegisterLiveAgent`, not exposed as caller-overridable fields.
 
-Replacement Live admission needs a separately reviewed endpoint, input,
-authorization, and response contract under
-[#2599](https://github.com/Identity-Digital/dnsid/issues/2599). This document
-specifies neither a replacement route nor automatic capability discovery.
-Selecting a production root is not purchased-domain/Live admission.
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | no | Human-readable registry metadata; at most 255 characters after trimming. |
+| `publicKeyJwk` | Ed25519 JWK | yes | One public `OKP`/`Ed25519` key with `alg="EdDSA"`; private JWK members are forbidden. |
+| `environment` | `"production"` | no | Omit or set to `production`. |
+| `capabilitiesUrl` | string | no | HTTPS capabilities-document URL to publish as `cu`. |
 
-Existing Live identity status, proof submission, and challenge reissue remain
-supported where the registry offers them. Preserve the proof types and
-transcript validation below; removing Live creation does not remove those
-operations or allow an unauthenticated fallback.
+The client sets `tier="live"` and `managed=true`. Domain, zone, GI, and root
+selectors are not fields in this input. The required idempotency key is transport
+metadata, not JSON. Managed Live returns HTTP 202 `LiveProvisioningResponse`;
+it MUST NOT be decoded as ordinary HTTP 201 `AgentRegistration`. Status, proof,
+and reissue remain supported with the original request/key binding and transcript
+validation below. An unavailable Live deployment returns an error; SDKs MUST NOT
+substitute sandbox or production-root registration. Selecting a production root
+is not purchased-domain/Live admission.
+
+The server also retains `tier="live", managed=false`, returning HTTP 201 through
+a different local challenge workflow. That mode remains outside this portable
+SDK contract; do not route managed Live callers through it.
 
 #### Live Provisioning Types
 
-These types describe existing Live provisioning state and proof/reissue
-responses, not an available new-creation contract. The base64url-decoded
+These types describe managed Live creation, provisioning state, and proof/reissue
+responses. The base64url-decoded
 `challengeMessage` remains the exact byte sequence signed by the registered
 private key; parsing MUST NOT change those bytes.
 
@@ -696,7 +746,7 @@ and derived `domain` and `challengeTranscript` are then absent.
 
 The transcript's current wire names are `org_id`, `agent_id`, `key_id`, and
 `expires_at`. Other current Live wire names are `request_id`, `agent_id`,
-`public_key`, and `challenge_message`. Existing Live status, proof, and
+`public_key`, and `challenge_message`. Managed Live creation, status, proof, and
 proof reissue require an owning-organization session credential or organization
 API key. SDKs MUST preserve the same request ID/idempotency key and public key
 across retries, and callers MUST supply that original public key when requesting
@@ -763,7 +813,7 @@ re-derive accountability after organization configuration changes. The registry'
 internal accountable organization ID is not a new protocol tag or a required
 public SDK field.
 
-The proposed create response carries `publication_config` but does not itself
+The merged ordinary create response carries `publication_config` but does not itself
 report resolved hosting mode or zone. Until that response is extended, obtain
 publication authority from authenticated agent detail (`managed="dnsid"` or
 `managed="self"`) before selecting a workflow. If that read fails, retain the
@@ -777,19 +827,23 @@ SDK-owned lifecycle coordination.
 
 | Case | Caller-observable expectation |
 |------|-------------------------------|
-| Key-only create | Accepted locally; sends no retired selectors; retains the server-assigned sandbox domain and publication snapshot. |
+| Key-only create | Accepted locally; injects no legacy defaults; retains the server-assigned sandbox domain and publication snapshot. |
 | Exact domain, with or without an owned active zone | Returned normalized name equals the requested name; publication authority follows explicit server facts, not the request shape. |
 | Root-selected create | Sends `root_domain`, not `zone_id`; assigned domain is under that root at a DNS-label boundary. |
 | GI-selected create, including GI plus root | Sends `governance_domain` and any `root_domain`; the expected GI equals the returned publication GI and an explicit root constrains the assigned name. |
 | Invalid creation response | Rejects an unexpected domain, GI, unsupported profile, or unknown publication authority; retains known creation facts without falling back. |
 | Ambiguous, inactive, unauthorized, or unavailable root | Preserves the server error; makes no fallback request to another root. |
 | Domain plus root, missing key for an assigned name, invalid URL, or private JWK | Fails before network I/O. Include private members nested in JWKS-shaped input. |
-| Retired selectors or unavailable Live create | Fails before network I/O; creates no sandbox substitute. |
-| Identical replay after zone deactivation or organization-default change | Same immutable ID, domain, and accountability within retention; no second allocation. Requires server integration proof. |
-| Changed input with the same idempotency key | Preserves `IDEMPOTENCY_MISMATCH` or the preceding validation/authorization error; does not choose a new key automatically. |
+| Retained released entry points | Preserve supported legacy selectors and their established targets; explicit roots win over legacy environment/managed defaults. No inferred GI/root translation. |
+| Invalid legacy combinations or Live through ordinary registration | Reject locally where determinable, otherwise preserve the server error; never retry after dropping a selector. |
+| Managed Live create | Sends fixed Live discriminators and the original key/request ID; accepts only 202 as provisioning, not ordinary registration or completed admission. |
+| Unavailable Live create | Preserves the server error; creates no sandbox or production-root substitute. |
+| Identical ordinary replay after zone deactivation | Same immutable ID and domain within retention; no second allocation. Requires server integration proof. |
+| Ordinary replay with stale or unverified managed GI | Preserves 409 `MANAGED_GOVERNANCE_UNAVAILABLE`, the original request/key, and known creation facts; does not allocate another identity or silently replace saved publication configuration. Requires server integration proof. |
+| Changed input with the same idempotency key | Includes changes to retained legacy fields; preserves `IDEMPOTENCY_MISMATCH` or the preceding validation/authorization/infrastructure error; does not choose a new key automatically. |
 | Same key used by different organizations | No cross-tenant replay or disclosure; requires server integration proof. |
-| Creation succeeds but follow-up read fails | Error retains the key and known creation result; retry uses the original request, not the assigned domain as new input. |
-| Existing Live proof/reissue | Original key/request binding and exact challenge-byte signing remain enforced. |
+| Durable creation followed by response-governance or detail-read failure | Error retains the original request/key and known creation result, if any; retry uses the original request, not the assigned domain as new input. |
+| Live proof/reissue | Original key/request binding and exact challenge-byte signing remain enforced. |
 
 #### PublishedRecord
 

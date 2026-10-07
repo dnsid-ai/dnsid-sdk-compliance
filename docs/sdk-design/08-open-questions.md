@@ -7,18 +7,25 @@ This document tracks SDK design questions that are not yet resolved.
 Integration decisions for the
 [proposed registration profile](05-transport-and-registry.md#unified-registration-profile-proposed):
 
-1. **Replacement Live admission:** settle its endpoint, authorization, inputs,
-   and response separately; new Live creation stays disabled until then.
-2. **Publication authority:** prefer returning it at creation to avoid the
-   extra authenticated detail read and partial-success recovery. Lifecycle/status
-   routing remains server work under
-   [#2599](https://github.com/Identity-Digital/dnsid/issues/2599).
-3. **Server guarantees:** replay after zone/organization changes and durable
-   accountability across persistence paths need server integration proof under
-   [#2598](https://github.com/Identity-Digital/dnsid/issues/2598). SDKs retain the
-   original request rather than repair server allocation or lifecycle state.
+1. **Publication authority:** prefer returning it at ordinary creation to avoid
+   the extra authenticated detail read and partial-success recovery. The merged
+   response still requires that read. Lifecycle/status routing remains server
+   work under [#2599](https://github.com/Identity-Digital/dnsid/issues/2599).
+2. **Integration evidence:** verify stable identity replay after zone
+   deactivation, stale-GI failure without replacement allocation, and durable
+   accountability across persistence paths against merged
+   [#2631](https://github.com/Identity-Digital/dnsid/pull/2631). SDKs retain the
+   original request/key; successful replay after governance changes is not
+   unconditional. Implementation coverage remains at its reviewed baselines.
 
 ## Resolved Questions
+
+Merged #2631 retains managed Live creation through `POST /agent` with
+`tier="live", managed=true` and HTTP 202 `LiveProvisioningResponse`. A replacement
+admission endpoint is not a prerequisite for SDK support. Supported released-client
+selectors are mapped or rejected by the registry, not silently ignored. See
+[05: Released-Client Selectors](05-transport-and-registry.md#released-client-selectors)
+and [05: LiveAgentRegistrationInput](05-transport-and-registry.md#liveagentregistrationinput).
 
 Operation-level `logchk` uses the operation-independent
 `VerifyLogEvidence(verifiedDomain, at)` primitive defined in
