@@ -36,7 +36,8 @@ Names below are language-neutral. Signatures abbreviate native cancellation,
 deadline, and injected-dependency parameters.
 
 ```
-RegisterManagedIdentity(loaded: LoadedConfig,
+RegisterManagedIdentity(name: string,
+                        loaded: LoadedConfig,
                         credential,
                         store: ManagedRegistrationStore,
                         input?: AgentRegistrationInput) -> ManagedRegistrationResult
@@ -53,7 +54,14 @@ a configured local `IdentityManager`, `PublishedRecord`, and
 `LoggedStateEvidence`. It is evidence at an observation time, not a perpetual
 promise of activity or application authorization.
 
-Calling the workflow again against the same store resumes the same operation.
+The required name selects local state within the configured registry and
+organization. Trim leading/trailing whitespace, reject an empty name or more than
+255 Unicode code points, and preserve case. Use that name as the registration's
+`name` display field; an explicit `input.name` must match it. Names are not domains
+and never appear in DNS or lifecycle entries.
+
+Calling the workflow again for the same registry/organization/name resumes the
+same operation.
 After completion it opens that identity and checks current public evidence;
 it does not register again, prepare another ISSUANCE, or append an event merely
 because the process restarted. Conflicting input or deployment bindings fail
@@ -66,13 +74,21 @@ Completed-operation resume uses the rotation-aware checks below.
 
 ```
 TYPE ManagedRegistrationConfig
+  organizationId: string     // stable registry account ID supplied with the credential
   governanceId: string       // independently configured expected accountability
   entityKeyUrl: string       // independently selected HTTPS bootstrap endpoint
 END
 ```
 
 `LoadedConfig.registration` carries this setup configuration. It does not add
-values to core `IdentityConfig` or alter counterparty acceptance. The expected
+values to core `IdentityConfig` or alter counterparty acceptance.
+`organizationId` is required, non-secret, and supplied with the API key or session
+credential through file/code configuration. It is the registry's stable account
+identifier, not a credential hash or caller-invented label. A governance ID is the
+accountable entity's verified domain; it is not the organization ID and MUST NOT
+be substituted for it. Credential replacement and GI changes do not change the
+organization ID. The server authenticates the actual organization and validates
+the derived request key against it; local configuration is not authorization. The expected
 GI and entity endpoint MUST be validated before creation and MUST match the
 returned publication snapshot before countersigning. Fetch the entity JWKS
 through SDK transport with the existing security/resource policies and select
@@ -81,7 +97,8 @@ Persist the selected public key and its thumbprint for issuance recovery.
 Setup expectations are not registration selectors. Request a particular GI/root
 through `input` under the rules in 05; do not silently translate an expected GI
 into another selector or fall back to a different root. An omitted input uses
-the ordinary public-key-only request, which must still satisfy the expectations.
+the ordinary public-key request with the selected name, which must still satisfy
+the expectations.
 When `input.governanceDomain` is explicit, normalize and compare it with the
 configured expected GI before key generation or network mutations. A mismatch
 returns an argument error. Root eligibility and effective publication bindings
@@ -126,24 +143,29 @@ when called on the local domain.
 Use one durable setup operation that composes the existing binding-owned issuance
 state; do not build a competing lifecycle coordinator or append path.
 
-1. Validate static configuration and request shape. Acquire exclusive store
-   access, then load and validate existing recovery state before key selection,
-   generation, or network mutations.
-2. Persist the setup intent, registry binding, input, and distinct random
-   registration/issuance idempotency keys before key generation. On resume,
-   retain those keys and reject conflicting registry bindings or input.
+1. Validate the name, organization ID, static configuration, and request shape.
+   Acquire exclusive access to the state for this registry/organization/name,
+   then load and validate it before key selection, generation, or mutations.
+2. Persist the named setup intent, registry/organization binding, input, and stable
+   key locator before key generation. On resume, reject conflicting bindings or
+   input without changing the saved operation.
 3. Recover or select the operational provider, or durably create one local key.
-   Persist its stable provider reference/public binding and the complete
-   registration request before creation. No registry call receives private material.
+   Derive the registration and issuance keys below from its initial public key.
+   Persist the provider reference/public binding, complete registration request,
+   and both idempotency keys before creation. No registry call receives private
+   material.
 4. Register or replay the identical request/key. Preserve all known creation
    facts and recoverable post-creation errors. Retain immutable ID, domain,
    publication configuration, and OIDC issuer before subsequent work.
 5. Check authority and expected deployment bindings. Wait for the applicable
    ownership-verification prerequisite; registry workflow state is not protocol
    identity evidence.
-6. Select and persist the trusted entity public key. Delegate preparation,
-   validation, countersigning, exact-byte persistence, submission, and acceptance
-   binding to the existing managed-issuance implementation.
+6. Select and persist the trusted entity public key. If the opened identity
+   already has an accepted ISSUANCE, recover and validate that entry with the
+   existing binding, retain its evidence, and do not prepare or append another.
+   Otherwise delegate preparation, validation, countersigning, exact-byte
+   persistence, submission, and acceptance binding to the existing managed-issuance
+   implementation. Registry READY alone does not establish accepted issuance.
 7. After acceptance, use `AwaitRegistryManagedPublication` to observe valid public
    publication. The registry owns the log append.
 8. Use public DNS/HTTPS/log verification without owner credentials or local-key
@@ -161,19 +183,57 @@ check is not a public counterparty-acceptance bypass.
 
 ## Organization and Creation Replay
 
-Ordinary keyed creation uses the permanent server-side idempotency contract in
-[05](05-transport-and-registry.md#registration-replay-and-recovery). The API key
-or session credential identifies the owning organization to the registry; the
-SDK does not need a separate organization lookup or caller-supplied organization
-label. The server binds the registration key to that organization, the complete
-request, and one immutable registration before returning creation success.
+Ordinary keyed creation uses the permanent server-side idempotency and named-agent
+contract in [05](05-transport-and-registry.md#registration-replay-and-recovery).
+No recovery adapter or organization-lookup callback is required.
 
-The registration key is unique across organizations within the registry.
-Credential replacement within the owning organization can resume the operation.
-A credential from another organization MUST NOT replay the identity or allocate
-another identity with that key; the registry rejects the request without exposing
-the original identity. This check belongs to authenticated server-side creation,
-not a consumer adapter.
+Derive keys using RFC 8785 canonical JSON (JCS), UTF-8, SHA-256, and unpadded
+base64url. `initialKeyId` is the RFC 7638 thumbprint of the initial operational
+public key, not a hash of raw JWK JSON or a provider-assigned alias.
+
+```
+registrationKey = base64url-no-pad(SHA-256(JCS([
+  "dnsid-managed-registration-v1", organizationId, name, initialKeyId
+])))
+issuanceKey = base64url-no-pad(SHA-256(JCS([
+  "dnsid-managed-issuance-v1", registrationKey
+])))
+```
+
+This runnable encoding check uses the thumbprint of the RFC 8032 test-1 Ed25519
+public key. Compact UTF-8 JSON below is JCS for these string-only arrays.
+
+```python
+import base64, hashlib, json
+
+def digest(fields):
+    data = json.dumps(fields, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    return base64.urlsafe_b64encode(hashlib.sha256(data).digest()).rstrip(b"=").decode()
+
+fields = ["dnsid-managed-registration-v1", "11111111-1111-4111-8111-111111111111",
+          "billing-agent", "kPrK_qmxVWaYVA9wwBF6Iuo3vVzz7TxHCTwXBygrS4k"]
+key = digest(fields)
+assert key == "2sWNUpI4tnAzJ3quPrT78uJNVdo96m4En3cZsggktcA"
+assert digest(["dnsid-managed-issuance-v1", key]) == "pxQMSC0k-V9nn9qLqMRDczyUxyNyQE87LbGuK5SEWGw"
+assert digest(fields[:2] + ["research-agent", fields[3]]) != key
+```
+
+Persist the normalized name, organization ID, initial public key/thumbprint, and
+both keys in the named local configuration. Retain them through credential
+replacement, retries, and operational-key rotation; never rehash with the current
+rotated key. Independently starting replicas using the same organization/name/
+initial key derive the same creation and issuance keys. Complete registration
+input must also agree; changed selectors or metadata are not matching retries.
+
+The server validates `registrationKey` using the authenticated organization's ID,
+request name, and initial public key. A wrong configured organization therefore
+fails before allocation, even if the supplied credential is valid for another
+organization. Request-key storage remains organization-scoped; a global key
+namespace is unnecessary. The server also enforces one nonterminal identity per
+organization/name, independently of the request key. A different key for an
+occupied name fails rather than allocating another identity. Same-name opening
+with a rotated key must preserve the existing identity and verified rotation
+continuity, not initiate another ISSUANCE.
 
 After a timeout or lost response, retry the original complete request and key.
 The server retains the binding permanently, including after retirement or
@@ -186,7 +246,9 @@ key, and retained creation facts. Preserve any known identity and publication
 snapshot on errors. Missing local creation facts are not proof that no identity
 exists. Registries without this server contract are not supported by the automatic
 managed workflow; low-level APIs remain available without an automatic-retry
-promise. SDKs MUST NOT replace this requirement with an unimplemented adapter.
+promise. SDKs MUST NOT replace this requirement with an unimplemented adapter or
+an acknowledgement flag such as `--server-contract-verified`. Server work and
+acceptance checks are tracked in [Managed Registration Server Requirements](../managed-registration-server-requirements.md).
 
 ## Completed-Operation Resume
 
@@ -207,15 +269,35 @@ An explicit input on resume must match the saved original creation request,
 including any originally supplied public key. Omitted input reuses that request.
 The stricter original-provider/key check still applies to unfinished issuance.
 A terminal public identity returns a typed error with its history retained.
+Replaying its original registration key never creates a replacement. To replace a
+revoked or retired identity, explicitly start new state for the same name after
+confirming the previous identity is terminal. Retain the previous operation's
+history and generate/select a fresh operational key that has never belonged to
+that named identity, including its rotation history. The new key produces a new
+registration key; no generation nonce is needed. Missing state, missing private
+material, or a timeout is not permission to replace an identity. The server
+atomically moves the name to the replacement while the old domain and log stream
+remain terminal and unchanged.
 
 ## Storage and Recovery
 
 `ManagedRegistrationStore` provides exclusive durable creation, loading, and
-transition persistence for one setup operation, including the issuance state.
-Bindings may reuse their existing storage interfaces internally. Custom database
-storage remains possible without requiring it from ordinary consumers.
+transition persistence for named setup operations, including issuance state.
+`FileRegistrationStore(directory)` is a root for multiple identities, not one
+shared identity slot. Locate each local configuration by the tuple of validated
+registry URL, organization ID, and normalized name. Persist the tuple and verify
+it on load. Bindings may use a digest or safely encoded path components; raw names
+MUST NOT be interpreted as filesystem paths. Different organizations or registries
+with the same name have separate configuration, key references, and locks.
 
-Exclusive access covers loading, validation, key handling, and every transition
+The local configuration holds the request, initial key binding, identity snapshot,
+and recovery progress, not merely deployment settings. It stays separate from the
+shared deployment file in 12 and private key files. Explicit replacement preserves
+historical operations rather than overwriting them. Bindings may reuse existing
+storage interfaces; custom database storage remains optional.
+
+Exclusive access for one registry/organization/name covers loading, validation,
+key handling, and every transition
 through completion or error. Release it on return, cancellation, or failure after
 persisting recoverable transitions. A competing invocation returns a typed busy
 error. Deadline/cancellation applies to lock acquisition as well as network work.
@@ -232,8 +314,9 @@ new store is distinct from a store with incomplete or inconsistent artifacts.
 - exclusive access and a documented interrupted-process lock recovery policy;
 - atomic durable updates, including directory durability where the platform
   requires it, or explicit filesystem/platform prerequisites;
-- initialization intent/key locator, registry binding, original complete request,
-  idempotency keys, creation facts, retained snapshot,
+- normalized name, organization ID, registry binding, initialization intent/key
+  locator, original complete request, initial key thumbprint, deterministic
+  idempotency keys, creation facts, retained snapshot, historical replacements,
   effective setup/deployment bindings and trust reference, provider reference/public
   key binding, trusted entity key, exact prepared and completed issuance
   bytes/outcomes, and convergence progress;
@@ -284,10 +367,16 @@ for workflow ordering and recovery:
 |---|---|
 | Fresh managed setup | Key/request/intent persisted before mutations; success only after public completion checks. |
 | Identical inputs from file, environment, and code | Same effective configuration and setup behavior; credentials kept outside configuration and recovery state. |
-| Concurrent use of one local store | One exclusive operation from load through return; competing caller receives a typed busy error. |
+| Concurrent use of one named local state | One exclusive operation from load through return; competing caller receives a typed busy error. |
+| Same name in different organizations or registries | Separate local configurations, key references, and locks. |
+| Missing organization ID, empty name, or conflicting input.name | Argument error before key generation or network mutations. |
+| Name contains path separators or traversal syntax | Safe state addressing; no access outside the store root. |
+| Same organization/name/initial public key in independent stores | Same registration and issuance keys; server converges on one identity and one ISSUANCE. |
+| New local store opens an already issued matching named identity | Recover verified existing issuance; no new preparation or append, then perform public completion checks. |
+| Existing nonterminal name with a different unrotated key | Server binding conflict; no additional identity or silent key replacement. |
 | Interrupted initial key generation/persistence | Recover the same key from saved intent/locator or report ambiguous partial initialization before further mutations. |
 | Credentials replaced within the same organization | Resume the original operation with the same replay keys. |
-| Credentials belong to another organization | Server rejects reuse of the original registration key without disclosure or another allocation; original operation retained. |
+| Credential organization differs from configured organization ID | Server rejects the derived registration key before allocation, without disclosure; original state retained. |
 | Timeout after creation or failure of detail read | Original request/key and known creation facts retained; identical replay addresses the original operation. |
 | Resume after a long interruption or local clock change | Same request/key addresses the original operation; no replay expiration or time-based recovery policy. |
 | Replay returns a conflicting identity/key | Typed binding error; retained facts unchanged and no replacement allocation. |
@@ -299,8 +388,10 @@ for workflow ordering and recovery:
 | Invalid signature, policy denial, terminal rejection, or unsupported profile | Fail closed without broad retry or policy modification. |
 | Cancellation/deadline after a mutation | Recovery preserved; no success and no implicit rollback/recreation. |
 | Completed operation resumed | Same immutable identity, new public observation, no creation/preparation/append. |
-| Completed operation resumed after authorized key rotation | Validate historical issuance separately; verified current key configures the returned manager without requiring the old private key. |
+| Completed operation resumed after authorized key rotation | Original registration/issuance keys unchanged; validate historical issuance separately and configure the verified current key without the old private key. |
 | Completed operation resumed with an unexplained key change or pending rotation | Binding error or existing rotation recovery guidance; setup does not rotate. |
-| Completed identity is revoked/retired | Typed terminal error; original history retained. |
+| Completed identity is revoked/retired | Typed terminal error on original-operation resume; original history retained. |
+| Explicit same-name replacement after revocation/retirement | Fresh operational key and derived request key, new immutable ID/domain/stream; previous history retained. |
+| Replacement reuses an initial or rotated key of the previous identity | Server rejects it; no replacement allocation. |
 | Setup entity excluded by application allowlist | Setup does not change the allowlist; returned manager's public verification still enforces it. |
 | Local identity absent versus a matching supplied identity snapshot | Same setup checks; conflicting supplied snapshot fails. |
