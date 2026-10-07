@@ -43,6 +43,7 @@ TYPE LoadedConfig
   dnsid?: DnsidConfig               // partial; sections and fields present only when sourced
   logTrust?: LogTrust               // atomic section, see below
   registry?: RegistryConfig         // partial
+  registration?: ManagedRegistrationConfig // partial setup expectations (13); not core identity or acceptance
   keySource?: KeySource
 END
 
@@ -181,6 +182,10 @@ consumers SHOULD emit `DNSID_REGISTRY_URL`, not only the CLI's `DNSID_SERVER`.
 
 The deployment file encodes `LoadedConfig`, including non-secret key-source settings,
 never credentials/private material. Each section maps to its owning type.
+The `registration` section is consumed only by the
+[managed-registration workflow](13-managed-registration.md#configuration-and-trust);
+ordinary identity-manager construction does not treat it as core identity or
+counterparty policy.
 
 ```json
 {
@@ -196,11 +201,19 @@ never credentials/private material. Each section maps to its owning type.
 | `logTrust` | `LogTrust`; exactly one of `managed`, `profile` (inline document), or `policyUrl`. `policyDocument` has no file member; supply it through `DNSID_LOG_POLICY_FILE` or code. |
 | `registry` | `RegistryConfig`, validated by the `RegistryClient` constructor. |
 | `keySource` | `KeySource`; availability and provider settings validated by the selected factory. |
+| `registration` | `ManagedRegistrationConfig` from [13](13-managed-registration.md#configuration-and-trust): `governanceId` and `entityKeyUrl`, validated by the setup workflow before creation. |
 
-A deployment file with local identity publication settings can add this key source:
+For managed setup, a file can add:
 
 ```json
 {
+  "dnsid": { "verification": { "dnssecMode": "required" } },
+  "logTrust": { "managed": true },
+  "registry": { "registryUrl": "https://registry.example" },
+  "registration": {
+    "governanceId": "acme.example",
+    "entityKeyUrl": "https://dnsid.acme.example/.well-known/dnsid-ek.json"
+  },
   "keySource": {
     "provider": "aws-kms",
     "keyRef": "arn:aws:kms:us-east-1:111122223333:key/11111111-1111-4111-8111-111111111111",
@@ -210,8 +223,10 @@ A deployment file with local identity publication settings can add this key sour
 ```
 
 This is illustrative, not a service preset. The key must support the profile's
-algorithm and any registry algorithm restrictions. Credentials and runtime
-dependencies remain separately supplied; this configuration does not create an agent.
+algorithm and any registry algorithm restrictions. To request this customer GI,
+supply `input.governanceDomain = "acme.example"` to setup; expectations alone do
+not select a registry root or approve counterparties. Credentials, state-store
+locations, and runtime dependencies remain separately supplied.
 
 The file loader MUST reject unknown members and mistyped values, and SHOULD
 reject duplicate members where the platform parser makes that available.
@@ -317,6 +332,20 @@ Explicit caller credentials take precedence. The constructor applies the
 [05](05-transport-and-registry.md#registry-responsibilities) loopback default
 when `registryUrl` is absent.
 
+## Managed Setup Composition
+
+[13](13-managed-registration.md) consumes the same merged `LoadedConfig`, with
+credentials and durable storage supplied separately. It does not require an
+environment-backed registry factory when configuration came from a file. Build
+the registry client from the effective `loaded.registry` and explicit credential;
+SDK-managed setup networking uses the effective transport settings.
+
+Bindings MUST support the deployment-file loader for this flow, including Go;
+file and environment paths cannot have different setup or trust behavior.
+Load/merge is still configuration processing, not registration. The effectful
+setup workflow is not an `IdentityManager` convenience constructor and must not
+be hidden inside `Construct`.
+
 ## Convenience Constructors
 
 Bindings MAY offer one-call identity-manager constructors. Each MUST be
@@ -384,6 +413,9 @@ verify` reads; there are no SDK-local aliases.
 | Invalid/conflicting key selection or unsupported algorithm | Reject invalid settings before mutation. |
 | Construction uses local key files | Emit the production-safety warning. |
 | Existing identity changes provider/key through configuration alone | Binding error; explicit authorized rotation required, never implicit import or key replacement. |
+| File/code supplies `registration` | Preserve only supplied setup fields; identity-manager construction does not infer identity or acceptance from them. |
+| Managed setup has invalid/missing expected GI or entity bootstrap URL | Setup validation fails before creation; no endpoint or GI fabricated by the loader. |
+| Same merged config reaches setup from file or environment plus code overlay | Same registry endpoint, transport, explicit trust, and setup behavior; no environment re-read overrides a file. |
 | Invalid `dnsid` config together with a `policyUrl` | Construction fails with `ArgumentError` without fetching the policy. |
 | Any constructor invoked with environment variables or files present | Constructor reads neither. |
 
