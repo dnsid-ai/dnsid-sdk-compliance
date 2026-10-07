@@ -43,6 +43,7 @@ TYPE LoadedConfig
   dnsid?: DnsidConfig               // partial; sections and fields present only when sourced
   logTrust?: LogTrust               // atomic section, see below
   registry?: RegistryConfig         // partial
+  registration?: ManagedRegistrationConfig // partial setup expectations (13); not core identity or acceptance
   keySource?: KeySource
 END
 
@@ -136,7 +137,10 @@ consumers SHOULD emit `DNSID_REGISTRY_URL`, not only the CLI's `DNSID_SERVER`.
 ### Deployment File
 
 The deployment file is the JSON encoding of `LoadedConfig` minus
-`keySource`, which is never written to a shared file. Registry credentials
+`keySource`, which is never written to a shared file. The `registration` section
+is consumed only by the [managed-registration workflow](13-managed-registration.md#configuration-and-trust);
+ordinary identity-manager construction does not treat it as core identity or
+counterparty policy. Registry credentials
 are never part of `LoadedConfig` or the deployment file.
 It is an umbrella-package convenience, not a core type: each section maps 1:1
 onto an existing type with no cross-section logic.
@@ -154,6 +158,29 @@ onto an existing type with no cross-section logic.
 | `dnsid` | `DnsidConfig`, validated by the `IdentityManager` constructor. |
 | `logTrust` | `LogTrust`; exactly one of `managed`, `profile` (inline document), or `policyUrl`. `policyDocument` has no file member; supply it through `DNSID_LOG_POLICY_FILE` or code. |
 | `registry` | `RegistryConfig`, validated by the `RegistryClient` constructor. |
+| `registration` | `ManagedRegistrationConfig` from [13](13-managed-registration.md#configuration-and-trust): `governanceId` and `entityKeyUrl`, validated by the setup workflow before creation. |
+
+For managed setup, a file can add:
+
+```json
+{
+  "dnsid": { "verification": { "dnssecMode": "required" } },
+  "logTrust": { "managed": true },
+  "registry": { "registryUrl": "https://registry.example" },
+  "registration": {
+    "governanceId": "acme.example",
+    "entityKeyUrl": "https://dnsid.acme.example/.well-known/dnsid-ek.json"
+  }
+}
+```
+
+This is an illustrative deployment, not a built-in service preset. To request
+this customer GI, supply `input.governanceDomain = "acme.example"` to setup;
+expectations alone do not select a registry root or approve counterparties. No new environment
+variables are introduced for `registration`; use a deployment file or code.
+Registry credentials, state-store locations, and runtime store/provider objects
+remain separately supplied. A future product facade may offer provider-specific
+configuration without changing constructor source discovery or key authority.
 
 The file loader MUST reject unknown members and mistyped values, and SHOULD
 reject duplicate members where the platform parser makes that available.
@@ -243,6 +270,20 @@ Explicit caller credentials take precedence. The constructor applies the
 [05](05-transport-and-registry.md#registry-responsibilities) loopback default
 when `registryUrl` is absent.
 
+## Managed Setup Composition
+
+[13](13-managed-registration.md) consumes the same merged `LoadedConfig`, with
+credentials and durable storage supplied separately. It does not require an
+environment-backed registry factory when configuration came from a file. Build
+the registry client from the effective `loaded.registry` and explicit credential;
+SDK-managed setup networking uses the effective transport settings.
+
+Bindings MUST support the deployment-file loader for this flow, including Go;
+file and environment paths cannot have different setup or trust behavior.
+Load/merge is still configuration processing, not registration. The effectful
+setup workflow is not an `IdentityManager` convenience constructor and must not
+be hidden inside `Construct`.
+
 ## Convenience Constructors
 
 Bindings MAY offer one-call identity-manager constructors. Each MUST be
@@ -301,5 +342,8 @@ verify` reads; there are no SDK-local aliases.
 | Same inputs through a convenience constructor and through manual `Load → Merge → Construct` | Identical validated snapshot and dependency wiring. |
 | `DNSID_PUBLIC_URL`, `DNSID_AGENT_PORT`, `DNSID_SERVER` set | Ignored by SDK loaders. |
 | Deployment file with unknown member, or `logTrust` with zero or two variants and no caller `logRegistry` | Loader or construction fails with `ArgumentError`. |
+| File/code supplies `registration` | Preserve only supplied setup fields; identity-manager construction does not infer identity or acceptance from them. |
+| Managed setup has invalid/missing expected GI or entity bootstrap URL | Setup validation fails before creation; no endpoint or GI fabricated by the loader. |
+| Same merged config reaches setup from file or environment plus code overlay | Same registry endpoint, transport, explicit trust, and setup behavior; no environment re-read overrides a file. |
 | Invalid `dnsid` config together with a `policyUrl` | Construction fails with `ArgumentError` without fetching the policy. |
 | Any constructor invoked with environment variables or files present | Constructor reads neither. |

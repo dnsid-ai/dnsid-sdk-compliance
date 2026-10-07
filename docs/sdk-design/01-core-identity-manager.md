@@ -1214,6 +1214,14 @@ use `validated`. Deployments that require DNS-rooted origin authentication use
 
 ### Initial Setup of Local Identity
 
+The sequence below describes the general publisher-owned flow, not the
+consumer API for registry-managed hosting. Use the
+[managed-registration workflow](13-managed-registration.md) when the registry
+holds the entity key and publishes DNS/JWKS/status. That workflow provides
+built-in local recovery, composes binding-owned issuance, and observes public
+readiness without requiring consumer publication/activation callbacks. It sits
+above core and does not change public verification or acceptance behavior.
+
 ```
 1. IdentityManager.new(config{identity, verification, transport}, deps{keyProvider, entityKeyProvider, logRegistry})
 2. Persist one durable issuance operation; protocol status remains non-active.

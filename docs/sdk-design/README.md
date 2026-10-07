@@ -37,6 +37,7 @@ The documents are organized by SDK responsibility:
 | [10-web-bot-auth.md](10-web-bot-auth.md) | Web Bot Auth profile using RFC 9421 primitives and an HTTP Message Signatures Directory. |
 | [11-c2sp-tlog-binding.md](11-c2sp-tlog-binding.md) | C2SP transparency-log binding: references, envelopes, split signing, prepared submission, tiled-log verification, policy, witnesses, and completeness. |
 | [12-configuration-loading.md](12-configuration-loading.md) | Configuration sources: environment variable schema, deployment file, merge rule, and convenience constructors. Loaders parse; constructors default. |
+| [13-managed-registration.md](13-managed-registration.md) | Consumer-facing managed setup, built-in durable local recovery, bounded convergence, public readiness checks, and the boundary for future product-level named creation. |
 | [conformance/](conformance/) | Language-neutral RFC 9421 signature-base, lifecycle reducer, snapshot, and binding-selection vectors shared by SDK implementations. |
 
 ## Configuration
@@ -217,11 +218,21 @@ DNSid core does not depend on any application authentication profile.
   -> 01 core IdentityManager constructor
   -> 05 RegistryClient and TransportConfig
   -> 11 log-trust factories
+
+13 managed registration
+  -> 12 loaded configuration and construction
+  -> 05 registry workflows and publication
+  -> 11 managed issuance implementation
+  -> shared key and durable storage interfaces
 ```
 
 Configuration loading sits above core: it constructs an `IdentityManager` and
 its log registry, so core never imports it. Bindings place it in a separate
-package when their module system requires acyclic imports.
+package when their module system requires acyclic imports. Managed registration
+also sits above these components; core never imports the setup workflow. The
+contract in 13 is a design requirement, not a claim of current implementation
+coverage. Future product `create(name)` adds persistent named resolution above
+that workflow, not behavior to core verification.
 
 ## Naming
 

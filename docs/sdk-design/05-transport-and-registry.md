@@ -347,6 +347,20 @@ history.
 
 ---
 
+### Consumer Managed Setup
+
+[13: Managed Registration](13-managed-registration.md) defines the consumer-facing
+composition of registration, durable recovery, managed issuance, publication,
+and public readiness checks. All three bindings provide a file-backed recovery
+store so ordinary consumers do not implement these adapters or retry loops.
+This workflow sits above the following low-level client; it does not change
+endpoint wire behavior or registry ownership of lifecycle convergence.
+
+Future hosted-product `create(name)` composes that workflow with authenticated,
+organization-scoped persistent name resolution. `AgentRegistrationInput.name`
+is display metadata, not a uniqueness or lookup contract, and request replay
+keys alone cannot implement durable named creation.
+
 ### RegistryClient
 
 Operator-side client for DNSid registry workflows for the local identity's own managed records. `RegistryClient` is not used by `VerifyDomain` when validating external identities; protocol verification always fetches the `su` endpoint asserted in the signed TXT record.
@@ -375,6 +389,7 @@ RegistryClient.RegisterAgent(input: AgentRegistrationInput,
   // If supplied, send idempotencyKey as the Idempotency-Key header, not JSON.
   // Preserve creation facts before reading authenticated agent detail to obtain
   // publicationAuthority. See PublicationConfig and Registration Replay and Recovery.
+  // This low-level call is not the complete register-and-verify workflow in 13.
 
 RegistryClient.GetRegistration(domain: string) -> AgentRegistration
   // GET {baseUrl}/api/v1/agent/{domain}/status using an owning-organization
@@ -576,8 +591,10 @@ returns 400 `BAD_REQUEST`, an unauthorized GI returns 403
 
 ##### Registration Replay and Recovery
 
-Ordinary creation permits an omitted `Idempotency-Key`. Retry-safe callers supply
-one as transport metadata; retries MUST retain the same key and complete request,
+The high-level workflow in [13](13-managed-registration.md#durable-setup)
+generates and durably persists request replay keys on the consumer's behalf.
+Low-level ordinary creation permits an omitted `Idempotency-Key`. Retry-safe
+callers supply one as transport metadata; retries MUST retain the same key and complete request,
 including legacy selectors. SDKs MUST NOT automatically retry an unknown creation
 outcome without a key or use an assigned domain as replacement request input.
 
