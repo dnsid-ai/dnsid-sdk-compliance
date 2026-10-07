@@ -357,13 +357,16 @@ adapter.
 This workflow sits above the following low-level client; it does not change
 endpoint wire behavior or registry ownership of lifecycle convergence.
 
-Automatic creation recovery requires the permanent server-side idempotency
-contract below. Organization authorization and cross-organization key-reuse
-rejection belong to the registry, not a separate SDK adapter. These requirements
-use the existing `Idempotency-Key` header and do not add an organization-lookup
-endpoint or change registration JSON. This is a revised server contract, not a
-claim of current hosted-registry support. Verify it with server integration tests
-before enabling automatic managed recovery or replacing working examples.
+Automatic creation recovery requires permanent server-side idempotency and
+organization-scoped name uniqueness below. Setup takes an organization ID supplied
+with the credential; the server validates the derived request key against its
+actual authenticated organization. These requirements use the existing `name`,
+`public_key`, and `Idempotency-Key` fields, not a recovery adapter or new lookup
+endpoint. This is a revised server contract, not a claim of current hosted-registry
+support. [Server requirements](../managed-registration-server-requirements.md)
+track the changes and acceptance checks. Verify them before enabling automatic
+managed recovery or replacing working examples; a consumer acknowledgement flag
+does not establish server support.
 
 ### RegistryClient
 
@@ -559,7 +562,7 @@ idiomatic public names and serialize the exact JSON wire names shown.
 | `governanceDomain` | `governance_domain` | string | no | Expected accountable governance identifier (`gi`). With no `domain`, also selects an authorized root as described below. It is not an arbitrary signer override. |
 | `rootDomain` | `root_domain` | string | no | Active delegated zone owned by the caller's organization under which the registry assigns a name. Not a zone ID. May be combined with `governanceDomain`. |
 | `publicKeyJwk` | `public_key` | JWK | conditional | Public signing key required whenever the registry assigns the name or manages the identity. Optional for a self-managed exact domain whose JWKS is verified externally. Private JWK members are forbidden. |
-| `name` | `name` | string | no | Human-readable registry metadata; at most 255 characters after trimming. Not published in the DNSid record. |
+| `name` | `name` | string | conditional | Required by named managed setup (13); optional for low-level unnamed creation. Organization-scoped agent handle and display name, at most 255 Unicode code points after trimming; case-sensitive. Not published in DNS or the log. |
 | `capabilitiesUrl` | `capabilities_url` | string | no | HTTPS capabilities-document URL to publish as `cu`. |
 
 New registration omits legacy selector defaults. Existing entry points may
@@ -593,12 +596,41 @@ returns 400 `BAD_REQUEST`, an unauthorized GI returns 403
 `GOVERNANCE_NOT_AUTHORIZED`, and unavailable infrastructure returns 503
 `SERVICE_UNAVAILABLE`.
 
+##### Named Managed Registration
+
+A name is both the display name and an organization-scoped handle. The registry
+MUST enforce at most one nonterminal identity per authenticated organization/name,
+including pending creation. Same name in different organizations is independent.
+The public domain and immutable ID are not derived from this display name.
+
+Named managed requests require a public key and the deterministic registration
+key defined in [13](13-managed-registration.md#organization-and-creation-replay).
+Validate that key using the authenticated organization ID, normalized request name,
+and submitted public-key thumbprint before allocation. A wrong configured
+organization MUST NOT create an identity in the credential's actual organization.
+A hash or caller-supplied organization ID does not grant authorization.
+
+An existing nonterminal name with matching key and complete creation input returns
+the same identity, including concurrent matching requests from separate hosts.
+A different unrotated key or conflicting input fails without modifying the
+identity or allocating another. Authorized key rotation preserves the same name
+and immutable identity; opening with its verified current key is not new issuance.
+
+After revocation or retirement, a new operation may reuse the name only with a
+fresh operational key, never an initial or rotated key of the previous identity.
+Atomically bind the name to the new immutable identity/domain/log stream and retain
+the old terminal history. Replay lookup for an old request key takes precedence
+over name allocation, so a delayed old request cannot recreate or reopen its
+terminal identity as the current name holder.
+
 ##### Registration Replay and Recovery
 
 The high-level workflow in [13](13-managed-registration.md#durable-setup)
-generates and durably persists request replay keys on the consumer's behalf.
-Low-level ordinary creation permits an omitted `Idempotency-Key`. Retry-safe
-callers supply one as transport metadata; retries MUST retain the same key and complete request,
+derives and durably persists registration and issuance keys on the consumer's
+behalf after recovering or creating the initial operational key. Low-level unnamed
+ordinary creation permits an omitted `Idempotency-Key` or a caller-selected key.
+Named managed creation follows the derivation above. Retry-safe callers supply
+keys as transport metadata; retries MUST retain the same key and complete request,
 including legacy selectors. SDKs MUST NOT automatically retry an unknown creation
 outcome without a key or use an assigned domain as replacement request input.
 
@@ -615,11 +647,12 @@ registration; they MUST NOT allocate additional identities. Creation success is
 returned only after this binding and registration are durably committed. A lost
 response does not undo the binding.
 
-The key is unique across organizations within that registry, not merely within
-one organization. Reuse from another organization MUST fail authorization without
-revealing the original registration or allocating another identity. Replacing a
-credential within the owning organization does not change the operation. SDKs
-SHOULD generate random keys with at least 128 bits of entropy.
+Request-key bindings are scoped to the authenticated organization within the
+registry. The same low-level key string in two organizations denotes independent
+operations and MUST NOT disclose the other's registration. For named managed
+creation, deterministic-key validation detects a configured organization/credential
+mismatch before allocation. Replacing a credential within the owning organization
+does not change the operation.
 
 The binding MUST be retained permanently. It does not expire after inactivity,
 zone deactivation, retirement, or deletion of the registration. A retained claim
@@ -808,7 +841,12 @@ governance persistence also require server integration tests, not SDK coordinati
 | Supported existing selectors and managed Live | Preserve existing request behavior; Live still returns 202 provisioning, not ordinary 201 registration. |
 | Keyed replay, including stale GI or changed input | Retain the original request/key and identity; preserve governance/mismatch errors without replacement allocation. |
 | Concurrent identical keyed creates | One atomic operation claim and one immutable identity; no losing allocation. |
-| Same key with a different organization's credential | Authorization failure without disclosure or another allocation. |
+| Same organization/name/key in independent hosts | Same immutable identity; no additional allocation or issuance. |
+| Same organization/name with a different unrotated key | Binding conflict; existing identity unchanged. |
+| Same name in different organizations | Independent identities; no cross-organization disclosure. |
+| Derived named key with a different organization's credential | Reject before allocation, without disclosure. |
+| New same-name operation after revocation/retirement | Fresh key, new immutable ID/domain/stream; old request replay still addresses old identity. |
+| Replacement reuses any key from the previous identity | Reject before replacement allocation. |
 | Keyed replay after restart, long interruption, retirement, or deletion | Permanent binding survives; original identity or terminal error, never a replacement. |
 | Response lost after durable creation commit | Identical retry returns the original identity without a second allocation. |
 | Timeout or post-creation failure | Retain known facts for recovery; never imply that failure proves no identity exists. |

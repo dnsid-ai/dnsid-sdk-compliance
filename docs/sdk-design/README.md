@@ -37,8 +37,12 @@ The documents are organized by SDK responsibility:
 | [10-web-bot-auth.md](10-web-bot-auth.md) | Web Bot Auth profile using RFC 9421 primitives and an HTTP Message Signatures Directory. |
 | [11-c2sp-tlog-binding.md](11-c2sp-tlog-binding.md) | C2SP transparency-log binding: references, envelopes, split signing, prepared submission, tiled-log verification, policy, witnesses, and completeness. |
 | [12-configuration-loading.md](12-configuration-loading.md) | Configuration sources: environment variable schema, deployment file, merge rule, and convenience constructors. Loaders parse; constructors default. |
-| [13-managed-registration.md](13-managed-registration.md) | Consumer-facing managed setup, built-in durable local recovery, bounded convergence, and public readiness checks. |
+| [13-managed-registration.md](13-managed-registration.md) | Named managed setup, organization-scoped local recovery, deterministic creation keys, bounded convergence, and public readiness checks. |
 | [conformance/](conformance/) | Language-neutral RFC 9421 signature-base, lifecycle reducer, snapshot, and binding-selection vectors shared by SDK implementations. |
+
+Required hosted-registry changes and acceptance checks are tracked separately in
+[Managed Registration Server Requirements](../managed-registration-server-requirements.md).
+That tracker does not establish server or SDK implementation coverage.
 
 ## Configuration
 

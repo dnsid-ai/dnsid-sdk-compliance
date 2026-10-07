@@ -43,7 +43,7 @@ TYPE LoadedConfig
   dnsid?: DnsidConfig               // partial; sections and fields present only when sourced
   logTrust?: LogTrust               // atomic section, see below
   registry?: RegistryConfig         // partial
-  registration?: ManagedRegistrationConfig // partial setup expectations (13); not core identity or acceptance
+  registration?: ManagedRegistrationConfig // partial organization/setup bindings (13); not core identity or acceptance
   keySource?: KeySource
 END
 
@@ -158,7 +158,7 @@ onto an existing type with no cross-section logic.
 | `dnsid` | `DnsidConfig`, validated by the `IdentityManager` constructor. |
 | `logTrust` | `LogTrust`; exactly one of `managed`, `profile` (inline document), or `policyUrl`. `policyDocument` has no file member; supply it through `DNSID_LOG_POLICY_FILE` or code. |
 | `registry` | `RegistryConfig`, validated by the `RegistryClient` constructor. |
-| `registration` | `ManagedRegistrationConfig` from [13](13-managed-registration.md#configuration-and-trust): `governanceId` and `entityKeyUrl`, validated by the setup workflow before creation. |
+| `registration` | `ManagedRegistrationConfig` from [13](13-managed-registration.md#configuration-and-trust): `organizationId`, `governanceId`, and `entityKeyUrl`, validated by setup before creation. The registry account ID is distinct from its verified governance domain. |
 
 For managed setup, a file can add:
 
@@ -168,6 +168,7 @@ For managed setup, a file can add:
   "logTrust": { "managed": true },
   "registry": { "registryUrl": "https://registry.example" },
   "registration": {
+    "organizationId": "11111111-1111-4111-8111-111111111111",
     "governanceId": "acme.example",
     "entityKeyUrl": "https://dnsid.acme.example/.well-known/dnsid-ek.json"
   }
@@ -177,9 +178,13 @@ For managed setup, a file can add:
 This is an illustrative deployment, not a built-in service preset. To request
 this customer GI, supply `input.governanceDomain = "acme.example"` to setup;
 expectations alone do not select a registry root or approve counterparties.
-Configure `registration` through a deployment file or code.
-Registry credentials, state-store locations, and runtime store/provider objects
-remain separately supplied.
+Configure `registration` through a deployment file or code. Supply the stable
+registry `organizationId` with the credential; do not substitute `governanceId`
+or a hash of the credential. The required agent name is a workflow argument and
+selects per-registry/per-organization local state. That local configuration holds
+the name, initial public-key binding, derived idempotency keys, and recovery facts;
+it is not this shared deployment file. Registry credentials, state-store locations,
+and runtime store/provider objects remain separately supplied.
 
 The file loader MUST reject unknown members and mistyped values, and SHOULD
 reject duplicate members where the platform parser makes that available.
@@ -342,7 +347,8 @@ verify` reads; there are no SDK-local aliases.
 | `DNSID_PUBLIC_URL`, `DNSID_AGENT_PORT`, `DNSID_SERVER` set | Ignored by SDK loaders. |
 | Deployment file with unknown member, or `logTrust` with zero or two variants and no caller `logRegistry` | Loader or construction fails with `ArgumentError`. |
 | File/code supplies `registration` | Preserve only supplied setup fields; identity-manager construction does not infer identity or acceptance from them. |
-| Managed setup has invalid/missing expected GI or entity bootstrap URL | Setup validation fails before creation; no endpoint or GI fabricated by the loader. |
+| Managed setup has invalid/missing organization ID, expected GI, or entity bootstrap URL | Setup validation fails before creation; no organization, endpoint, or GI fabricated by the loader. |
+| Multiple named agents share deployment configuration and one state-store root | Each registry/organization/name selects separate local configuration, key references, and recovery state. |
 | Same merged config reaches setup from file or environment plus code overlay | Same registry endpoint, transport, explicit trust, and setup behavior; no environment re-read overrides a file. |
 | Invalid `dnsid` config together with a `policyUrl` | Construction fails with `ArgumentError` without fetching the policy. |
 | Any constructor invoked with environment variables or files present | Constructor reads neither. |
