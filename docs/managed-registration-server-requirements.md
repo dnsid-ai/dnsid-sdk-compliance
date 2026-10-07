@@ -22,6 +22,70 @@ its Working Notes are excluded.
 - Ordinary HTTP deadlines and cancellation remain. No recovery adapter,
   replay-expiration clock, or `--server-contract-verified` flag proves support.
 
+## Workflow Overview
+
+This is the intended workflow, not a claim of current server support. The
+requirements below track the implementation work. The SDK call is
+`RegisterManagedIdentity`, not the PRD's separate `create()` / `active()` API.
+
+```mermaid
+sequenceDiagram
+    actor App as Application
+    participant SDK as Managed registration SDK
+    participant State as Named local configuration
+    participant Keys as Local key provider or KMS
+    participant Registry as Authenticated registry
+    participant Public as Public DNS / HTTPS / log
+
+    App->>SDK: RegisterManagedIdentity("billing-agent", config, credential, store)
+    SDK->>State: Lock and load (registry, organization ID, name)
+    alt Local setup already complete
+        SDK->>Keys: Open current signing key
+        Note over SDK,Registry: No creation, issuance preparation, or append
+    else New or unfinished setup
+        SDK->>State: Save intent and stable key locator if absent
+        SDK->>Keys: Recover same key or generate once for new setup
+        Keys-->>SDK: Public key and stable provider reference
+        SDK->>State: Save request, initial key, and derived registration / issuance keys
+        SDK->>Registry: Register or replay name + public key + Idempotency-Key
+        Note over Registry: Authenticate org; validate derived key; atomically claim name and request
+        Registry-->>SDK: Original or new immutable ID, domain, publication snapshot
+        SDK->>State: Save creation facts before follow-up work
+        SDK->>Registry: Read detail; wait for issuance prerequisite
+        SDK->>Public: Fetch expected entity key; inspect existing issuance
+        alt Matching ISSUANCE already accepted
+            SDK->>State: Save validated existing issuance evidence
+        else ISSUANCE still needed
+            SDK->>Registry: Prepare ISSUANCE with derived issuance key
+            Registry-->>SDK: Entity-signed canonical entry
+            SDK->>SDK: Validate identity, trust, and prepared entry
+            SDK->>Keys: Countersign ISSUANCE with operational key
+            SDK->>State: Save exact completed bytes before submission
+            SDK->>Registry: Submit exact bytes with same issuance key
+            Registry-->>SDK: Acceptance bound to exact entry hash
+            SDK->>State: Save acceptance
+        end
+        Registry->>Public: Registry owns immutable append and publication
+    end
+    SDK->>Public: Verify publication, current key / rotation history, ACTIVE, fresh log evidence
+    Public-->>SDK: Valid public evidence without owner credentials
+    SDK->>State: Save completion / observation and release lock
+    SDK-->>App: Identity manager, publication, and log evidence
+```
+
+- A timeout does not mean creation failed. Save known progress, release the lock,
+  and return a resumable error. A subsequent call loads this same named state;
+  unknown creation retries use the saved request/key, and unknown issuance
+  submission retries use the saved exact bytes/key.
+- Different organizations with the same name have separate state and server name
+  claims. Different unrotated keys for one occupied organization/name fail.
+- Replacement is explicit: first confirm revocation/retirement, preserve the old
+  state, and select a fresh key. The same name then has a new request key,
+  immutable identity, domain, and stream; an old request replay stays old.
+- Private operational keys stay in the local key provider or KMS. Recovery
+  configuration contains references and public bindings, never private material
+  or credentials. All calls have a bounded deadline and cancellation budget.
+
 ## Required Server Work
 
 All items remain open until implementation and real persistence tests establish
