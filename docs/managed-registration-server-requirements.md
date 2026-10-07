@@ -48,11 +48,11 @@ sequenceDiagram
         Keys-->>SDK: Public key and stable provider reference
         SDK->>State: Save request, initial key, and derived registration / issuance keys
         SDK->>Registry: Register or replay name + public key + Idempotency-Key
-        Note over Registry: Authenticate org; validate derived key; atomically claim name and request
+        Note over Registry: Authenticate org, validate derived key, atomically claim name and request
         Registry-->>SDK: Original or new immutable ID, domain, publication snapshot
         SDK->>State: Save creation facts before follow-up work
-        SDK->>Registry: Read detail; wait for issuance prerequisite
-        SDK->>Public: Fetch expected entity key; inspect existing issuance
+        SDK->>Registry: Read detail and wait for issuance prerequisite
+        SDK->>Public: Fetch expected entity key and inspect existing issuance
         alt Matching ISSUANCE already accepted
             SDK->>State: Save validated existing issuance evidence
         else ISSUANCE still needed
