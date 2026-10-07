@@ -340,8 +340,8 @@ environment-backed registry factory when configuration came from a file. Build
 the registry client from the effective `loaded.registry` and explicit credential;
 SDK-managed setup networking uses the effective transport settings.
 
-Bindings MUST support the deployment-file loader for this flow, including Go;
-file and environment paths cannot have different setup or trust behavior.
+Bindings MUST support the deployment-file loader for this flow. File and
+environment sources use the same setup and trust rules.
 Load/merge is still configuration processing, not registration. The effectful
 setup workflow is not an `IdentityManager` convenience constructor and must not
 be hidden inside `Construct`.
