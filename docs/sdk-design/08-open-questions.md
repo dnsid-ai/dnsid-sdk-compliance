@@ -4,28 +4,12 @@ This document tracks SDK design questions that are not yet resolved.
 
 ## Unified Registration Profile
 
-Integration decisions for the
-[proposed registration profile](05-transport-and-registry.md#unified-registration-profile-proposed):
-
-1. **Publication authority:** prefer returning it at ordinary creation to avoid
-   the extra authenticated detail read and partial-success recovery. The merged
-   response still requires that read. Lifecycle/status routing remains server
-   work under [#2599](https://github.com/Identity-Digital/dnsid/issues/2599).
-2. **Integration evidence:** verify stable identity replay after zone
-   deactivation, stale-GI failure without replacement allocation, and durable
-   accountability across persistence paths against merged
-   [#2631](https://github.com/Identity-Digital/dnsid/pull/2631). SDKs retain the
-   original request/key; successful replay after governance changes is not
-   unconditional. Implementation coverage remains at its reviewed baselines.
+The [registration contract](05-transport-and-registry.md#unified-registration-profile-proposed)
+currently requires authenticated agent detail to establish publication authority.
+Should ordinary creation return it directly to avoid the extra read and
+partial-success recovery?
 
 ## Resolved Questions
-
-Merged #2631 retains managed Live creation through `POST /agent` with
-`tier="live", managed=true` and HTTP 202 `LiveProvisioningResponse`. A replacement
-admission endpoint is not a prerequisite for SDK support. Supported released-client
-selectors are mapped or rejected by the registry, not silently ignored. See
-[05: Released-Client Selectors](05-transport-and-registry.md#released-client-selectors)
-and [05: LiveAgentRegistrationInput](05-transport-and-registry.md#liveagentregistrationinput).
 
 Operation-level `logchk` uses the operation-independent
 `VerifyLogEvidence(verifiedDomain, at)` primitive defined in

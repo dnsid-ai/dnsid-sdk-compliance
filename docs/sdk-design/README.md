@@ -16,11 +16,6 @@ C2SP log-method specification and its SDK binding.
 
 Implementation coverage for each SDK is tracked in [implementations/README.md](implementations/README.md).
 
-Registration changes are defined in the
-[proposed unified registration profile](05-transport-and-registry.md#unified-registration-profile-proposed);
-its [open integration questions](08-open-questions.md#unified-registration-profile)
-remain pending.
-
 The documents are organized by SDK responsibility:
 
 - DNSid core remains centered on `IdentityManager`.
