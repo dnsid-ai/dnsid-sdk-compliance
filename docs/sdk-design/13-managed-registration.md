@@ -34,27 +34,19 @@ Names below are language-neutral. Signatures abbreviate native cancellation,
 deadline, and injected-dependency parameters.
 
 ```
-BeginManagedRegistration(loaded: LoadedConfig,
-                         credential,
-                         store: ManagedRegistrationStore,
-                         input?: AgentRegistrationInput) -> ManagedIdentityHandle
-
-RegisterManagedIdentity(loaded, credential, store, input?) -> ManagedRegistrationResult
-  = BeginManagedRegistration(loaded, credential, store, input?).Active()
-
-ManagedIdentityHandle.Active() -> ManagedRegistrationResult
+RegisterManagedIdentity(loaded: LoadedConfig,
+                        credential,
+                        store: ManagedRegistrationStore,
+                        input?: AgentRegistrationInput) -> ManagedRegistrationResult
 ```
 
-`BeginManagedRegistration` creates or resumes one durable local setup operation.
-It returns a handle after the assigned immutable identity is known, without
-claiming that public verification has completed. `Active` drives remaining setup
-and returns only after the completion checks below. The eager convenience
-function uses exactly that path, with no second implementation of setup.
+`RegisterManagedIdentity` creates or resumes one durable local setup operation
+and returns after the public completion checks below. Errors report the assigned
+domain and immutable registration ID when known, the observed registry workflow
+state, and separate setup convergence state. Registry `PROVISIONING`, `VERIFIED`,
+or `READY` is progress, not successful protocol `ACTIVE`.
 
-A handle exposes the assigned domain and immutable registration ID, observed
-registry workflow state, and separate setup convergence state. Registry
-`PROVISIONING`, `VERIFIED`, or `READY` MUST NOT be exposed as successful protocol
-`ACTIVE`. The result contains the retained registration/publication snapshot,
+The result contains the retained registration/publication snapshot,
 a configured local `IdentityManager`, `PublishedRecord`, and
 `LoggedStateEvidence`. It is evidence at an observation time, not a perpetual
 promise of activity or application authorization.
@@ -63,9 +55,10 @@ Calling the workflow again against the same store resumes the same operation.
 After completion it opens that identity and checks current public evidence;
 it does not register again, prepare another ISSUANCE, or append an event merely
 because the process restarted. Conflicting input or deployment bindings fail
-rather than changing the operation. An explicitly supplied registration public
-key MUST match the selected operational provider; otherwise the workflow
-supplies its public key without sending private key material.
+rather than changing the operation. During initial setup, an explicitly supplied
+registration public key MUST match the selected operational provider; otherwise
+the workflow supplies its public key without sending private key material.
+Completed-operation resume uses the rotation-aware checks below.
 
 ## Configuration and Trust
 
@@ -87,6 +80,11 @@ Setup expectations are not registration selectors. Request a particular GI/root
 through `input` under the rules in 05; do not silently translate an expected GI
 into another selector or fall back to a different root. An omitted input uses
 the ordinary public-key-only request, which must still satisfy the expectations.
+When `input.governanceDomain` is explicit, normalize and compare it with the
+configured expected GI before key generation or network mutations. A mismatch
+returns an argument error. Root eligibility and effective publication bindings
+remain registry checks. The placement of selectors and expectations is an
+[open configuration question](08-open-questions.md#managed-registration-configuration).
 
 Log trust remains an explicit `logTrust` selection or injected `LogRegistry`.
 Validate the assigned log reference with its selected binding and independently
@@ -126,13 +124,17 @@ when called on the local domain.
 Use one durable setup operation that composes the existing binding-owned issuance
 state; do not build a competing lifecycle coordinator or append path.
 
-1. Validate static configuration and request shape before network mutations.
-2. Select an injected/configured operational provider, or durably create a local
-   key through the file store. Retain its stable provider reference and public
-   binding. No registry call receives private material.
-3. Durably create the complete registration request and distinct replay keys for
-   registration and issuance before creation. Bind recovery to the registry and,
-   where the adapter exposes it, the authenticated organization.
+1. Validate static configuration and request shape. Acquire exclusive store
+   access, then load and validate existing recovery state before key selection,
+   generation, or network mutations.
+2. Resolve the stable owning organization through the registry adapter using the
+   supplied credential. Validate its match with saved state and establish the
+   adapter's replay/reconciliation capability. Persist the setup intent, registry,
+   organization, input, replay policy, and distinct registration/issuance replay
+   keys before key generation.
+3. Recover or select the operational provider, or durably create one local key.
+   Persist its stable provider reference/public binding and the complete
+   registration request before creation. No registry call receives private material.
 4. Register or replay the identical request/key. Preserve all known creation
    facts and recoverable post-creation errors. Retain immutable ID, domain,
    publication configuration, and OIDC issuer before subsequent work.
@@ -150,18 +152,69 @@ state; do not build a competing lifecycle coordinator or append path.
    and fresh complete lifecycle evidence through `VerifyLogEvidence`.
 9. Durably mark setup complete and return the result.
 
-An unknown creation outcome may be replayed only while the adapter's original
-idempotency guarantee applies. If retention has expired or safe replay cannot be
-established, return a reconciliation-required error unless the adapter can
-resolve the original operation/immutable identity safely. Missing local creation
-facts are not proof that no identity exists.
-
 Registry-owned status/publication is observed, not controlled by an application
 callback. A consumer of this workflow MUST NOT have to provide a no-op activation
 controller or publish endpoints. Internal issuance adapters still preserve their
 required durable ordering. Publication confirmation remains the internal
 protocol-only control-plane operation defined in 05; setup's expected-binding
 check is not a public counterparty-acceptance bypass.
+
+## Organization and Creation Replay
+
+The registry adapter MUST resolve a stable owning-organization identifier from
+an authenticated server response before creation. Persist it with the registry
+binding and validate it with the current credential on resume before mutations.
+Credential replacement within that organization is supported. A mismatch or
+unavailable authenticated binding returns a typed error. Credential hashes and
+caller-supplied organization labels are insufficient to establish this binding.
+This is an adapter capability requirement, not a new portable registry endpoint.
+
+The adapter MUST provide at least one safe recovery mechanism:
+
+- a documented minimum creation-idempotency retention guarantee, including its
+  scope and start conditions; or
+- authenticated reconciliation of the original organization/request key that
+  resolves its identity or establishes that submitting that same request is safe.
+
+Safe reconciliation preserves an authoritative operation claim or equivalent
+replay guarantee through any subsequent submission. A plain "not found" result
+is inconclusive.
+
+Validate capability before creation. Persist the selected recovery mechanism and
+the first attempt's start time before sending the request. For retention-based
+replay, also persist the guarantee and derive a conservative deadline from the
+minimum retention, accounting for clock uncertainty across restarts. Retries keep
+that original deadline; later responses do not reset it. A reconciliation-only
+adapter resolves each unknown creation outcome before another submission.
+A transport error or an unauthenticated/missing lookup result does not establish
+safe replay.
+
+Replay an unknown creation outcome only within the established guarantee. Beyond
+that bound, or when time/guarantee validity is uncertain, use safe reconciliation
+or return a reconciliation-required error. A resolved identity must match the
+original request, operational public key, and retained creation facts. Preserve
+any known identity without allocating a replacement. Missing local creation facts
+are not proof that no identity exists.
+
+## Completed-Operation Resume
+
+Keep the original request, initial public key, entity pin, and exact issuance
+bytes as historical setup evidence. For completed setup, validate the current
+operational key against fresh verified lifecycle history and the provider's
+current signing key. Authorized rotations may change that key while preserving
+the original setup operation and immutable identity.
+
+Validate the original issuance against its saved historical public material;
+its old private key is not required to open a completed identity. The returned
+manager uses the verified current signing key. A different key without verified
+rotation continuity returns a typed binding error. The registration workflow
+observes completed rotations; it does not initiate or finish pending rotations.
+Pending rotation uses the existing rotation recovery coordinator.
+
+An explicit input on resume must match the saved original creation request,
+including any originally supplied public key. Omitted input reuses that request.
+The stricter original-provider/key check still applies to unfinished issuance.
+A terminal public identity returns a typed error with its history retained.
 
 ## Storage and Recovery
 
@@ -170,13 +223,27 @@ transition persistence for one setup operation, including the issuance state.
 Bindings may reuse their existing storage interfaces internally. Custom database
 storage remains possible without requiring it from ordinary consumers.
 
+Exclusive access covers loading, validation, key handling, and every transition
+through completion or error. Release it on return, cancellation, or failure after
+persisting recoverable transitions. A competing invocation returns a typed busy
+error. Deadline/cancellation applies to lock acquisition as well as network work.
+
+Before generating a key, persist enough intent and a stable key locator to
+recover that same key after interruption. A provider must support durable
+rediscovery at this boundary or report an ambiguous key-creation failure.
+Partial initialization is validated before another key is generated. An empty
+new store is distinct from a store with incomplete or inconsistent artifacts.
+
 `FileRegistrationStore(directory)` MUST provide:
 
 - restrictive permissions or equivalent owner-only platform access controls;
 - exclusive access and a documented interrupted-process lock recovery policy;
 - atomic durable updates, including directory durability where the platform
   requires it, or explicit filesystem/platform prerequisites;
-- the original complete request, replay keys, creation facts, retained snapshot,
+- initialization intent/key locator, authenticated organization and registry
+  binding, recovery mechanism/first-attempt time and any replay guarantee/deadline,
+  original complete request,
+  replay keys, creation facts, retained snapshot,
   effective setup/deployment bindings and trust reference, provider reference/public
   key binding, trusted entity key, exact prepared and completed issuance
   bytes/outcomes, and convergence progress;
@@ -186,9 +253,10 @@ storage remains possible without requiring it from ordinary consumers.
 
 After submission may have begun, only the original completed bytes and replay
 key may be retried. Accepted issuance is not resubmitted; terminal outcomes
-remain terminal. A missing key or provider/key mismatch on an existing operation
-is a typed failure with recovery guidance, not a reason to generate another key,
-replace an identity, or administratively authorize rotation.
+remain terminal. Missing current private material or an unexplained provider/key
+mismatch returns a typed error with recovery guidance. During unfinished setup,
+use the original key binding; after completion, use verified rotation continuity.
+Key loss does not authorize replacement creation or rotation.
 
 The store is operational recovery data, not a shared deployment file. Bindings
 must document backup requirements and that ephemeral/container-local storage is
@@ -226,15 +294,24 @@ for workflow ordering and recovery:
 |---|---|
 | Fresh managed setup | Key/request/intent persisted before mutations; success only after public completion checks. |
 | Identical inputs from file, environment, and code | Same effective configuration and setup behavior; credentials kept outside configuration and recovery state. |
-| Concurrent use of one local store | One exclusive operation; no duplicate creation or issuance. |
+| Concurrent use of one local store | One exclusive operation from load through return; competing caller receives a typed busy error. |
+| Interrupted initial key generation/persistence | Recover the same key from saved intent/locator or report ambiguous partial initialization before further mutations. |
+| Credentials replaced within the same organization | Resume the original operation with the same replay keys. |
+| Credentials resolve to another organization or cannot establish ownership | Typed error before mutations; original operation retained. |
+| Adapter provides no replay guarantee or safe reconciliation | Capability error before creation. |
 | Timeout after creation or failure of detail read | Original request/key and known creation facts retained; replay within the adapter's guarantee addresses the original operation. |
-| Unknown creation outcome beyond safe request-key replay retention | Reconciliation required; no blind replay or replacement allocation. |
+| Unknown creation outcome beyond safe replay retention or with uncertain time | Safe reconciliation or a reconciliation-required error; original deadline unchanged. |
+| Reconciliation returns a conflicting identity/key or an inconclusive lookup | Typed error; no replacement allocation. |
 | Interrupt before/after preparation, submission, acceptance, publication, or completion persistence | Resume at every boundary; unknown append uses identical bytes; accepted append is not repeated. |
 | Missing key, conflicting provider/input, corrupt outcome, or absent signed bytes after submission | Typed failure before another mutation; no replacement key/identity. |
+| Explicit requested GI disagrees with configured expected GI | Argument error before key generation or network mutations. |
 | Returned authority, GI, entity endpoint/key, publication snapshot, log instance, or operational binding disagrees | Stop before unauthorized countersigning or success. |
 | Registry READY but DNS/evidence absent | Continue bounded convergence or return a resumable error. |
 | Invalid signature, policy denial, terminal rejection, or unsupported profile | Fail closed without broad retry or policy modification. |
 | Cancellation/deadline after a mutation | Recovery preserved; no success and no implicit rollback/recreation. |
 | Completed operation resumed | Same immutable identity, new public observation, no creation/preparation/append. |
+| Completed operation resumed after authorized key rotation | Validate historical issuance separately; verified current key configures the returned manager without requiring the old private key. |
+| Completed operation resumed with an unexplained key change or pending rotation | Binding error or existing rotation recovery guidance; setup does not rotate. |
+| Completed identity is revoked/retired | Typed terminal error; original history retained. |
 | Setup entity excluded by application allowlist | Setup does not change the allowlist; returned manager's public verification still enforces it. |
 | Local identity absent versus a matching supplied identity snapshot | Same setup checks; conflicting supplied snapshot fails. |
