@@ -352,15 +352,18 @@ history.
 [13: Managed Registration](13-managed-registration.md) defines the consumer-facing
 composition of registration, durable recovery, managed issuance, publication,
 and public readiness checks. Bindings provide a file-backed recovery store and
-SDK-owned adapters and retries.
+SDK-owned registry integration and retries; consumers do not implement a recovery
+adapter.
 This workflow sits above the following low-level client; it does not change
 endpoint wire behavior or registry ownership of lifecycle convergence.
 
-Adapters used by this workflow must provide authenticated stable organization
-resolution and a documented creation replay guarantee or safe reconciliation,
-as defined in [13](13-managed-registration.md#organization-and-creation-replay).
-Missing capabilities fail before creation. These requirements do not add methods
-to the low-level `RegistryClient` or change endpoint wire formats.
+Automatic creation recovery requires the permanent server-side idempotency
+contract below. Organization authorization and cross-organization key-reuse
+rejection belong to the registry, not a separate SDK adapter. These requirements
+use the existing `Idempotency-Key` header and do not add an organization-lookup
+endpoint or change registration JSON. This is a revised server contract, not a
+claim of current hosted-registry support. Verify it with server integration tests
+before enabling automatic managed recovery or replacing working examples.
 
 ### RegistryClient
 
@@ -605,15 +608,33 @@ or `MANAGED_GOVERNANCE_UNAVAILABLE` response can leave an identity already creat
 Errors retain the request/key and any known creation facts, not a claim that no
 agent exists.
 
-Idempotency claims are scoped to the authenticated organization. Within retention,
-identical keyed retries address the original identity without resolving a new
-root, even after zone deactivation. Publication configuration is
-recomputed: stale or unverified managed governance returns 409
-`MANAGED_GOVERNANCE_UNAVAILABLE`, so successful replay is not unconditional.
-SDKs do not allocate another identity or silently replace saved publication
-configuration or trust policy. Changed input can return 422
-`IDEMPOTENCY_MISMATCH` or a preceding validation/authorization/infrastructure
-error; preserve the actual error and original key.
+For ordinary keyed creation, the registry MUST atomically claim the key and bind
+it to the authenticated organization, complete request fingerprint, and one
+immutable registration. Concurrent matching requests converge on that same
+registration; they MUST NOT allocate additional identities. Creation success is
+returned only after this binding and registration are durably committed. A lost
+response does not undo the binding.
+
+The key is unique across organizations within that registry, not merely within
+one organization. Reuse from another organization MUST fail authorization without
+revealing the original registration or allocating another identity. Replacing a
+credential within the owning organization does not change the operation. SDKs
+SHOULD generate random keys with at least 128 bits of entropy.
+
+The binding MUST be retained permanently. It does not expire after inactivity,
+zone deactivation, retirement, or deletion of the registration. A retained claim
+or tombstone prevents reuse even when the original registration is no longer
+available; return a terminal error rather than allocate a replacement.
+Identical keyed retries address the original identity without resolving a new
+root. Changed input MUST NOT modify that identity or allocate another; it can
+return 422 `IDEMPOTENCY_MISMATCH` or a preceding validation, authorization, or
+infrastructure error. Preserve the actual error and original key.
+
+Publication configuration may be recomputed: stale or unverified managed
+governance returns 409 `MANAGED_GOVERNANCE_UNAVAILABLE`, so successful replay is
+not unconditional. SDKs do not silently replace saved publication configuration
+or trust policy. These creation guarantees are registry requirements, not DNSid
+protocol rules, and do not alter the separate Live workflow.
 
 #### LiveAgentRegistrationInput
 
@@ -785,7 +806,11 @@ governance persistence also require server integration tests, not SDK coordinati
 | Invalid inputs | Reject conflicting selectors, missing keys for assigned names, invalid URLs, and private JWK members, including nested JWKS material. |
 | Invalid response or root/admission failure | Fail closed, preserve known creation facts and server errors, and make no fallback request. |
 | Supported existing selectors and managed Live | Preserve existing request behavior; Live still returns 202 provisioning, not ordinary 201 registration. |
-| Keyed replay, including stale GI or changed input | Retain the original request/key and identity; preserve governance/mismatch errors without replacement allocation or cross-organization replay. |
+| Keyed replay, including stale GI or changed input | Retain the original request/key and identity; preserve governance/mismatch errors without replacement allocation. |
+| Concurrent identical keyed creates | One atomic operation claim and one immutable identity; no losing allocation. |
+| Same key with a different organization's credential | Authorization failure without disclosure or another allocation. |
+| Keyed replay after restart, long interruption, retirement, or deletion | Permanent binding survives; original identity or terminal error, never a replacement. |
+| Response lost after durable creation commit | Identical retry returns the original identity without a second allocation. |
 | Timeout or post-creation failure | Retain known facts for recovery; never imply that failure proves no identity exists. |
 
 #### PublishedRecord

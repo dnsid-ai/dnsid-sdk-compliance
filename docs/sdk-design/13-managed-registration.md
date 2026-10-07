@@ -9,7 +9,9 @@ DNSid wire behavior, registration selectors, and lifecycle authority.
 The SDK owns recovery storage, issuance-store adapters, entity-key retrieval,
 and retries for the ordinary managed flow. Bindings MUST expose equivalent
 behavior through idiomatic APIs and provide a local file-backed store.
-Existing low-level APIs remain available for custom deployments.
+Existing low-level APIs remain available for custom deployments. The SDK MUST
+provide the registry client implementation needed by this workflow; consumers
+supply configuration, credentials, and storage, not a recovery adapter.
 
 ## Scope and Ownership
 
@@ -127,11 +129,9 @@ state; do not build a competing lifecycle coordinator or append path.
 1. Validate static configuration and request shape. Acquire exclusive store
    access, then load and validate existing recovery state before key selection,
    generation, or network mutations.
-2. Resolve the stable owning organization through the registry adapter using the
-   supplied credential. Validate its match with saved state and establish the
-   adapter's replay/reconciliation capability. Persist the setup intent, registry,
-   organization, input, replay policy, and distinct registration/issuance replay
-   keys before key generation.
+2. Persist the setup intent, registry binding, input, and distinct random
+   registration/issuance idempotency keys before key generation. On resume,
+   retain those keys and reject conflicting registry bindings or input.
 3. Recover or select the operational provider, or durably create one local key.
    Persist its stable provider reference/public binding and the complete
    registration request before creation. No registry call receives private material.
@@ -161,40 +161,32 @@ check is not a public counterparty-acceptance bypass.
 
 ## Organization and Creation Replay
 
-The registry adapter MUST resolve a stable owning-organization identifier from
-an authenticated server response before creation. Persist it with the registry
-binding and validate it with the current credential on resume before mutations.
-Credential replacement within that organization is supported. A mismatch or
-unavailable authenticated binding returns a typed error. Credential hashes and
-caller-supplied organization labels are insufficient to establish this binding.
-This is an adapter capability requirement, not a new portable registry endpoint.
+Ordinary keyed creation uses the permanent server-side idempotency contract in
+[05](05-transport-and-registry.md#registration-replay-and-recovery). The API key
+or session credential identifies the owning organization to the registry; the
+SDK does not need a separate organization lookup or caller-supplied organization
+label. The server binds the registration key to that organization, the complete
+request, and one immutable registration before returning creation success.
 
-The adapter MUST provide at least one safe recovery mechanism:
+The registration key is unique across organizations within the registry.
+Credential replacement within the owning organization can resume the operation.
+A credential from another organization MUST NOT replay the identity or allocate
+another identity with that key; the registry rejects the request without exposing
+the original identity. This check belongs to authenticated server-side creation,
+not a consumer adapter.
 
-- a documented minimum creation-idempotency retention guarantee, including its
-  scope and start conditions; or
-- authenticated reconciliation of the original organization/request key that
-  resolves its identity or establishes that submitting that same request is safe.
+After a timeout or lost response, retry the original complete request and key.
+The server retains the binding permanently, including after retirement or
+deletion; replay never allocates a replacement. No retention window, first-attempt
+timestamp, replay deadline, or reconciliation callback is required. HTTP deadlines
+bound an invocation, not the lifetime of its registration key.
 
-Safe reconciliation preserves an authoritative operation claim or equivalent
-replay guarantee through any subsequent submission. A plain "not found" result
-is inconclusive.
-
-Validate capability before creation. Persist the selected recovery mechanism and
-the first attempt's start time before sending the request. For retention-based
-replay, also persist the guarantee and derive a conservative deadline from the
-minimum retention, accounting for clock uncertainty across restarts. Retries keep
-that original deadline; later responses do not reset it. A reconciliation-only
-adapter resolves each unknown creation outcome before another submission.
-A transport error or an unauthenticated/missing lookup result does not establish
-safe replay.
-
-Replay an unknown creation outcome only within the established guarantee. Beyond
-that bound, or when time/guarantee validity is uncertain, use safe reconciliation
-or return a reconciliation-required error. A resolved identity must match the
-original request, operational public key, and retained creation facts. Preserve
-any known identity without allocating a replacement. Missing local creation facts
-are not proof that no identity exists.
+Validate every returned identity against the original request, operational public
+key, and retained creation facts. Preserve any known identity and publication
+snapshot on errors. Missing local creation facts are not proof that no identity
+exists. Registries without this server contract are not supported by the automatic
+managed workflow; low-level APIs remain available without an automatic-retry
+promise. SDKs MUST NOT replace this requirement with an unimplemented adapter.
 
 ## Completed-Operation Resume
 
@@ -240,10 +232,8 @@ new store is distinct from a store with incomplete or inconsistent artifacts.
 - exclusive access and a documented interrupted-process lock recovery policy;
 - atomic durable updates, including directory durability where the platform
   requires it, or explicit filesystem/platform prerequisites;
-- initialization intent/key locator, authenticated organization and registry
-  binding, recovery mechanism/first-attempt time and any replay guarantee/deadline,
-  original complete request,
-  replay keys, creation facts, retained snapshot,
+- initialization intent/key locator, registry binding, original complete request,
+  idempotency keys, creation facts, retained snapshot,
   effective setup/deployment bindings and trust reference, provider reference/public
   key binding, trusted entity key, exact prepared and completed issuance
   bytes/outcomes, and convergence progress;
@@ -297,11 +287,10 @@ for workflow ordering and recovery:
 | Concurrent use of one local store | One exclusive operation from load through return; competing caller receives a typed busy error. |
 | Interrupted initial key generation/persistence | Recover the same key from saved intent/locator or report ambiguous partial initialization before further mutations. |
 | Credentials replaced within the same organization | Resume the original operation with the same replay keys. |
-| Credentials resolve to another organization or cannot establish ownership | Typed error before mutations; original operation retained. |
-| Adapter provides no replay guarantee or safe reconciliation | Capability error before creation. |
-| Timeout after creation or failure of detail read | Original request/key and known creation facts retained; replay within the adapter's guarantee addresses the original operation. |
-| Unknown creation outcome beyond safe replay retention or with uncertain time | Safe reconciliation or a reconciliation-required error; original deadline unchanged. |
-| Reconciliation returns a conflicting identity/key or an inconclusive lookup | Typed error; no replacement allocation. |
+| Credentials belong to another organization | Server rejects reuse of the original registration key without disclosure or another allocation; original operation retained. |
+| Timeout after creation or failure of detail read | Original request/key and known creation facts retained; identical replay addresses the original operation. |
+| Resume after a long interruption or local clock change | Same request/key addresses the original operation; no replay expiration or time-based recovery policy. |
+| Replay returns a conflicting identity/key | Typed binding error; retained facts unchanged and no replacement allocation. |
 | Interrupt before/after preparation, submission, acceptance, publication, or completion persistence | Resume at every boundary; unknown append uses identical bytes; accepted append is not repeated. |
 | Missing key, conflicting provider/input, corrupt outcome, or absent signed bytes after submission | Typed failure before another mutation; no replacement key/identity. |
 | Explicit requested GI disagrees with configured expected GI | Argument error before key generation or network mutations. |
