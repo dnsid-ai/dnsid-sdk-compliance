@@ -356,6 +356,12 @@ SDK-owned adapters and retries.
 This workflow sits above the following low-level client; it does not change
 endpoint wire behavior or registry ownership of lifecycle convergence.
 
+Adapters used by this workflow must provide authenticated stable organization
+resolution and a documented creation replay guarantee or safe reconciliation,
+as defined in [13](13-managed-registration.md#organization-and-creation-replay).
+Missing capabilities fail before creation. These requirements do not add methods
+to the low-level `RegistryClient` or change endpoint wire formats.
+
 ### RegistryClient
 
 Operator-side client for DNSid registry workflows for the local identity's own managed records. `RegistryClient` is not used by `VerifyDomain` when validating external identities; protocol verification always fetches the `su` endpoint asserted in the signed TXT record.

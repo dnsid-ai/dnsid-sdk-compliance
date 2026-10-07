@@ -4,6 +4,14 @@ This document tracks SDK design questions that are not yet resolved.
 
 There are no unresolved shared protocol/lifecycle design questions at this time.
 
+## Managed Registration Configuration
+
+Creation selectors and expected setup bindings currently live in separate inputs.
+For a requested GI, callers supply both `input.governanceDomain` and
+`registration.governanceId`. Decide how to reduce this duplication while retaining
+explicit request routing and independent validation of returned publication facts.
+The current shape remains in place; explicit contradictions fail before creation.
+
 ## Resolved Questions
 
 Operation-level `logchk` uses the operation-independent
