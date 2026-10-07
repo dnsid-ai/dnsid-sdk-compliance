@@ -351,15 +351,10 @@ history.
 
 [13: Managed Registration](13-managed-registration.md) defines the consumer-facing
 composition of registration, durable recovery, managed issuance, publication,
-and public readiness checks. All three bindings provide a file-backed recovery
-store so ordinary consumers do not implement these adapters or retry loops.
+and public readiness checks. Bindings provide a file-backed recovery store and
+SDK-owned adapters and retries.
 This workflow sits above the following low-level client; it does not change
 endpoint wire behavior or registry ownership of lifecycle convergence.
-
-Future hosted-product `create(name)` composes that workflow with authenticated,
-organization-scoped persistent name resolution. `AgentRegistrationInput.name`
-is display metadata, not a uniqueness or lookup contract, and request replay
-keys alone cannot implement durable named creation.
 
 ### RegistryClient
 

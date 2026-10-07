@@ -37,7 +37,7 @@ The documents are organized by SDK responsibility:
 | [10-web-bot-auth.md](10-web-bot-auth.md) | Web Bot Auth profile using RFC 9421 primitives and an HTTP Message Signatures Directory. |
 | [11-c2sp-tlog-binding.md](11-c2sp-tlog-binding.md) | C2SP transparency-log binding: references, envelopes, split signing, prepared submission, tiled-log verification, policy, witnesses, and completeness. |
 | [12-configuration-loading.md](12-configuration-loading.md) | Configuration sources: environment variable schema, deployment file, merge rule, and convenience constructors. Loaders parse; constructors default. |
-| [13-managed-registration.md](13-managed-registration.md) | Consumer-facing managed setup, built-in durable local recovery, bounded convergence, public readiness checks, and the boundary for future product-level named creation. |
+| [13-managed-registration.md](13-managed-registration.md) | Consumer-facing managed setup, built-in durable local recovery, bounded convergence, and public readiness checks. |
 | [conformance/](conformance/) | Language-neutral RFC 9421 signature-base, lifecycle reducer, snapshot, and binding-selection vectors shared by SDK implementations. |
 
 ## Configuration
@@ -63,7 +63,7 @@ These SDK configuration and acceptance contracts do not change protocol wire
 behavior. Implementation trackers record reviewed baselines, not claims that
 this revised surface is already implemented. Replacing the public constructors
 and configuration types is a breaking SDK API change, with no compatibility
-shims. All three SDK implementation trackers require a full review against the
+shims. SDK implementation trackers require a full review against the
 settled contract before their baselines or coverage claims are advanced; follow
 [the implementation review procedure](AGENTS.md#updating-sdk-implementation-coverage).
 
@@ -226,13 +226,11 @@ DNSid core does not depend on any application authentication profile.
   -> shared key and durable storage interfaces
 ```
 
-Configuration loading sits above core: it constructs an `IdentityManager` and
-its log registry, so core never imports it. Bindings place it in a separate
-package when their module system requires acyclic imports. Managed registration
-also sits above these components; core never imports the setup workflow. The
-contract in 13 is a design requirement, not a claim of current implementation
-coverage. Future product `create(name)` adds persistent named resolution above
-that workflow, not behavior to core verification.
+Configuration loading constructs an `IdentityManager` and its log registry.
+Managed registration composes core, configuration loading, registry clients, and
+log bindings. Dependencies point from these higher-level modules to core. Use
+separate packages where the module system requires acyclic imports.
+Implementation trackers record coverage of the contract in 13.
 
 ## Naming
 
