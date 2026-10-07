@@ -3,8 +3,6 @@
 This document tracks SDK design questions that are not yet resolved.
 
 There are no unresolved shared protocol/lifecycle design questions at this time.
-The portable managed-registration contract is defined in
-[13](13-managed-registration.md).
 
 ## Resolved Questions
 
