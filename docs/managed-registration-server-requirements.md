@@ -102,6 +102,27 @@ the acceptance checks. Source observations below refer to `~/dnsid` commit
 | SR-6 | Explicit replacement after revocation/retirement: fresh operational key, new immutable ID/domain/log stream, atomic name reassignment, and preserved terminal history. Reject reuse of any initial or rotated key of the previous identity. Old delayed requests must not change the current name holder. | Revoke/retire and immutable agent IDs exist, but there is no named replacement mapping. Active-key uniqueness alone does not enforce historical key non-reuse. |
 | SR-7 | Recover workflow handoff after interruption so the same creation progresses without reallocation. A replay must not strand an identity whose worker was never started. | `handleCreateAgent` documents a crash gap between agent creation and Temporal start. Its stated recovery is the provisioning cleanup timeout, not resumable handoff. |
 | SR-8 | Independent replicas must converge on one ISSUANCE using the SDK's derived issuance key. Opening a completed identity must not require another preparation or append. Preserve exact-byte submission and public readiness checks. | `handlePrepareTLogIssuance`, `handleSubmitTLogEvent`, and `RegistrationWorkflow` provide the existing issuance path. Verify integration with named opening, replica concurrency, and recovery; do not add a second append path. |
+| SR-9 | Serve each operational key at a distinct HTTPS URL on the identity FQDN: `https://<agent-domain>/.well-known/<key-thumbprint>-jwks.json`, using its RFC 7638 thumbprint. Bind that URL permanently to that public key, return it in publication configuration, and publish it as signed TXT `ku`. On rotation publish the new key URL and entity-signed TXT under the existing rotation coordinator; retain the old key URL for a configured bounded interval after TXT publication. Each endpoint serves one public signing key, never both keys or private material. | PRD (3), Journey 2 and custody boundaries. New requirement; current server endpoint routing, rotation publication, and cache behavior have not been reviewed for this contract. |
+
+### Key-Specific Operational Endpoints (SR-9)
+
+The path convention is a Foundry hosting requirement, not a DNSid protocol rule.
+The SDK consumes the returned URL and verifies the signed current `ku`; it does
+not construct URLs from key IDs, provider aliases, or the registration name.
+
+The old URL remains bound to the old public key during the retention interval.
+Never redirect it to the new key, overwrite its JWK with the new key, or later
+reuse the URL for another key. After the interval, the endpoint may become
+unavailable; origin/CDN cache lifetimes must not extend endpoint availability
+past the configured hosting retention interval. Retention duration is server configuration; the PRD leaves the
+number of minutes unspecified.
+
+This is an overlap of distinct URLs, not an old/new key set at the current `ku`.
+The freshly verified signed TXT selects only the new URL after publication.
+Keeping the old URL available does not extend old-key signing authority, bypass
+rotation continuity checks, or replace historical public-key evidence in the log.
+Application signing stays paused until the rotation's accepted log entry and
+new publication have been verified; registry publication alone is not completion.
 
 ## Acceptance Checks
 
@@ -125,6 +146,16 @@ permanent or atomic recovery.
   the original operation resumes with no orphan or duplicate allocation.
 - [ ] SR-8: matching replicas produce one ISSUANCE; restart and authorized rotation
   open the same completed identity without another preparation or append.
+- [ ] SR-9: creation returns and publishes the initial key-specific `ku`; HTTPS
+  serves exactly its one public signing key with valid TLS for the identity FQDN.
+- [ ] SR-9: rotation publishes a distinct new key URL and valid entity-signed TXT;
+  its accepted log entry establishes continuity. The old URL still serves only
+  the old key during the configured interval, with no redirect or key rebinding.
+- [ ] SR-9: interrupted rotation resumes the same operation and key URLs. SDK
+  signing resumes only after accepted log evidence and new publication converge.
+- [ ] SR-9: old-URL retention and origin/CDN cache expiry obey the configured
+  interval. Fresh verification follows the new signed `ku`, rejects unexplained
+  changes, and never falls back to the retained old URL as the current key.
 
 ## Other PRD Differences, Not Changed by Named Registration
 
