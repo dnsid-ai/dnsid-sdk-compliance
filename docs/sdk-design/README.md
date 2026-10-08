@@ -39,12 +39,11 @@ The documents are organized by SDK responsibility:
 | [10-web-bot-auth.md](10-web-bot-auth.md) | Web Bot Auth request signing and verification, with signed-directory serving and verification, using RFC 9421 primitives and DNSid identity binding. |
 | [11-c2sp-tlog-binding.md](11-c2sp-tlog-binding.md) | C2SP transparency-log binding: references, envelopes, split signing, prepared submission, tiled-log verification, policy, witnesses, and completeness. |
 | [12-configuration-loading.md](12-configuration-loading.md) | Configuration sources: environment variable schema, deployment file, merge rule, and convenience constructors. Loaders parse; constructors default. |
-| [13-managed-registration.md](13-managed-registration.md) | Named managed setup, organization-scoped local recovery, deterministic creation keys, bounded convergence, and public readiness checks. |
+| [13-managed-registration.md](13-managed-registration.md) | Named managed setup, durable recovery, and public readiness checks. |
 | [conformance/](conformance/) | Language-neutral RFC 9421 signature-base, lifecycle reducer, snapshot, and binding-selection vectors shared by SDK implementations. |
 
-Required hosted-registry changes and acceptance checks are tracked separately in
+Hosted-registry work is tracked in
 [Managed Registration Server Requirements](../managed-registration-server-requirements.md).
-That tracker does not establish server or SDK implementation coverage.
 
 ## Configuration
 
@@ -299,11 +298,8 @@ DNSid core does not depend on any application authentication profile.
   -> shared key and durable storage interfaces
 ```
 
-Configuration loading constructs an `IdentityManager` and its log registry.
-Managed registration composes core, configuration loading, registry clients, and
-log bindings. Dependencies point from these higher-level modules to core. Use
-separate packages where the module system requires acyclic imports.
-Implementation trackers record coverage of the contract in 13.
+Configuration loading and managed registration depend on core, not the reverse.
+Use separate packages where needed to keep imports acyclic.
 
 ## Naming
 
