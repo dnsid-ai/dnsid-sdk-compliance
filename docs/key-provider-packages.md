@@ -3,7 +3,7 @@
 Binding-specific loading for the shared
 [key-source contract](sdk-design/12-configuration-loading.md#operational-key-source-selection).
 These are design requirements, not implementation coverage. Factories belong to
-SDK setup composition, not core verification.
+SDK configuration composition, not core verification.
 
 | Binding | Loading mechanism | Missing-provider remedy |
 |---|---|---|
@@ -15,5 +15,5 @@ Loading the base SDK must not load every cloud dependency. Test selected-only
 loading and missing packages/factories, alongside
 [configuration checks](sdk-design/12-configuration-loading.md#validation-scenarios)
 for injection precedence, validation, and no fallback. Cloud checks must also cover
-stable key discovery and supported algorithms; loading a package does not prove
+stable existing-key references and supported algorithms; loading a package does not prove
 key availability or authorization.
