@@ -512,47 +512,25 @@ RegistryClient.SubmitPreparedEvent(domain: string, entryBytes: bytes,
   // HTTP error and is never reported as an accepted result.
 ```
 
-For a managed `ku` rotation, the SDK generates the new key inside the selected
-customer-controlled provider and never sends private material to the registry.
-An explicit rotation may target a different provider; changing deployment
-configuration alone does not authorize a provider/key switch. In the current product,
-`PrepareKeyRotation` requires an owning-organization session credential or
-organization API key; an agent self-auth bearer credential is deliberately not
-accepted because the key being replaced must not authorize its own replacement.
-This control-plane authorization does not replace commit authority from the
-previous operational signature. For the `c2sp-tlog` binding the SDK also signs
-with the pending new key as proof of possession. Before submission, the SDK durably persists the exact
-rotation state and pauses application signing through required injected
-dependencies. After receiving an accepted submission result bound to the exact
-entry hash and new key, it persists acceptance, activates the new key, supersedes
-the old key, persists activation, and only then resumes signing. If submission is
-indeterminate after publication but before the immutable append converges,
-signing remains paused while the registry reconciles the same entry; it does not
-create a replacement rotation. Restart recovery follows the core
-[managed rotation recovery contract](01-core-identity-manager.md#managed-rotation-recovery-contract).
+`PrepareKeyRotation` requires an owning-organization session credential or API key,
+not agent self-auth. This control-plane authorization does not replace the previous
+operational signature; `c2sp-tlog` also requires new-key proof of possession.
+Private keys stay in customer-controlled providers. Persistence, signing pause,
+acceptance/publication checks, activation, and restart follow the core
+[rotation contract](01-core-identity-manager.md#operational-key-rotation).
 
 #### Key-Specific Managed Operational Endpoints
 
-A hosted product may serve each operational key at its own HTTPS URL, for example
-`https://<agent-domain>/.well-known/<RFC7638-thumbprint>-jwks.json` for Foundry.
-This path is a product convention, not a protocol requirement. SDKs consume the
-registry-established `kuUrl` and the complete signed TXT `ku`; they MUST NOT
-synthesize either from a key alias, thumbprint, registry base URL, or agent name.
-The `ku` host and JWKS cardinality remain profile-owned constraints.
+Hosted products may return key-specific URLs under the
+[SR-9 hosting convention](../managed-registration-server-requirements.md#key-specific-operational-endpoints-sr-9),
+not a protocol path rule. SDKs consume registry-established `kuUrl` and signed TXT
+`ku`, never synthesize URLs from aliases, thumbprints, registry URL, or agent name.
+Host/cardinality constraints remain profile-owned. Changed `ku` follows the core
+rotation publication checks; the registry holds its entity key.
 
-If rotation changes `ku`, the publisher must entity-sign and publish the updated
-TXT as part of rotation publication. For registry-controlled identities this is
-registry work; the SDK does not request the entity private key. The SDK must
-verify the newly published URL/key and accepted rotation continuity before
-resuming application signing, preserving the existing pause/recovery ordering.
-
-The product may retain the old key at its distinct old URL for a bounded interval.
-That endpoint MUST NOT redirect or rebind to the new key. The current `ku` JWKS
-still contains only the current key; retention is not permission to publish both
-keys there, use the old URL as a fallback, or accept an unexplained key change.
-Fresh verification follows the signed current `ku`, while historical verification
-uses log evidence. The server retention policy and checks are tracked under
-[SR-9](../managed-registration-server-requirements.md#key-specific-operational-endpoints-sr-9).
+Fresh verification uses signed current `ku`; historical verification uses log
+evidence. Retained old URLs are not current-key fallback or signing authority,
+and do not permit two keys in the current JWKS or unexplained key changes.
 
 Registry implementations MAY expose additional setup and publication methods,
 including verification and registry-managed TXT publication.
@@ -583,10 +561,8 @@ previous key also fails, even with another idempotency key.
 
 #### Account Binding Discovery
 
-`GetOrganizationOnboarding` consumes the existing organization-scoped onboarding
-read. Relevant response fields are listed below; the endpoint also contains UI
-fields not needed by setup. Do not invent a new server route or require a caller
-to supply a lookup adapter.
+`GetOrganizationOnboarding` reads the existing organization-scoped onboarding
+endpoint. Setup validates these fields:
 
 | Setup value | Existing wire field | Validation |
 |---|---|---|
@@ -595,17 +571,10 @@ to supply a lookup adapter.
 | Live governance proof | `gi.domain`, `gi.state`, `gi.gate_authorized` | GI object present, matching domain, state `verified`, and gate authorized. |
 | Entity-key delegation | `ek.status` | Must be `verified` before discovery supplies ready setup bindings. |
 
-The SDK MUST NOT interpret a pending/absent GI or delegation as verified.
-`entityKeyUrl` is not returned; retain an explicitly configured bootstrap URL and
-validate it against creation publication facts before countersigning. CNAME fields
-are onboarding instructions, not a complete JWKS URL or a new trust root.
-Configuration with complete account bindings need not invoke discovery; server
-creation authorization still enforces eligibility and organization binding.
-
-At the reviewed server revision, API-key middleware precedes session checks and
-sets organization-admin context, so API keys can use this admin-only read. Missing
-onboarding wiring returns 503. These observations do not prove deployed availability
-or the separate revised creation contract.
+Absent/pending proofs are not verified. `entityKeyUrl` is not returned and must
+remain configured; CNAME instructions are not a JWKS URL or trust root.
+[Server evidence](../managed-registration-server-requirements.md#existing-account-binding-discovery)
+tracks API-key access and availability separately.
 
 #### AgentRegistrationInput
 
@@ -654,42 +623,33 @@ returns 400 `BAD_REQUEST`, an unauthorized GI returns 403
 
 ##### Named Managed Registration
 
-A name is both the display name and an organization-scoped handle. The registry
-MUST enforce at most one nonterminal identity per authenticated organization/name,
-including pending creation. Same name in different organizations is independent.
-The public domain and immutable ID are not derived from this display name.
+Enforce one nonterminal identity per authenticated organization/name, including
+pending creation. Names are tenant-isolated display handles, not the source of
+public domains or immutable IDs.
 
-Named managed requests require a public key and the deterministic registration
-key defined in [13](13-managed-registration.md#organization-and-creation-replay).
-Validate that key using the authenticated organization ID, normalized request name,
-and submitted public-key thumbprint before allocation. A wrong configured
-organization MUST NOT create an identity in the credential's actual organization.
-A hash or caller-supplied organization ID does not grant authorization.
+Named requests require a public key and
+[derived registration key](13-managed-registration.md#organization-and-creation-replay).
+Validate it against authenticated organization ID, normalized name, and submitted
+key thumbprint before allocation; mismatched configured organization must not create
+in the credential's actual organization or disclose another tenant's identity.
 
-An existing nonterminal name with matching key and complete creation input returns
-the same identity, including concurrent matching requests from separate hosts.
-A different unrotated key or conflicting input fails without modifying the
-identity or allocating another. Authorized key rotation preserves the same name
-and immutable identity; opening with its verified current key is not new issuance.
+Matching name/key/complete input opens the same identity, including concurrent
+hosts. A different unrotated key or conflicting input fails without mutation/allocation.
+Authorized rotation preserves name/identity; opening with its verified current key
+does not issue again.
 
-After revocation or retirement, a new operation may reuse the name only with a
-fresh operational key, never an initial or rotated key of the previous identity.
-Atomically bind the name to the new immutable identity/domain/log stream and retain
-the old terminal history. Replay lookup for an old request key takes precedence
-over name allocation, so a delayed old request cannot recreate or reopen its
-terminal identity as the current name holder.
+After revocation/retirement, explicit replacement requires a fresh key, never an
+initial or rotated key of the previous named identity. Atomically reassign the name
+to a new immutable ID/domain/log stream and retain terminal history. Old request-key
+replay takes precedence over allocation and never changes the current name holder.
 
 ##### Registration Replay and Recovery
 
-The high-level workflow in [13](13-managed-registration.md#durable-setup)
-derives registration and issuance keys from durably saved initial account/name/
-public-key bindings on the consumer's behalf. Separate stored replay keys are not
-required. Low-level unnamed
-ordinary creation permits an omitted `Idempotency-Key` or a caller-selected key.
-Named managed creation follows the derivation above. Retry-safe callers supply
-keys as transport metadata; retries MUST retain the same key and complete request,
-including legacy selectors. SDKs MUST NOT automatically retry an unknown creation
-outcome without a key or use an assigned domain as replacement request input.
+Unnamed ordinary creation permits an omitted or caller-selected `Idempotency-Key`;
+[managed setup](13-managed-registration.md#organization-and-creation-replay) derives
+its keys. Send keys as transport metadata and retry with the same complete input,
+including legacy selectors. Never automatically retry an unknown creation without
+a key or substitute an assigned domain as request input.
 
 Preserve the immutable ID, domain, publication configuration, and returned OIDC
 issuer before a follow-up read. A timeout, invalid response, failed detail read,
@@ -697,28 +657,17 @@ or `MANAGED_GOVERNANCE_UNAVAILABLE` response can leave an identity already creat
 Errors retain the request/key and any known creation facts, not a claim that no
 agent exists.
 
-For ordinary keyed creation, the registry MUST atomically claim the key and bind
-it to the authenticated organization, complete request fingerprint, and one
-immutable registration. Concurrent matching requests converge on that same
-registration; they MUST NOT allocate additional identities. Creation success is
-returned only after this binding and registration are durably committed. A lost
-response does not undo the binding.
+Atomically commit the organization-scoped key claim, complete request fingerprint,
+and one immutable registration before returning success. Concurrent matching calls
+must not allocate losing identities. Same low-level key strings in different
+organizations are independent and disclose nothing across tenants; credential
+replacement within one organization preserves the operation.
 
-Request-key bindings are scoped to the authenticated organization within the
-registry. The same low-level key string in two organizations denotes independent
-operations and MUST NOT disclose the other's registration. For named managed
-creation, deterministic-key validation detects a configured organization/credential
-mismatch before allocation. Replacing a credential within the owning organization
-does not change the operation.
-
-The binding MUST be retained permanently. It does not expire after inactivity,
-zone deactivation, retirement, or deletion of the registration. A retained claim
-or tombstone prevents reuse even when the original registration is no longer
-available; return a terminal error rather than allocate a replacement.
-Identical keyed retries address the original identity without resolving a new
-root. Changed input MUST NOT modify that identity or allocate another; it can
-return 422 `IDEMPOTENCY_MISMATCH` or a preceding validation, authorization, or
-infrastructure error. Preserve the actual error and original key.
+Retain the binding/tombstone permanently through inactivity, root deactivation,
+terminal state, and deletion. Identical retries return the original identity without
+new root resolution; an unavailable original returns a terminal error, never replacement.
+Changed input cannot mutate/allocate; preserve 422 `IDEMPOTENCY_MISMATCH` or any
+preceding validation/authorization/infrastructure error and the original key.
 
 Publication configuration may be recomputed: stale or unverified managed
 governance returns 409 `MANAGED_GOVERNANCE_UNAVAILABLE`, so successful replay is
@@ -897,15 +846,7 @@ governance persistence also require server integration tests, not SDK coordinati
 | Invalid response or root/admission failure | Fail closed, preserve known creation facts and server errors, and make no fallback request. |
 | Supported existing selectors and managed Live | Preserve existing request behavior; Live still returns 202 provisioning, not ordinary 201 registration. |
 | Keyed replay, including stale GI or changed input | Preserve enough frozen input to reconstruct unresolved creation and its derived key; retain known identity and governance/mismatch errors without replacement allocation. |
-| Concurrent identical keyed creates | One atomic operation claim and one immutable identity; no losing allocation. |
-| Same organization/name/key in independent hosts | Same immutable identity; no additional allocation or issuance. |
-| Same organization/name with a different unrotated key | Binding conflict; existing identity unchanged. |
-| Same name in different organizations | Independent identities; no cross-organization disclosure. |
-| Derived named key with a different organization's credential | Reject before allocation, without disclosure. |
-| New same-name operation after revocation/retirement | Fresh key, new immutable ID/domain/stream; old request replay still addresses old identity. |
-| Replacement reuses any key from the previous identity | Reject before replacement allocation. |
-| Keyed replay after restart, long interruption, retirement, or deletion | Permanent binding survives; original identity or terminal error, never a replacement. |
-| Response lost after durable creation commit | Identical retry returns the original identity without a second allocation. |
+| Named creation and permanent replay | [Server acceptance checks](../managed-registration-server-requirements.md#acceptance-checks) establish tenant isolation, atomic convergence, permanent bindings, and fresh-key replacement. |
 | Timeout or post-creation failure | Retain known facts for recovery; never imply that failure proves no identity exists. |
 
 #### PublishedRecord

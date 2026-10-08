@@ -1214,13 +1214,9 @@ use `validated`. Deployments that require DNS-rooted origin authentication use
 
 ### Initial Setup of Local Identity
 
-The sequence below describes the general publisher-owned flow, not the
-consumer API for registry-managed hosting. Use the
-[managed-registration workflow](13-managed-registration.md) when the registry
-holds the entity key and publishes DNS/JWKS/status. That workflow provides
-built-in local recovery, composes binding-owned issuance, and observes public
-readiness without requiring consumer publication/activation callbacks. It sits
-above core and does not change public verification or acceptance behavior.
+This is the publisher-owned flow. For registry-held entity signing/publication,
+use [managed registration](13-managed-registration.md), which supplies recovery
+and observes public readiness above core.
 
 ```
 1. IdentityManager.new(config{identity, verification, transport}, deps{keyProvider, entityKeyProvider, logRegistry})
@@ -1290,13 +1286,10 @@ substitutes for that signature. A log binding may require additional signatures;
 11. Invoke the required application-signing controller to pause new signatures.
     If either persistence or pausing fails, do not submit the rotation.
 12. Publish JWKS{keys: [newKey]} at the selected live ku URI, advance registry
-    state with an expected-previous-key CAS, and verify the externally served
-    representation. If ku changes, entity-sign and publish the updated TXT under
-    the existing publication-authority rules as part of this step.
-    Do not publish both old and new keys in the current ku JWKS. A hosted product
-    may retain the old key at its distinct old URL for a bounded interval; that
-    URL is not the current ku or a verification fallback. The local new key
-    remains pending for application signing.
+    state with expected-previous-key CAS, and verify the served representation.
+    If any TXT tag changes, entity-sign and publish the updated TXT here under
+    existing authority rules. The current JWKS contains only the new key;
+    the local key remains pending for application signing.
 13. Append the exact persisted prepared bytes unchanged, enforcing reservation CAS.
 14. Persist every submission transition. On an indeterminate result, remain paused
     while the registry reconciles the same bytes; never regenerate the event.
@@ -1309,17 +1302,11 @@ substitutes for that signature. A log binding may require additional signatures;
     application signing to use newKeyProvider, then resume signing and persist
     `applicationSigningPaused=false`. A failure at any boundary resumes from the
     latest durable state rather than creating a new rotation.
-19. If no TXT tag changed, the DNSid TXT record need not be re-signed. Changed
-    tags, including ku, must already have been entity-signed and published in
-    step 12, not deferred until after application signing resumes.
 ```
 
-An explicitly requested rotation may select a different target provider, such as
-local file to customer KMS. The previous provider signs authorization and the target
-provider signs new-key possession; neither private key is exported or imported.
-Resolve target availability/configuration before generating its pending key and
-retain stable references to both providers for recovery. Changing deployment
-configuration alone does not initiate this operation or select a new active signer.
+Explicit rotation may target another provider, including local-to-KMS, without
+key export/import. Validate target availability/settings before generation.
+Configuration changes alone do not rotate or replace the active signer.
 
 Publication of the new live key precedes the immutable `KEY_ROTATION` append,
 as required by draft 01. These are not an atomic distributed transaction, so
@@ -1332,9 +1319,8 @@ activation is durably complete.
 After activation, a counterparty still caching the previous `ku` may reject
 new-key application signatures until its identity evidence expires or is
 explicitly evicted. Operators SHOULD measure this cache-lifetime window and
-plan rotation accordingly. Keeping a distinct old key URL available does not
-justify including both keys in the current live JWKS, bypassing continuity
-checks, or accepting signatures under an unverified replacement key.
+plan rotation accordingly. [Old-URL retention](05-transport-and-registry.md#key-specific-managed-operational-endpoints)
+does not permit overlapping live keys, continuity bypass, or unverified replacements.
 
 #### Managed Rotation Recovery Contract
 
@@ -1355,15 +1341,13 @@ SDKs MUST reject a managed rotation invocation that omits either dependency.
 
 The durable state MUST contain enough information to validate and resume the
 same operation after process restart: normalized domain, exact log reference,
-previous and new provider references and key bindings (IDs and thumbprints, or an
-equivalent binding),
+previous/new provider references and key bindings (IDs/thumbprints or equivalent),
 exact completed entry bytes and their SHA-256 hash (stored or recomputable and
 checked), idempotency key, latest structured submission result, whether local
 activation completed, and whether application signing is paused. The pending
-private key remains in the selected target `KeyProvider`, whose storage MUST make
-that key recoverable by its recorded reference after restart. If the target differs
-from the previous provider, recover both without depending on a changed deployment
-file to identify them. Activation durably updates the current provider reference.
+private key remains in the target `KeyProvider` and MUST be recoverable by its
+recorded reference. Recover both providers from saved references, not changed
+deployment settings.
 
 Resume validates the durable record before taking action and fails closed on an
 entry-hash, log-reference, or key-binding mismatch. Its state handling is:

@@ -459,12 +459,8 @@ terminal stale-preparation result before any bytes enter the log.
 
 ## Split ISSUANCE Flow
 
-[13: Managed Registration](13-managed-registration.md#durable-setup) composes this
-binding flow with registration, built-in storage, and publication observation.
-Consumers of that high-level workflow do not implement signing, exact-byte
-recovery, or submission adapters themselves. The binding remains responsible
-for the validation and signing requirements below; the workflow must reuse its
-managed-issuance implementation rather than add a second append path.
+[Managed registration](13-managed-registration.md#durable-setup) reuses this
+binding-owned issuance flow with SDK-provided storage/adapters.
 
 Delegated issuance commonly places the accountable-entity key at a registry or
 governance service and the operational key at the agent. The SDK flow is:
