@@ -260,8 +260,15 @@ the original setup operation and immutable identity.
 
 Validate the original issuance against its saved historical public material;
 its old private key is not required to open a completed identity. The returned
-manager uses the verified current signing key. A different key without verified
-rotation continuity returns a typed binding error. The registration workflow
+manager uses the verified current signing key and current signed publication.
+Authorized rotation may change the `ku` URL as well as its key. Retain the
+creation-time publication snapshot as historical evidence; do not reject a new
+key-specific URL merely because it differs from that snapshot. Validate the
+current signed TXT, profile-owned URL constraints, and accepted rotation
+continuity before configuring the manager with the observed URL. Do not derive
+the URL from the new thumbprint or fall back to a retained old key endpoint.
+A different key or publication change without verified lifecycle authority
+returns a typed binding error. The registration workflow
 observes completed rotations; it does not initiate or finish pending rotations.
 Pending rotation uses the existing rotation recovery coordinator.
 
@@ -389,6 +396,7 @@ for workflow ordering and recovery:
 | Cancellation/deadline after a mutation | Recovery preserved; no success and no implicit rollback/recreation. |
 | Completed operation resumed | Same immutable identity, new public observation, no creation/preparation/append. |
 | Completed operation resumed after authorized key rotation | Original registration/issuance keys unchanged; validate historical issuance separately and configure the verified current key without the old private key. |
+| Authorized rotation changes the signed ku URL | Preserve the historical creation snapshot; configure the observed current URL only after signed publication and rotation continuity checks. Never synthesize the URL or fall back to the old endpoint. |
 | Completed operation resumed with an unexplained key change or pending rotation | Binding error or existing rotation recovery guidance; setup does not rotate. |
 | Completed identity is revoked/retired | Typed terminal error on original-operation resume; original history retained. |
 | Explicit same-name replacement after revocation/retirement | Fresh operational key and derived request key, new immutable ID/domain/stream; previous history retained. |

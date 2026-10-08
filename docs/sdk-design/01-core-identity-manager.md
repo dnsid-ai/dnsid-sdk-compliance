@@ -1288,22 +1288,28 @@ substitutes for that signature. A log binding may require additional signatures;
     bindings, and `applicationSigningPaused=true`.
 11. Invoke the required application-signing controller to pause new signatures.
     If either persistence or pausing fails, do not submit the rotation.
-12. Publish JWKS{keys: [newKey]} at ku, advance registry state with an
-    expected-previous-key CAS, and verify the externally served representation.
-    Do not publish an old/new overlap. The local new key remains pending for
-    application signing.
+12. Publish JWKS{keys: [newKey]} at the selected live ku URI, advance registry
+    state with an expected-previous-key CAS, and verify the externally served
+    representation. If ku changes, entity-sign and publish the updated TXT under
+    the existing publication-authority rules as part of this step.
+    Do not publish both old and new keys in the current ku JWKS. A hosted product
+    may retain the old key at its distinct old URL for a bounded interval; that
+    URL is not the current ku or a verification fallback. The local new key
+    remains pending for application signing.
 13. Append the exact persisted prepared bytes unchanged, enforcing reservation CAS.
 14. Persist every submission transition. On an indeterminate result, remain paused
     while the registry reconciles the same bytes; never regenerate the event.
 15. After an accepted result is bound to the exact entry hash and new key, persist
-    acceptance before local reconciliation.
+    acceptance before local reconciliation. Verify the current signed TXT/ku
+    publication and accepted rotation continuity before activating the new key.
 16. keyProvider.Activate(newKid)
 17. keyProvider.Supersede(previousKid)
 18. Persist `activated=true`, then resume application signing and persist
     `applicationSigningPaused=false`. A failure at any boundary resumes from the
     latest durable state rather than creating a new rotation.
-19. If no TXT tag changed, the DNSid TXT record need not be re-signed. If ku URI
-    or any other TXT tag changed, CreateTxtRecord() re-signs with the entity key.
+19. If no TXT tag changed, the DNSid TXT record need not be re-signed. Changed
+    tags, including ku, must already have been entity-signed and published in
+    step 12, not deferred until after application signing resumes.
 ```
 
 Publication of the new live key precedes the immutable `KEY_ROTATION` append,
@@ -1317,9 +1323,9 @@ activation is durably complete.
 After activation, a counterparty still caching the previous `ku` may reject
 new-key application signatures until its identity evidence expires or is
 explicitly evicted. Operators SHOULD measure this cache-lifetime window and
-plan rotation accordingly. It does not justify publishing overlapping live
-keys, bypassing continuity checks, or accepting signatures under an unverified
-replacement key.
+plan rotation accordingly. Keeping a distinct old key URL available does not
+justify including both keys in the current live JWKS, bypassing continuity
+checks, or accepting signatures under an unverified replacement key.
 
 #### Managed Rotation Recovery Contract
 

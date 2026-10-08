@@ -524,6 +524,29 @@ signing remains paused while the registry reconciles the same entry; it does not
 create a replacement rotation. Restart recovery follows the core
 [managed rotation recovery contract](01-core-identity-manager.md#managed-rotation-recovery-contract).
 
+#### Key-Specific Managed Operational Endpoints
+
+A hosted product may serve each operational key at its own HTTPS URL, for example
+`https://<agent-domain>/.well-known/<RFC7638-thumbprint>-jwks.json` for Foundry.
+This path is a product convention, not a protocol requirement. SDKs consume the
+registry-established `kuUrl` and the complete signed TXT `ku`; they MUST NOT
+synthesize either from a key alias, thumbprint, registry base URL, or agent name.
+The `ku` host and JWKS cardinality remain profile-owned constraints.
+
+If rotation changes `ku`, the publisher must entity-sign and publish the updated
+TXT as part of rotation publication. For registry-controlled identities this is
+registry work; the SDK does not request the entity private key. The SDK must
+verify the newly published URL/key and accepted rotation continuity before
+resuming application signing, preserving the existing pause/recovery ordering.
+
+The product may retain the old key at its distinct old URL for a bounded interval.
+That endpoint MUST NOT redirect or rebind to the new key. The current `ku` JWKS
+still contains only the current key; retention is not permission to publish both
+keys there, use the old URL as a fallback, or accept an unexplained key change.
+Fresh verification follows the signed current `ku`, while historical verification
+uses log evidence. The server retention policy and checks are tracked under
+[SR-9](../managed-registration-server-requirements.md#key-specific-operational-endpoints-sr-9).
+
 Registry implementations MAY expose additional setup and publication methods,
 including verification and registry-managed TXT publication.
 These are operator workflows, not part of
