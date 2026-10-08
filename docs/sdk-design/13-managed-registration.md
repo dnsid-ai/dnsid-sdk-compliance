@@ -74,23 +74,37 @@ Completed-operation resume uses the rotation-aware checks below.
 
 ```
 TYPE ManagedRegistrationConfig
-  organizationId: string     // stable registry account ID supplied with the credential
-  governanceId: string       // independently configured expected accountability
+  organizationId?: string    // stable registry account ID; configured or discovered
+  governanceId?: string      // expected accountability; configured, saved, or discovered
   entityKeyUrl: string       // independently selected HTTPS bootstrap endpoint
 END
 ```
 
 `LoadedConfig.registration` carries this setup configuration. It does not add
 values to core `IdentityConfig` or alter counterparty acceptance.
-`organizationId` is required, non-secret, and supplied with the API key or session
-credential through file/code configuration. It is the registry's stable account
-identifier, not a credential hash or caller-invented label. A governance ID is the
-accountable entity's verified domain; it is not the organization ID and MUST NOT
-be substituted for it. Credential replacement and GI changes do not change the
-organization ID. The server authenticates the actual organization and validates
-the derived request key against it; local configuration is not authorization. The expected
-GI and entity endpoint MUST be validated before creation and MUST match the
-returned publication snapshot before countersigning. Fetch the entity JWKS
+Resolve a non-secret organization ID and expected GI before key generation or
+creation. Prefer configured values, then matching saved bindings; use the SDK-owned
+[authenticated onboarding read](05-transport-and-registry.md#account-binding-discovery)
+for missing values. Organization ID must be configured or discovered before selecting
+the named store: never search across organizations by name alone. Once the tuple
+locates saved state, it can supply the saved GI. If discovery is needed, compare
+all supplied/saved values with its response, require verified governance and
+entity-key delegation, and persist the resolved bindings before key generation.
+A configured or saved binding is never silently replaced by a response.
+
+Discovery is an effectful workflow step, not a loader/constructor side effect or
+consumer callback. If it is unavailable and required bindings are missing, return
+a configuration/discovery error; fully configured registries need no discovery call.
+The current endpoint does not return `entityKeyUrl`, which remains independently
+configured and MUST NOT be fabricated from its CNAME or response.
+
+The organization ID is the registry's stable account identifier, not a credential
+hash or caller-invented label. GI is its verified domain, not that account ID.
+Credential replacement and GI changes do not change the organization ID. The
+server authenticates the actual organization and validates the derived request key
+against it; local configuration is not authorization. Validate the resolved expected
+GI and configured entity endpoint before creation; they MUST match the returned
+publication snapshot before countersigning. Fetch the entity JWKS
 through SDK transport with the existing security/resource policies and select
 the record-signing key using the publication profile, not a first-key heuristic.
 Persist the selected public key and its thumbprint for issuance recovery.
@@ -100,7 +114,8 @@ into another selector or fall back to a different root. An omitted input uses
 the ordinary public-key request with the selected name, which must still satisfy
 the expectations.
 When `input.governanceDomain` is explicit, normalize and compare it with the
-configured expected GI before key generation or network mutations. A mismatch
+resolved expected GI before key generation or network mutations. If both are
+configured, reject a contradiction before discovery. A mismatch
 returns an argument error. Root eligibility and effective publication bindings
 remain registry checks. The placement of selectors and expectations is an
 [open configuration question](08-open-questions.md#managed-registration-configuration).
@@ -128,7 +143,7 @@ state; do not silently discard or replace them. A changed authenticated detail
 response or creation replay is not permission to replace the saved snapshot.
 
 For final checks, setup constructs an isolated credential-free verifier with
-its explicitly configured expected GI and independently bootstrapped entity-key
+its resolved, persisted expected GI and independently bootstrapped entity-key
 pin. The application manager and its caches are not the evidence source. This
 setup-specific policy does not infer approval from local identity fields and
 does not return an acceptance-free `VerifiedDomain` through a new public API.
@@ -143,20 +158,26 @@ when called on the local domain.
 Use one durable setup operation that composes the existing binding-owned issuance
 state; do not build a competing lifecycle coordinator or append path.
 
-1. Validate the name, organization ID, static configuration, and request shape.
-   Acquire exclusive access to the state for this registry/organization/name,
-   then load and validate it before key selection, generation, or mutations.
-2. Persist the named setup intent, registry/organization binding, input, and stable
-   key locator before key generation. On resume, reject conflicting bindings or
-   input without changing the saved operation.
-3. Recover or select the operational provider, or durably create one local key.
-   Derive the registration and issuance keys below from its initial public key.
-   Persist the provider reference/public binding, complete registration request,
-   and both idempotency keys before creation. No registry call receives private
-   material.
-4. Register or replay the identical request/key. Preserve all known creation
-   facts and recoverable post-creation errors. Retain immutable ID, domain,
-   publication configuration, and OIDC issuer before subsequent work.
+1. Validate the name, static configuration, and request shape. Resolve selected
+   provider availability and configuration before account discovery or mutations;
+   an injected provider wins. Resolve the organization ID, acquire exclusive access
+   to this registry/organization/name, then validate saved state and resolve GI.
+   Discovery shares the invocation's deadline and transport settings.
+2. For new or unresolved creation, persist resolved account/trust bindings, named
+   setup intent, any extra creation inputs, and a stable key locator before key
+   generation. Do not recreate discarded inputs when resuming a known identity. On resume, reject
+   conflicting bindings or unresolved creation inputs without changing the operation.
+3. Recover or select the operational provider, or durably generate one key at the
+   saved locator. The file default emits a production-safety warning; cloud
+   generation stays inside the provider. Persist its reference and initial public
+   key binding. Derive registration/issuance keys on demand from those saved facts;
+   reconstruct creation input instead of storing a duplicate request object.
+   No registry call receives private material.
+4. If creation is unresolved, register/replay the reconstructed identical input
+   and derived key. If the immutable identity is already known, read that identity
+   and resume its next phase rather than issuing another creation request.
+   Preserve post-creation errors and durably retain ID, domain, publication
+   configuration, and OIDC issuer before discarding creation-only inputs.
 5. Check authority and expected deployment bindings. Wait for the applicable
    ownership-verification prerequisite; registry workflow state is not protocol
    identity evidence.
@@ -218,10 +239,11 @@ assert digest(["dnsid-managed-issuance-v1", key]) == "pxQMSC0k-V9nn9qLqMRDczyUxy
 assert digest(fields[:2] + ["research-agent", fields[3]]) != key
 ```
 
-Persist the normalized name, organization ID, initial public key/thumbprint, and
-both keys in the named local configuration. Retain them through credential
-replacement, retries, and operational-key rotation; never rehash with the current
-rotated key. Independently starting replicas using the same organization/name/
+Persist the normalized name, organization ID, and initial public key binding in
+named local configuration. Compute its thumbprint and both replay keys on demand;
+separate durable copies are not required. Retain the initial binding through
+credential replacement, retries, and operational-key rotation; never rehash with
+the current rotated key. Independently starting replicas using the same organization/name/
 initial key derive the same creation and issuance keys. Complete registration
 input must also agree; changed selectors or metadata are not matching retries.
 
@@ -235,14 +257,20 @@ occupied name fails rather than allocating another identity. Same-name opening
 with a rotated key must preserve the existing identity and verified rotation
 continuity, not initiate another ISSUANCE.
 
-After a timeout or lost response, retry the original complete request and key.
+While creation is unresolved, reconstruct and retry the same complete input and
+derived key after a timeout or lost response. Name/public key come from saved
+bindings; freeze any additional selectors/metadata until creation is known. The
+key identifies the operation but does not permit changed request contents: server
+fingerprint checks still apply. Once ID/domain and validated creation facts are
+durable, resume through identity reads and later phases, not another create.
 The server retains the binding permanently, including after retirement or
 deletion; replay never allocates a replacement. No retention window, first-attempt
 timestamp, replay deadline, or reconciliation callback is required. HTTP deadlines
 bound an invocation, not the lifetime of its registration key.
 
-Validate every returned identity against the original request, operational public
-key, and retained creation facts. Preserve any known identity and publication
+Validate creation responses against the reconstructed input and initial public
+key; validate subsequent reads against retained immutable identity and trust
+bindings, using verified rotation continuity for the current operational key. Preserve any known identity and publication
 snapshot on errors. Missing local creation facts are not proof that no identity
 exists. Registries without this server contract are not supported by the automatic
 managed workflow; low-level APIs remain available without an automatic-retry
@@ -252,8 +280,11 @@ acceptance checks are tracked in [Managed Registration Server Requirements](../m
 
 ## Completed-Operation Resume
 
-Keep the original request, initial public key, entity pin, and exact issuance
-bytes as historical setup evidence. For completed setup, validate the current
+Keep immutable identity and creation-publication facts, the initial public-key
+binding, entity pin, and bound issuance acceptance/reference as historical setup
+evidence. Completed state need not keep a duplicate original request or issuance
+bytes. Recover the historical entry through the existing log binding, verify its
+hash/inclusion and signatures against saved bindings, and validate the current
 operational key against fresh verified lifecycle history and the provider's
 current signing key. Authorized rotations may change that key while preserving
 the original setup operation and immutable identity.
@@ -272,9 +303,14 @@ returns a typed binding error. The registration workflow
 observes completed rotations; it does not initiate or finish pending rotations.
 Pending rotation uses the existing rotation recovery coordinator.
 
-An explicit input on resume must match the saved original creation request,
-including any originally supplied public key. Omitted input reuses that request.
-The stricter original-provider/key check still applies to unfinished issuance.
+While creation is unresolved, explicit input must match its frozen semantic
+inputs, including the initial public key; omitted input reconstructs them. Once
+creation is durable, creation-only options no longer select an operation. Validate
+explicit assertions against retained identity facts, and reject attempts to change
+creation-only selectors/metadata without a creation call; callers can omit input
+on resume. Keep a canonical semantic fingerprint if needed for these comparisons,
+not the full request. The stricter initial-provider/key check still applies to
+unfinished issuance.
 A terminal public identity returns a typed error with its history retained.
 Replaying its original registration key never creates a replacement. To replace a
 revoked or retired identity, explicitly start new state for the same name after
@@ -297,8 +333,8 @@ it on load. Bindings may use a digest or safely encoded path components; raw nam
 MUST NOT be interpreted as filesystem paths. Different organizations or registries
 with the same name have separate configuration, key references, and locks.
 
-The local configuration holds the request, initial key binding, identity snapshot,
-and recovery progress, not merely deployment settings. It stays separate from the
+The local configuration holds initial key bindings, phase-specific creation inputs,
+identity/trust facts, and recovery progress, not merely deployment settings. It stays separate from the
 shared deployment file in 12 and private key files. Explicit replacement preserves
 historical operations rather than overwriting them. Bindings may reuse existing
 storage interfaces; custom database storage remains optional.
@@ -321,18 +357,32 @@ new store is distinct from a store with incomplete or inconsistent artifacts.
 - exclusive access and a documented interrupted-process lock recovery policy;
 - atomic durable updates, including directory durability where the platform
   requires it, or explicit filesystem/platform prerequisites;
-- normalized name, organization ID, registry binding, initialization intent/key
-  locator, original complete request, initial key thumbprint, deterministic
-  idempotency keys, creation facts, retained snapshot, historical replacements,
-  effective setup/deployment bindings and trust reference, provider reference/public
-  key binding, trusted entity key, exact prepared and completed issuance
-  bytes/outcomes, and convergence progress;
+- common durable facts: normalized name, organization ID, registry binding,
+  initialization intent/key locator, initial public key, current provider reference,
+  phase, effective account/deployment/trust bindings, and historical replacements;
+- unresolved creation: additional original selectors/metadata needed to reconstruct
+  the same semantic input; name/public key need no duplicate request representation;
+- known identity: immutable ID/domain, validated creation-publication snapshot,
+  OIDC issuer if returned, trusted entity key, and optional creation fingerprint;
+- unresolved issuance: binding-owned exact prepared/completed bytes and outcomes;
+- accepted issuance: bound entry hash/reference and verified acceptance facts needed
+  to recover and verify the historical entry through the log binding;
 - key files managed by the SDK key provider, separate from public recovery data;
 - validation of missing, corrupt, inconsistent, or conflicting recovery state
   before another network mutation.
 
-After submission may have begun, only the original completed bytes and replay
-key may be retried. Accepted issuance is not resubmitted; terminal outcomes
+Creation-only input may be removed in the atomic transition that durably records
+validated creation facts. Exact issuance bytes may be removed only after acceptance
+is durably bound to their hash/reference and verified inclusion; the replacement
+state must permit retrieval and validation of that same historical entry. Keep
+raw bytes while acceptance/inclusion is unresolved. Cleanup must never erase the
+last safe recovery path or cause another preparation/submission. Failure to recover
+a compacted historical entry returns an error, not permission to issue again.
+This compacts completed recovery data; it does not relax binding-owned persistence
+or exact-byte retry ordering.
+
+After submission may have begun, only the original completed bytes and derived
+replay key may be retried. Accepted issuance is not resubmitted; terminal outcomes
 remain terminal. Missing current private material or an unexplained provider/key
 mismatch returns a typed error with recovery guidance. During unfinished setup,
 use the original key binding; after completion, use verified rotation continuity.
@@ -372,11 +422,16 @@ for workflow ordering and recovery:
 
 | Scenario | Required result |
 |---|---|
-| Fresh managed setup | Key/request/intent persisted before mutations; success only after public completion checks. |
+| Fresh managed setup | Account/intent/key bindings and needed creation inputs persisted before mutations; derived keys need no stored copies; success only after public completion checks. |
 | Identical inputs from file, environment, and code | Same effective configuration and setup behavior; credentials kept outside configuration and recovery state. |
 | Concurrent use of one named local state | One exclusive operation from load through return; competing caller receives a typed busy error. |
 | Same name in different organizations or registries | Separate local configurations, key references, and locks. |
-| Missing organization ID, empty name, or conflicting input.name | Argument error before key generation or network mutations. |
+| Empty name, invalid entityKeyUrl, or conflicting input.name | Argument error before account discovery, key generation, or network mutations. |
+| Account bindings absent from config/state | Discover missing organization ID/GI through authenticated onboarding; persist verified bindings before key generation. |
+| Configured/saved bindings conflict with discovery | Binding error before key generation or creation; saved state unchanged. |
+| Discovery unavailable, pending/unverified GI, or pending EK delegation | No fabricated bindings or creation; return configuration/discovery/readiness error. |
+| Organization ID absent with same-name state in several organizations | Discover credential's organization first; never choose a store by name alone. |
+| Selected provider unavailable or malformed | Fail before discovery or mutations; no local-provider fallback. |
 | Name contains path separators or traversal syntax | Safe state addressing; no access outside the store root. |
 | Same organization/name/initial public key in independent stores | Same registration and issuance keys; server converges on one identity and one ISSUANCE. |
 | New local store opens an already issued matching named identity | Recover verified existing issuance; no new preparation or append, then perform public completion checks. |
@@ -384,12 +439,16 @@ for workflow ordering and recovery:
 | Interrupted initial key generation/persistence | Recover the same key from saved intent/locator or report ambiguous partial initialization before further mutations. |
 | Credentials replaced within the same organization | Resume the original operation with the same replay keys. |
 | Credential organization differs from configured organization ID | Server rejects the derived registration key before allocation, without disclosure; original state retained. |
-| Timeout after creation or failure of detail read | Original request/key and known creation facts retained; identical replay addresses the original operation. |
+| Creation response lost | Reconstruct identical input and key from minimal state, including frozen optional fields; replay addresses original operation. |
+| Identity already durable but detail read fails | Retain identity and phase; resume through identity read, not another create. |
+| Configuration changes optional creation fields after an unknown outcome | Reject rather than replay changed input under the same derived key. |
+| Completed state compacted after verified inclusion | Recover the same historical issuance by bound hash/reference; verify without raw local entry bytes or another issuance. |
+| Crash during phase-specific cleanup | Atomic state preserves either pending inputs/bytes or sufficient validated next-phase facts. |
 | Resume after a long interruption or local clock change | Same request/key addresses the original operation; no replay expiration or time-based recovery policy. |
 | Replay returns a conflicting identity/key | Typed binding error; retained facts unchanged and no replacement allocation. |
 | Interrupt before/after preparation, submission, acceptance, publication, or completion persistence | Resume at every boundary; unknown append uses identical bytes; accepted append is not repeated. |
-| Missing key, conflicting provider/input, corrupt outcome, or absent signed bytes after submission | Typed failure before another mutation; no replacement key/identity. |
-| Explicit requested GI disagrees with configured expected GI | Argument error before key generation or network mutations. |
+| Missing key, conflicting provider/input, corrupt outcome, or absent signed bytes while submission/inclusion is unresolved | Typed failure before another mutation; no replacement key/identity. |
+| Explicit requested GI disagrees with expected GI | Configured contradiction fails before discovery; a discovered contradiction fails before key generation or creation. |
 | Returned authority, GI, entity endpoint/key, publication snapshot, log instance, or operational binding disagrees | Stop before unauthorized countersigning or success. |
 | Registry READY but DNS/evidence absent | Continue bounded convergence or return a resumable error. |
 | Invalid signature, policy denial, terminal rejection, or unsupported profile | Fail closed without broad retry or policy modification. |

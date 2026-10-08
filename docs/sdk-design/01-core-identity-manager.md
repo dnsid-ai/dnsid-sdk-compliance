@@ -1265,8 +1265,9 @@ substitutes for that signature. A log binding may require additional signatures;
 ```
 1. previousKey = keyProvider.SigningKey()
 2. previousKid = previousKey.kid
-3. newKid = keyProvider.GenerateKey()              // remains pending
-4. newKey = keyProvider.JWK(newKid)
+3. newKeyProvider = explicitlySelectedTargetProvider OR keyProvider
+   newKid = newKeyProvider.GenerateKey()           // remains pending
+4. newKey = newKeyProvider.JWK(newKid)
 5. event = KEY_ROTATION{
      domain,
      previousOperationalKid:        previousKid,
@@ -1282,7 +1283,7 @@ substitutes for that signature. A log binding may require additional signatures;
                                                       // includes binding-owned chain metadata
 8. prepared.Sign(PreviousOperational, keyProvider.SignKey(previousKid, prepared.signedBytes))
 9. Add every binding-owned signature. For c2sp-tlog:
-     prepared.Sign(NewOperational, keyProvider.SignKey(newKid, prepared.signedBytes))
+     prepared.Sign(NewOperational, newKeyProvider.SignKey(newKid, prepared.signedBytes))
 10. Construct and durably persist the managed-rotation recovery state, including
     the exact complete prepared bytes, their hash, the idempotency key, both key
     bindings, and `applicationSigningPaused=true`.
@@ -1302,15 +1303,23 @@ substitutes for that signature. A log binding may require additional signatures;
 15. After an accepted result is bound to the exact entry hash and new key, persist
     acceptance before local reconciliation. Verify the current signed TXT/ku
     publication and accepted rotation continuity before activating the new key.
-16. keyProvider.Activate(newKid)
+16. newKeyProvider.Activate(newKid)
 17. keyProvider.Supersede(previousKid)
-18. Persist `activated=true`, then resume application signing and persist
+18. Persist the active provider/key reference and `activated=true`, configure
+    application signing to use newKeyProvider, then resume signing and persist
     `applicationSigningPaused=false`. A failure at any boundary resumes from the
     latest durable state rather than creating a new rotation.
 19. If no TXT tag changed, the DNSid TXT record need not be re-signed. Changed
     tags, including ku, must already have been entity-signed and published in
     step 12, not deferred until after application signing resumes.
 ```
+
+An explicitly requested rotation may select a different target provider, such as
+local file to customer KMS. The previous provider signs authorization and the target
+provider signs new-key possession; neither private key is exported or imported.
+Resolve target availability/configuration before generating its pending key and
+retain stable references to both providers for recovery. Changing deployment
+configuration alone does not initiate this operation or select a new active signer.
 
 Publication of the new live key precedes the immutable `KEY_ROTATION` append,
 as required by draft 01. These are not an atomic distributed transaction, so
@@ -1346,12 +1355,15 @@ SDKs MUST reject a managed rotation invocation that omits either dependency.
 
 The durable state MUST contain enough information to validate and resume the
 same operation after process restart: normalized domain, exact log reference,
-previous and new key bindings (IDs and thumbprints, or an equivalent binding),
+previous and new provider references and key bindings (IDs and thumbprints, or an
+equivalent binding),
 exact completed entry bytes and their SHA-256 hash (stored or recomputable and
 checked), idempotency key, latest structured submission result, whether local
 activation completed, and whether application signing is paused. The pending
-private key remains in the injected `KeyProvider`, whose storage MUST make that
-key recoverable by the recorded key ID after restart.
+private key remains in the selected target `KeyProvider`, whose storage MUST make
+that key recoverable by its recorded reference after restart. If the target differs
+from the previous provider, recover both without depending on a changed deployment
+file to identify them. Activation durably updates the current provider reference.
 
 Resume validates the durable record before taking action and fails closed on an
 entry-hash, log-reference, or key-binding mismatch. Its state handling is:

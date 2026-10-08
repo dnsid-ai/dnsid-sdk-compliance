@@ -358,9 +358,9 @@ This workflow sits above the following low-level client; it does not change
 endpoint wire behavior or registry ownership of lifecycle convergence.
 
 Automatic creation recovery requires permanent server-side idempotency and
-organization-scoped name uniqueness below. Setup takes an organization ID supplied
-with the credential; the server validates the derived request key against its
-actual authenticated organization. These requirements use the existing `name`,
+organization-scoped name uniqueness below. Setup resolves its organization ID
+from configuration or authenticated account discovery; the server validates the
+derived request key against its actual authenticated organization. These requirements use the existing `name`,
 `public_key`, and `Idempotency-Key` fields, not a recovery adapter or new lookup
 endpoint. This is a revised server contract, not a claim of current hosted-registry
 support. [Server requirements](../managed-registration-server-requirements.md)
@@ -397,6 +397,11 @@ RegistryClient.RegisterAgent(input: AgentRegistrationInput,
   // Preserve creation facts before reading authenticated agent detail to obtain
   // publicationAuthority. See PublicationConfig and Registration Replay and Recovery.
   // This low-level call is not the complete register-and-verify workflow in 13.
+
+RegistryClient.GetOrganizationOnboarding() -> OrganizationOnboardingResponse
+  // GET {baseUrl}/api/v1/org/onboarding with the supplied API key/session credential.
+  // SDK-owned account discovery; no agent creation and no consumer callback.
+  // Use the same transport policies, deadline, and cancellation budget as setup.
 
 RegistryClient.GetRegistration(domain: string) -> AgentRegistration
   // GET {baseUrl}/api/v1/agent/{domain}/status using an owning-organization
@@ -507,8 +512,10 @@ RegistryClient.SubmitPreparedEvent(domain: string, entryBytes: bytes,
   // HTTP error and is never reported as an accepted result.
 ```
 
-For a managed `ku` rotation, the SDK generates the new key locally and never
-sends private material to the registry. In the current product,
+For a managed `ku` rotation, the SDK generates the new key inside the selected
+customer-controlled provider and never sends private material to the registry.
+An explicit rotation may target a different provider; changing deployment
+configuration alone does not authorize a provider/key switch. In the current product,
 `PrepareKeyRotation` requires an owning-organization session credential or
 organization API key; an agent self-auth bearer credential is deliberately not
 accepted because the key being replaced must not authorize its own replacement.
@@ -573,6 +580,32 @@ Registry-prepared canonical TXT record content for a local identity signing work
 The idempotency key is supplied separately as transport metadata. Reusing it
 with different key material fails. A second preparation against the same
 previous key also fails, even with another idempotency key.
+
+#### Account Binding Discovery
+
+`GetOrganizationOnboarding` consumes the existing organization-scoped onboarding
+read. Relevant response fields are listed below; the endpoint also contains UI
+fields not needed by setup. Do not invent a new server route or require a caller
+to supply a lookup adapter.
+
+| Setup value | Existing wire field | Validation |
+|---|---|---|
+| Stable organization ID | `org_id` | Nonempty internal account ID; compare any configured/saved ID. |
+| Expected governance ID | `governance_domain` | Valid domain; compare any configured/saved GI. |
+| Live governance proof | `gi.domain`, `gi.state`, `gi.gate_authorized` | GI object present, matching domain, state `verified`, and gate authorized. |
+| Entity-key delegation | `ek.status` | Must be `verified` before discovery supplies ready setup bindings. |
+
+The SDK MUST NOT interpret a pending/absent GI or delegation as verified.
+`entityKeyUrl` is not returned; retain an explicitly configured bootstrap URL and
+validate it against creation publication facts before countersigning. CNAME fields
+are onboarding instructions, not a complete JWKS URL or a new trust root.
+Configuration with complete account bindings need not invoke discovery; server
+creation authorization still enforces eligibility and organization binding.
+
+At the reviewed server revision, API-key middleware precedes session checks and
+sets organization-admin context, so API keys can use this admin-only read. Missing
+onboarding wiring returns 503. These observations do not prove deployed availability
+or the separate revised creation contract.
 
 #### AgentRegistrationInput
 
@@ -649,8 +682,9 @@ terminal identity as the current name holder.
 ##### Registration Replay and Recovery
 
 The high-level workflow in [13](13-managed-registration.md#durable-setup)
-derives and durably persists registration and issuance keys on the consumer's
-behalf after recovering or creating the initial operational key. Low-level unnamed
+derives registration and issuance keys from durably saved initial account/name/
+public-key bindings on the consumer's behalf. Separate stored replay keys are not
+required. Low-level unnamed
 ordinary creation permits an omitted `Idempotency-Key` or a caller-selected key.
 Named managed creation follows the derivation above. Retry-safe callers supply
 keys as transport metadata; retries MUST retain the same key and complete request,
@@ -862,7 +896,7 @@ governance persistence also require server integration tests, not SDK coordinati
 | Invalid inputs | Reject conflicting selectors, missing keys for assigned names, invalid URLs, and private JWK members, including nested JWKS material. |
 | Invalid response or root/admission failure | Fail closed, preserve known creation facts and server errors, and make no fallback request. |
 | Supported existing selectors and managed Live | Preserve existing request behavior; Live still returns 202 provisioning, not ordinary 201 registration. |
-| Keyed replay, including stale GI or changed input | Retain the original request/key and identity; preserve governance/mismatch errors without replacement allocation. |
+| Keyed replay, including stale GI or changed input | Preserve enough frozen input to reconstruct unresolved creation and its derived key; retain known identity and governance/mismatch errors without replacement allocation. |
 | Concurrent identical keyed creates | One atomic operation claim and one immutable identity; no losing allocation. |
 | Same organization/name/key in independent hosts | Same immutable identity; no additional allocation or issuance. |
 | Same organization/name with a different unrotated key | Binding conflict; existing identity unchanged. |

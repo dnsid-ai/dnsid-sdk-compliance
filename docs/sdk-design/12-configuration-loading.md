@@ -55,9 +55,18 @@ TYPE LogTrust
 END
 
 TYPE KeySource
+  provider?: file | aws-kms | google-kms | azure-key-vault
+  keyRef?: string                   // stable existing operational key reference
+  generation?: KeyGenerationConfig // new key in the selected provider
+  settings?: object                // provider-specific non-secret settings
   cliDirectory?: string             // DNSid CLI identity directory (01: Initialization from DNSid CLI Configuration)
   entityKeyPath?: string            // accountable-entity key file; CLI loader resolves a relative entity_key_path against the directory of the config.json that carries it
   keyStorePath?: string             // binding-defined local key store file
+END
+
+TYPE KeyGenerationConfig
+  locator: string                   // stable discovery locator, not a fresh per-call ID
+  algorithm: string                 // must be supported by provider and DNSid profile
 END
 ```
 
@@ -75,6 +84,62 @@ configuration.
 `DNSID_CONFIG_DIR` and `DNSID_KEY_STORE` for one agent. When both are present,
 `cliDirectory` supplies the operational key provider and `keyStorePath` is
 unused; `entityKeyPath` supplies the entity key provider whenever present.
+`cliDirectory` and `keyStorePath` are file-provider inputs and MUST NOT be combined
+with a cloud provider or `keyRef`/`generation`. `entityKeyPath` remains a separate
+accountable-entity input; managed registration does not load an entity private key.
+
+### Operational Key Source Selection
+
+A missing `provider` selects `file` in the provider factory, not in the loader.
+Managed registration without a supplied key source or injected provider uses
+SDK-managed local key files beside, but separate from, its named recovery data.
+It MUST warn that this local-key default is not suitable for production and point
+to cloud-provider configuration. Explicit file selection also emits that warning.
+
+`keyRef` opens an existing key; `generation` creates or rediscovers a key at its
+stable locator. They are mutually exclusive. Cloud selection requires one of them
+and the provider settings needed to locate the service and authenticate. Examples
+include region, project/location, vault URL, and workload-identity references.
+Cloud credentials normally come from the provider's ambient credential chain;
+raw tokens, passwords, credential-file contents, and private JWKs MUST NOT appear
+in deployment configuration. Existing-key references MUST identify the same
+signing key across restarts; unexplained alias/version changes fail binding checks.
+
+A generation locator must select one agent key across replicas. Bindings document
+how shared configuration scopes discovery to registry/organization/name; different
+named operations must not accidentally resolve the same generated key. Explicit
+replacement or rotation records a fresh generation locator rather than reopening
+the previous key. Providers must support create-or-recover at the recorded locator,
+including concurrent initial starts, or reject that generation mode and require
+an existing key reference. Do not
+silently create a second key on a discovery error. The SDK persists the locator
+before generation under the ordering in 13.
+
+The loader validates the common shape and preserves provider settings. The selected
+provider factory validates required/unknown settings, authentication configuration,
+key selection, and supported algorithms before generating a key or registering an
+identity. An explicitly injected `keyProvider` wins; displaced key-source settings
+are not resolved or loaded. Ordinary manager construction opens an existing key;
+`generation` is effectful setup/rotation intent, not permission for `Construct` to
+generate a key.
+
+Provider packages may be separately installed or linked. Selecting an unavailable
+provider MUST fail with `ArgumentError` naming the provider and the install/build
+remedy before account discovery, key generation, or registration mutations.
+No silent fallback to file storage is permitted. Provider names select known
+factories, not arbitrary module paths or executable code from configuration.
+Bindings document their native loading mechanism: statically linked factory
+registration, optional module loading, or caller injection. The design does not
+require runtime dynamic loading on every platform. See the
+[binding-specific loading guide](../key-provider-packages.md).
+
+Changing the source for an established identity to a different key/provider does
+not import its local private key or start an implicit rotation. Local-to-cloud
+transition requires an explicitly requested KEY_ROTATION: generate the pending
+new key in the target provider, authorize it with the old local key, and activate
+it only after verified publication and log acceptance. Preserve access to the old
+provider through recovery. If the old key is unavailable, migration cannot bypass
+rotation authority.
 
 ## Sources
 
@@ -136,8 +201,9 @@ consumers SHOULD emit `DNSID_REGISTRY_URL`, not only the CLI's `DNSID_SERVER`.
 
 ### Deployment File
 
-The deployment file is the JSON encoding of `LoadedConfig` minus
-`keySource`, which is never written to a shared file. The `registration` section
+The deployment file is the JSON encoding of `LoadedConfig`, including non-secret
+`keySource` selection, key references, and provider settings. Private material and
+credentials are never written to this shared file. The `registration` section
 is consumed only by the [managed-registration workflow](13-managed-registration.md#configuration-and-trust);
 ordinary identity-manager construction does not treat it as core identity or
 counterparty policy. Registry credentials
@@ -158,7 +224,8 @@ onto an existing type with no cross-section logic.
 | `dnsid` | `DnsidConfig`, validated by the `IdentityManager` constructor. |
 | `logTrust` | `LogTrust`; exactly one of `managed`, `profile` (inline document), or `policyUrl`. `policyDocument` has no file member; supply it through `DNSID_LOG_POLICY_FILE` or code. |
 | `registry` | `RegistryConfig`, validated by the `RegistryClient` constructor. |
-| `registration` | `ManagedRegistrationConfig` from [13](13-managed-registration.md#configuration-and-trust): `organizationId`, `governanceId`, and `entityKeyUrl`, validated by setup before creation. The registry account ID is distinct from its verified governance domain. |
+| `registration` | `ManagedRegistrationConfig` from [13](13-managed-registration.md#configuration-and-trust): optional `organizationId`/`governanceId` bindings and required `entityKeyUrl`. Setup resolves missing account bindings before creation. The registry account ID is distinct from its verified governance domain. |
+| `keySource` | Operational provider selection, existing key reference or generation intent, and non-secret settings. Availability and provider-specific validation belong to the selected factory. |
 
 For managed setup, a file can add:
 
@@ -178,13 +245,32 @@ For managed setup, a file can add:
 This is an illustrative deployment, not a built-in service preset. To request
 this customer GI, supply `input.governanceDomain = "acme.example"` to setup;
 expectations alone do not select a registry root or approve counterparties.
-Configure `registration` through a deployment file or code. Supply the stable
-registry `organizationId` with the credential; do not substitute `governanceId`
-or a hash of the credential. The required agent name is a workflow argument and
-selects per-registry/per-organization local state. That local configuration holds
-the name, initial public-key binding, derived idempotency keys, and recovery facts;
-it is not this shared deployment file. Registry credentials, state-store locations,
-and runtime store/provider objects remain separately supplied.
+Configure `registration` through a deployment file or code. Account bindings may
+also come from saved named state or authenticated onboarding discovery in 13;
+the loader itself performs no account lookup. Do not substitute `governanceId`
+or a credential hash for the stable organization ID. Keep `entityKeyUrl` configured
+because current onboarding discovery does not return it. The required agent name
+selects per-registry/per-organization state. That local configuration holds initial
+public-key bindings, frozen inputs needed for unresolved creation, and recovery
+facts; replay keys are derived, not duplicated in the shared deployment file.
+Registry credentials, state-store locations, and runtime store/provider objects
+remain separately supplied.
+
+For example, an existing cloud key may be selected with:
+
+```json
+{
+  "keySource": {
+    "provider": "aws-kms",
+    "keyRef": "arn:aws:kms:us-east-1:111122223333:key/11111111-1111-4111-8111-111111111111",
+    "settings": { "region": "us-east-1" }
+  }
+}
+```
+
+The reference is illustrative. The selected key must support the profile's signing
+algorithm; workload credentials authorize its use. Provider packages document
+accepted settings and do not infer a different key when the reference fails.
 
 The file loader MUST reject unknown members and mistyped values, and SHOULD
 reject duplicate members where the platform parser makes that available.
@@ -261,10 +347,11 @@ Freshness, limits, and bundle requirements are not loadable; a deployment that
 needs different values constructs the registry with the generic factory and
 injects `deps.logRegistry`.
 
-`OperationalKeyProviderFrom` uses `cliDirectory` when present, otherwise
-`keyStorePath`, and locates CLI key files under the effective identity domain
-as [01](01-core-identity-manager.md#initialization-from-dnsid-cli-configuration)
-requires. `IdentityManager(config, deps)` is the ordinary constructor; it
+`OperationalKeyProviderFrom` resolves the selected provider factory. The file
+factory uses `cliDirectory` when present, otherwise `keyStorePath`, and locates CLI
+key files under the effective identity domain as
+[01](01-core-identity-manager.md#initialization-from-dnsid-cli-configuration)
+requires. Cloud factories open the selected existing key without generating one. `IdentityManager(config, deps)` is the ordinary constructor; it
 applies every default and performs every validation.
 
 The registry path takes `loaded.registry` and an independently supplied
@@ -347,7 +434,15 @@ verify` reads; there are no SDK-local aliases.
 | `DNSID_PUBLIC_URL`, `DNSID_AGENT_PORT`, `DNSID_SERVER` set | Ignored by SDK loaders. |
 | Deployment file with unknown member, or `logTrust` with zero or two variants and no caller `logRegistry` | Loader or construction fails with `ArgumentError`. |
 | File/code supplies `registration` | Preserve only supplied setup fields; identity-manager construction does not infer identity or acceptance from them. |
-| Managed setup has invalid/missing organization ID, expected GI, or entity bootstrap URL | Setup validation fails before creation; no organization, endpoint, or GI fabricated by the loader. |
+| Managed setup lacks organization ID/GI but has a valid credential and entity bootstrap URL | Setup resolves missing account bindings through saved state or authenticated onboarding; loaders do not perform discovery. |
+| Managed setup has an invalid/missing entity bootstrap URL or cannot resolve organization ID/verified GI | Setup fails before key generation or creation; no binding or endpoint fabricated. |
+| Deployment file selects an available cloud provider and existing key | Same provider/key as explicit configuration; credentials remain outside deployment/recovery data. |
+| Selected provider package is absent or not linked | ArgumentError with install/build remedy before account discovery or mutations; no file fallback. |
+| Caller injects a provider while file selects an unavailable provider | Injected provider wins; displaced provider package is not loaded. |
+| Cloud generation has no stable locator, conflicting keyRef, or unsupported algorithm | Configuration error before key generation or registration. |
+| Concurrent replicas use one generation locator | Recover one key, or reject unsupported generation and require an existing key reference; no independently generated keys. |
+| Managed setup uses local key files | Emit the production-safety warning; private key files remain separate from recovery data. |
+| Existing identity changes provider/key through configuration alone | Binding error; explicit authorized rotation required, never implicit import or key replacement. |
 | Multiple named agents share deployment configuration and one state-store root | Each registry/organization/name selects separate local configuration, key references, and recovery state. |
 | Same merged config reaches setup from file or environment plus code overlay | Same registry endpoint, transport, explicit trust, and setup behavior; no environment re-read overrides a file. |
 | Invalid `dnsid` config together with a `policyUrl` | Construction fails with `ArgumentError` without fetching the policy. |

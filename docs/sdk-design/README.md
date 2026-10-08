@@ -50,8 +50,10 @@ That tracker does not establish server or SDK implementation coverage.
 configuration entry point: optional `identity` publication settings, shared
 `verification` settings (including `trustedEntities`), and `transport`
 deployment settings. Omitting `identity` yields a verification-only manager
-with the same sections and defaults. Runtime dependencies such as key providers
-and log registries are injected separately using idiomatic binding conventions.
+with the same sections and defaults. Non-secret key-source configuration selects
+an available provider factory; explicit runtime key providers and log registries
+remain injectable using idiomatic binding conventions. Optional provider loading
+is described in [Key-Provider Packages](../key-provider-packages.md).
 The initial acceptance surface is a static entity allowlist with optional current
 entity-key pins; custom evaluators and remote policy services are deferred.
 Registry clients, log-trust factories, and application profiles retain ownership

@@ -9,9 +9,11 @@ its Working Notes are excluded.
 
 ## Registration Contract
 
-- Configuration supplies the stable registry organization ID with the credential.
-  Organization ID identifies the account; governance ID is its verified domain.
-  They are not interchangeable. The credential authenticates the organization.
+- Setup resolves stable organization ID and verified GI from configuration, matching
+  saved bindings, or authenticated onboarding discovery. Organization ID identifies
+  the account; GI is its verified domain. They are not interchangeable. The
+  credential authenticates the organization; the entity bootstrap URL remains
+  configured because current discovery does not return it.
 - The SDK selects local state by registry/organization/name, sends that same name
   as display metadata, and derives its request key from organization/name/initial
   public-key thumbprint. The exact derivation is in 13.
@@ -38,19 +40,34 @@ sequenceDiagram
     participant Public as Public DNS / HTTPS / log
 
     App->>SDK: RegisterManagedIdentity("billing-agent", config, credential, store)
+    SDK->>SDK: Validate config and selected provider availability
+    opt Organization ID missing
+        SDK->>Registry: Read authenticated organization onboarding
+        Registry-->>SDK: Organization ID, GI, verification and delegation status
+    end
     SDK->>State: Lock and load (registry, organization ID, name)
+    opt GI missing from config and matching saved state
+        SDK->>Registry: Read authenticated organization onboarding
+        Registry-->>SDK: Account bindings and readiness
+    end
+    SDK->>SDK: Reject conflicting or unverified discovered bindings
     alt Local setup already complete
         SDK->>Keys: Open current signing key
         Note over SDK,Registry: No creation, issuance preparation, or append
     else New or unfinished setup
-        SDK->>State: Save intent and stable key locator if absent
+        SDK->>State: Save account bindings, intent, extra creation inputs and key locator
         SDK->>Keys: Recover same key or generate once for new setup
         Keys-->>SDK: Public key and stable provider reference
-        SDK->>State: Save request, initial key, and derived registration / issuance keys
-        SDK->>Registry: Register or replay name + public key + Idempotency-Key
-        Note over Registry: Authenticate org, validate derived key, atomically claim name and request
-        Registry-->>SDK: Original or new immutable ID, domain, publication snapshot
-        SDK->>State: Save creation facts before follow-up work
+        SDK->>State: Save initial public key and provider reference
+        SDK->>SDK: Derive replay keys from initial bindings
+        alt Creation unresolved
+            SDK->>Registry: Register or replay reconstructed identical input and key
+            Note over Registry: Authenticate org, validate derived key, atomically claim name and request
+            Registry-->>SDK: Original or new immutable ID, domain, publication snapshot
+            SDK->>State: Save creation facts and discard creation-only inputs
+        else Immutable identity already saved
+            SDK->>Registry: Read saved identity and resume its next phase
+        end
         SDK->>Registry: Read detail and wait for issuance prerequisite
         SDK->>Public: Fetch expected entity key and inspect existing issuance
         alt Matching ISSUANCE already accepted
@@ -69,14 +86,14 @@ sequenceDiagram
     end
     SDK->>Public: Verify publication, current key / rotation history, ACTIVE, fresh log evidence
     Public-->>SDK: Valid public evidence without owner credentials
-    SDK->>State: Save completion / observation and release lock
+    SDK->>State: Save compact completion facts and release lock
     SDK-->>App: Identity manager, publication, and log evidence
 ```
 
 - A timeout does not mean creation failed. Save known progress, release the lock,
   and return a resumable error. A subsequent call loads this same named state;
-  unknown creation retries use the saved request/key, and unknown issuance
-  submission retries use the saved exact bytes/key.
+  unknown creation retries reconstruct the same input and derived key, and unknown
+  issuance submissions reuse the saved exact bytes and derived issuance key.
 - Different organizations with the same name have separate state and server name
   claims. Different unrotated keys for one occupied organization/name fail.
 - Replacement is explicit: first confirm revocation/retirement, preserve the old
@@ -86,6 +103,31 @@ sequenceDiagram
   configuration contains references and public bindings, never private material
   or credentials. All calls have a bounded deadline and cancellation budget.
 
+## Existing Account Binding Discovery
+
+At server revision `95c68f3e`, these routes already exist:
+
+- `GET /api/v1/org`: `id` is the internal organization UUID.
+- `GET /api/v1/org/onboarding`: returns `org_id`, `governance_domain`, live GI
+  verification/gate state, and entity-key delegation status in one response.
+
+API-key middleware runs before session authentication and supplies organization-
+admin context, permitting the admin-only onboarding read. Production assembly
+wires the organization lookup and onboarding services. An unconfigured onboarding
+service returns 503; a missing/pending GI is not a ready account binding.
+
+The response does not contain a complete entity JWKS URL. SDKs retain configured
+`entityKeyUrl` and do not fabricate it from CNAME instructions. No new account
+endpoint is required for organization/GI discovery, and complete local bindings
+remain supported without a discovery call.
+
+Checked `server.go`, `middleware.go`, `apikey_handlers.go`,
+`organization_handler.go`, `org_onboarding_handler.go`, and
+`internal/serverapp/build.go`. Focused organization/onboarding tests passed;
+API-key admission was checked in the middleware/router source, not against a
+live deployment. The corresponding extracted ORGM-010 specification is provisional.
+These observations do not establish the revised creation guarantees below.
+
 ## Required Server Work
 
 All items remain open until implementation and real persistence tests establish
@@ -94,7 +136,7 @@ the acceptance checks. Source observations below refer to `~/dnsid` commit
 
 | ID | Requirement | Observed server behavior / entry points |
 |---|---|---|
-| SR-1 | Validate named request-key derivation using the authenticated organization ID, normalized name, and submitted public-key thumbprint before allocation. Reject mismatched configured organization/credential without disclosure. Expose the stable organization ID in account/API-key setup so users can configure it; no new lookup callback is needed. | API-key middleware already sets `AuthContext.OrgID`. `handleCreateAgent` accepts caller-selected keys and does not validate the named derivation. Check the onboarding response/UI for organization-ID availability. |
+| SR-1 | Validate named request-key derivation using the authenticated organization ID, normalized name, and submitted public-key thumbprint before allocation. Reject mismatched configured organization/credential without disclosure. Retain the existing authenticated onboarding read for organization/GI discovery; no new lookup callback is needed. | API-key middleware sets `AuthContext.OrgID`; existing `/org/onboarding` supplies organization/GI bindings. `handleCreateAgent` still accepts caller-selected keys and does not validate the named derivation. |
 | SR-2 | Require a nonempty name for named managed creation, use it as display name, and enforce one nonterminal identity per organization/name. Match SDK trimming, case sensitivity, and 255-code-point bound. Same names in different organizations are independent. Unnamed low-level registration remains separate. | `CreateAgentRequest.Name` is optional metadata. `Agent.Indexes` has domain/key constraints, not an organization/name constraint. |
 | SR-3 | Create-or-open: matching name/key and complete input return the same immutable identity. Different unrotated key or conflicting input fails without mutation or allocation. Opening after an authorized rotation retains the existing identity and does not issue again. | `replayCreateAgent` opens by stored request key. Name is only part of `createAgentFingerprint`; there is no named create-or-open operation. `CheckKeyUniqueness` can return a conflict instead of opening the existing identity. |
 | SR-4 | Atomically claim creation and organization/name before allocating an identity. Persist the claim, request fingerprint, and registration together. Concurrent matching requests converge without cancelled losing allocations. Storage failure must not return success without the claim. | `handleCreateAgent` creates the agent before `idempotency.Store`, cancels losing allocations, and logs other store failures while continuing. Agent and local audit event are transactional, but the idempotency claim is separate. |
@@ -114,8 +156,8 @@ The old URL remains bound to the old public key during the retention interval.
 Never redirect it to the new key, overwrite its JWK with the new key, or later
 reuse the URL for another key. After the interval, the endpoint may become
 unavailable; origin/CDN cache lifetimes must not extend endpoint availability
-past the configured hosting retention interval. Retention duration is server configuration; the PRD leaves the
-number of minutes unspecified.
+past the configured hosting retention interval. Retention duration is server
+configuration; the PRD leaves the number of minutes unspecified.
 
 This is an overlap of distinct URLs, not an old/new key set at the current `ku`.
 The freshly verified signed TXT selects only the new URL after publication.
@@ -130,8 +172,9 @@ Run these against real PostgreSQL and the shipped server assembly, with workflow
 handoff exercised where applicable. In-memory handler tests alone do not prove
 permanent or atomic recovery.
 
-- [ ] SR-1: onboarding provides the stable organization ID; wrong configured ID
-  with a valid credential fails before any identity, billing, or workflow write.
+- [ ] SR-1: real API-key onboarding reads return only the caller's organization/GI
+  with accurate proof/delegation status; wrong configured ID with a valid credential
+  fails creation before any identity, billing, or workflow write.
 - [ ] SR-2/SR-3: same organization/name/key/input returns the same identity on
   repeated calls and independent hosts; the same name in another organization
   remains isolated. A different unrotated key or conflicting input fails.
