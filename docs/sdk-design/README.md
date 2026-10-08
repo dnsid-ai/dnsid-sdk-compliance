@@ -45,8 +45,9 @@ The documents are organized by SDK responsibility:
 configuration entry point: optional `identity` publication settings, shared
 `verification` settings (including `trustedEntities`), and `transport`
 deployment settings. Omitting `identity` yields a verification-only manager
-with the same sections and defaults. Runtime dependencies such as key providers
-and log registries are injected separately using idiomatic binding conventions.
+with the same sections and defaults. Key providers may be injected or selected
+through [key-source configuration](12-configuration-loading.md#operational-key-source-selection);
+log registries remain injectable.
 The initial acceptance surface is a static entity allowlist with optional current
 entity-key pins; custom evaluators and remote policy services are deferred.
 Registry clients, log-trust factories, and application profiles retain ownership

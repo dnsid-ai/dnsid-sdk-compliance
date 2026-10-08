@@ -54,6 +54,9 @@ TYPE LogTrust
 END
 
 TYPE KeySource
+  provider?: file | aws-kms | google-kms | azure-key-vault
+  keyRef?: string                   // stable existing operational key reference
+  settings?: object                // provider-specific non-secret settings
   cliDirectory?: string             // DNSid CLI identity directory (01: Initialization from DNSid CLI Configuration)
   entityKeyPath?: string            // accountable-entity key file; CLI loader resolves a relative entity_key_path against the directory of the config.json that carries it
   keyStorePath?: string             // binding-defined local key store file
@@ -70,10 +73,31 @@ merge: a later source that sets any variant replaces the whole section.
 field. A source that supplies no identity field yields a verification-only
 configuration.
 
-`KeySource` variants are not exclusive: `dnsid local run` exports both
-`DNSID_CONFIG_DIR` and `DNSID_KEY_STORE` for one agent. When both are present,
-`cliDirectory` supplies the operational key provider and `keyStorePath` is
-unused; `entityKeyPath` supplies the entity key provider whenever present.
+`cliDirectory` takes precedence over `keyStorePath` when both are supplied, as
+under `dnsid local run`. These file inputs cannot combine with cloud selection or
+`keyRef`. `entityKeyPath` independently supplies an entity provider.
+
+### Operational Key Source Selection
+
+- Missing `provider` selects `file` in the factory. Both default and explicit
+  file selection MUST warn that local keys are unsuitable for production and
+  point to cloud configuration.
+- `keyRef` opens an existing key; cloud providers require it. References must
+  resolve the same signing key across restarts; unexplained alias/version changes
+  fail binding checks. `Construct` opens existing keys only, never generates.
+- Factories validate provider settings, authentication configuration, and supported
+  algorithms before opening a key. Settings include non-secret region,
+  project/location, vault URL, or credential references; credentials come from
+  ambient chains or referenced sources, never raw secrets/private JWKs in the file.
+- Injected `keyProvider` wins; displaced source settings/packages are not resolved.
+  Otherwise an unavailable provider returns `ArgumentError` naming the provider
+  and install/build remedy before discovery or mutations, without file fallback.
+  Names select known factories, not arbitrary module paths. Native loading is
+  defined in [Key-Provider Packages](../key-provider-packages.md).
+
+Changing configuration does not import a local private key or replace an established
+signer. Local-to-cloud transition requires explicit authorized
+[key rotation](01-core-identity-manager.md#operational-key-rotation) using the old provider.
 
 ## Sources
 
@@ -135,11 +159,8 @@ consumers SHOULD emit `DNSID_REGISTRY_URL`, not only the CLI's `DNSID_SERVER`.
 
 ### Deployment File
 
-The deployment file is the JSON encoding of `LoadedConfig` minus
-`keySource`, which is never written to a shared file. Registry credentials
-are never part of `LoadedConfig` or the deployment file.
-It is an umbrella-package convenience, not a core type: each section maps 1:1
-onto an existing type with no cross-section logic.
+The deployment file encodes `LoadedConfig`, including non-secret key-source settings,
+never credentials/private material. Each section maps to its owning type.
 
 ```json
 {
@@ -154,6 +175,23 @@ onto an existing type with no cross-section logic.
 | `dnsid` | `DnsidConfig`, validated by the `IdentityManager` constructor. |
 | `logTrust` | `LogTrust`; exactly one of `managed`, `profile` (inline document), or `policyUrl`. `policyDocument` has no file member; supply it through `DNSID_LOG_POLICY_FILE` or code. |
 | `registry` | `RegistryConfig`, validated by the `RegistryClient` constructor. |
+| `keySource` | `KeySource`; availability and provider settings validated by the selected factory. |
+
+A deployment file with local identity publication settings can add this key source:
+
+```json
+{
+  "keySource": {
+    "provider": "aws-kms",
+    "keyRef": "arn:aws:kms:us-east-1:111122223333:key/11111111-1111-4111-8111-111111111111",
+    "settings": { "region": "us-east-1" }
+  }
+}
+```
+
+This is illustrative, not a service preset. The key must support the profile's
+algorithm and any registry algorithm restrictions. Credentials and runtime
+dependencies remain separately supplied; this configuration does not create an agent.
 
 The file loader MUST reject unknown members and mistyped values, and SHOULD
 reject duplicate members where the platform parser makes that available.
@@ -230,11 +268,12 @@ Freshness, limits, and bundle requirements are not loadable; a deployment that
 needs different values constructs the registry with the generic factory and
 injects `deps.logRegistry`.
 
-`OperationalKeyProviderFrom` uses `cliDirectory` when present, otherwise
-`keyStorePath`, and locates CLI key files under the effective identity domain
-as [01](01-core-identity-manager.md#initialization-from-dnsid-cli-configuration)
-requires. `IdentityManager(config, deps)` is the ordinary constructor; it
-applies every default and performs every validation.
+`OperationalKeyProviderFrom` resolves the selected provider factory. The file
+factory uses `cliDirectory` when present, otherwise `keyStorePath`, and locates CLI
+key files under the effective identity domain as
+[01](01-core-identity-manager.md#initialization-from-dnsid-cli-configuration)
+requires. Cloud factories open existing keys.
+`IdentityManager(config, deps)` applies core defaults and validation.
 
 The registry path takes `loaded.registry` and an independently supplied
 credential. `RegistryClientFromEnvironment` reads `DNSID_API_KEY` directly,
@@ -301,5 +340,11 @@ verify` reads; there are no SDK-local aliases.
 | Same inputs through a convenience constructor and through manual `Load → Merge → Construct` | Identical validated snapshot and dependency wiring. |
 | `DNSID_PUBLIC_URL`, `DNSID_AGENT_PORT`, `DNSID_SERVER` set | Ignored by SDK loaders. |
 | Deployment file with unknown member, or `logTrust` with zero or two variants and no caller `logRegistry` | Loader or construction fails with `ArgumentError`. |
+| Deployment file selects an available cloud provider and existing key | Same provider/key as explicit configuration; credentials remain outside deployment/recovery data. |
+| Selected provider package is absent or not linked | ArgumentError with install/build remedy before account discovery or mutations; no file fallback. |
+| Caller injects a provider while file selects an unavailable provider | Injected provider wins; displaced provider package is not loaded. |
+| Invalid/conflicting key selection or unsupported algorithm | Reject invalid settings before mutation. |
+| Construction uses local key files | Emit the production-safety warning. |
+| Existing identity changes provider/key through configuration alone | Binding error; explicit authorized rotation required, never implicit import or key replacement. |
 | Invalid `dnsid` config together with a `policyUrl` | Construction fails with `ArgumentError` without fetching the policy. |
 | Any constructor invoked with environment variables or files present | Constructor reads neither. |
