@@ -1089,6 +1089,10 @@ schedule destruction of the corresponding `CryptoKeyVersion`. Google Cloud KMS
 version retirement is a separate operator action. Superseding a retained previous
 key after activating its successor MUST NOT clear the successor's active state.
 
+A restored provider MAY have no active key after supersession. It MUST reopen
+that lifecycle state without activating a replacement; `SigningKey()` and `Sign()`
+fail until a key is explicitly activated, and `ListKeyIds()` returns an empty list.
+
 ---
 
 ### IdentityCache
