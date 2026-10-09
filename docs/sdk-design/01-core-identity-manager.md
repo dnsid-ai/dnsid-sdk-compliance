@@ -1257,8 +1257,9 @@ substitutes for that signature. A log binding may require additional signatures;
 ```
 1. previousKey = keyProvider.SigningKey()
 2. previousKid = previousKey.kid
-3. newKid = keyProvider.GenerateKey()              // remains pending
-4. newKey = keyProvider.JWK(newKid)
+3. newKeyProvider = explicitlySelectedTargetProvider OR keyProvider
+   newKid = newKeyProvider.GenerateKey()           // remains pending
+4. newKey = newKeyProvider.JWK(newKid)
 5. event = KEY_ROTATION{
      domain,
      previousOperationalKid:        previousKid,
@@ -1274,29 +1275,34 @@ substitutes for that signature. A log binding may require additional signatures;
                                                       // includes binding-owned chain metadata
 8. prepared.Sign(PreviousOperational, keyProvider.SignKey(previousKid, prepared.signedBytes))
 9. Add every binding-owned signature. For c2sp-tlog:
-     prepared.Sign(NewOperational, keyProvider.SignKey(newKid, prepared.signedBytes))
+     prepared.Sign(NewOperational, newKeyProvider.SignKey(newKid, prepared.signedBytes))
 10. Construct and durably persist the managed-rotation recovery state, including
     the exact complete prepared bytes, their hash, the idempotency key, both key
     bindings, and `applicationSigningPaused=true`.
 11. Invoke the required application-signing controller to pause new signatures.
     If either persistence or pausing fails, do not submit the rotation.
-12. Publish JWKS{keys: [newKey]} at ku, advance registry state with an
-    expected-previous-key CAS, and verify the externally served representation.
-    Do not publish an old/new overlap. The local new key remains pending for
-    application signing.
+12. Publish JWKS{keys: [newKey]} at the selected live ku URI, advance registry
+    state with expected-previous-key CAS, and verify the served representation.
+    If any TXT tag changes, entity-sign and publish the updated TXT here under
+    existing authority rules. The current JWKS contains only the new key;
+    the local key remains pending for application signing.
 13. Append the exact persisted prepared bytes unchanged, enforcing reservation CAS.
 14. Persist every submission transition. On an indeterminate result, remain paused
     while the registry reconciles the same bytes; never regenerate the event.
 15. After an accepted result is bound to the exact entry hash and new key, persist
-    acceptance before local reconciliation.
-16. keyProvider.Activate(newKid)
+    acceptance before local reconciliation. Verify the current signed TXT/ku
+    publication and accepted rotation continuity before activating the new key.
+16. newKeyProvider.Activate(newKid)
 17. keyProvider.Supersede(previousKid)
-18. Persist `activated=true`, then resume application signing and persist
+18. Persist the active provider/key reference and `activated=true`, configure
+    application signing to use newKeyProvider, then resume signing and persist
     `applicationSigningPaused=false`. A failure at any boundary resumes from the
     latest durable state rather than creating a new rotation.
-19. If no TXT tag changed, the DNSid TXT record need not be re-signed. If ku URI
-    or any other TXT tag changed, CreateTxtRecord() re-signs with the entity key.
 ```
+
+Explicit rotation may target another provider, including local-to-KMS, without
+key export/import. Validate target availability/settings before generation.
+Configuration changes alone do not rotate or replace the active signer.
 
 Publication of the new live key precedes the immutable `KEY_ROTATION` append,
 as required by draft 01. These are not an atomic distributed transaction, so
@@ -1332,12 +1338,13 @@ SDKs MUST reject a managed rotation invocation that omits either dependency.
 
 The durable state MUST contain enough information to validate and resume the
 same operation after process restart: normalized domain, exact log reference,
-previous and new key bindings (IDs and thumbprints, or an equivalent binding),
+previous/new provider references and key bindings (IDs/thumbprints or equivalent),
 exact completed entry bytes and their SHA-256 hash (stored or recomputable and
 checked), idempotency key, latest structured submission result, whether local
 activation completed, and whether application signing is paused. The pending
-private key remains in the injected `KeyProvider`, whose storage MUST make that
-key recoverable by the recorded key ID after restart.
+private key remains in the target `KeyProvider` and MUST be recoverable by its
+recorded reference. Recover both providers from saved references, not changed
+deployment settings.
 
 Resume validates the durable record before taking action and fails closed on an
 entry-hash, log-reference, or key-binding mismatch. Its state handling is:
@@ -1346,13 +1353,17 @@ entry-hash, log-reference, or key-binding mismatch. Its state handling is:
   exact bytes with the same idempotency key;
 - accepted but not activated: do not create a new event; reconcile activation and
   supersession idempotently from the accepted record;
-- activated but still paused: resume signing and persist the completed state;
+- activated but still paused: restore application signing to the saved active
+  provider/key, validate its binding, then resume signing and persist completion;
 - rejected: return a terminal typed submission error without resubmission.
 
 Failures after completed bytes have been fixed return a typed submission or
 activation error carrying the latest recoverable rotation state. Persistence,
 pause, activation, supersession, and unpause failures never discard that state.
 In particular, unpausing before `activated=true` is durably stored is forbidden.
+Recovery tests MUST cover a crash after activation is persisted but before signer
+wiring changes: resume restores the saved new provider/key before unpausing,
+even when deployment settings still select the old provider.
 
 If the previous private key is unavailable or suspected compromised, this flow
 MUST NOT be used: revoke and reissue the identity instead.

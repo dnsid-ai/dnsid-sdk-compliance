@@ -376,6 +376,11 @@ RegistryClient.RegisterAgent(input: AgentRegistrationInput,
   // Preserve creation facts before reading authenticated agent detail to obtain
   // publicationAuthority. See PublicationConfig and Registration Replay and Recovery.
 
+RegistryClient.GetOrganizationOnboarding() -> OrganizationOnboardingResponse
+  // GET {baseUrl}/api/v1/org/onboarding with an organization API key or admin session.
+  // Explicit account read; no agent creation or constructor/loader side effects.
+  // Use the configured transport policies, deadline, and cancellation budget.
+
 RegistryClient.GetRegistration(domain: string) -> AgentRegistration
   // GET {baseUrl}/api/v1/agent/{domain}/status using an owning-organization
   // session credential or organization API key. Live responses can contain a
@@ -528,6 +533,23 @@ Registry-prepared canonical TXT record content for a local identity signing work
 The idempotency key is supplied separately as transport metadata. Reusing it
 with different key material fails. A second preparation against the same
 previous key also fails, even with another idempotency key.
+
+#### Account Binding Discovery
+
+`GetOrganizationOnboarding` reads the existing organization-scoped onboarding
+endpoint. Validate any account bindings obtained from it:
+
+| Account value | Existing wire field | Validation |
+|---|---|---|
+| Stable organization ID | `org_id` | Nonempty internal account ID; compare any configured/saved ID. |
+| Expected governance ID | `governance_domain` | Valid domain; compare any configured/saved GI. |
+| Live governance proof | `gi.domain`, `gi.state`, `gi.gate_authorized` | GI object present, matching domain, state `verified`, and gate authorized. |
+| Entity-key delegation | `ek.status` | Must be `verified` before treating delegation as ready. |
+
+Absent/pending proofs are not verified. The response does not include a complete
+entity JWKS URL; CNAME instructions are not a JWKS URL or trust root. Preserve
+503 when onboarding is not configured and authorization errors for callers
+without access. This read does not establish named creation or permanent replay.
 
 #### AgentRegistrationInput
 
