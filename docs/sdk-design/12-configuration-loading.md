@@ -43,6 +43,7 @@ TYPE LoadedConfig
   dnsid?: DnsidConfig               // partial; sections and fields present only when sourced
   logTrust?: LogTrust               // atomic section, see below
   registry?: RegistryConfig         // partial
+  registration?: ManagedRegistrationConfig // partial organization/setup bindings (13); not core identity or acceptance
   keySource?: KeySource
 END
 
@@ -56,10 +57,16 @@ END
 TYPE KeySource
   provider?: file | aws-kms | google-kms | azure-key-vault
   keyRef?: string                   // stable existing operational key reference
+  generation?: KeyGenerationConfig // new key in the selected provider
   settings?: object                // provider-specific non-secret settings
   cliDirectory?: string             // DNSid CLI identity directory (01: Initialization from DNSid CLI Configuration)
   entityKeyPath?: string            // accountable-entity key file; CLI loader resolves a relative entity_key_path against the directory of the config.json that carries it
   keyStorePath?: string             // binding-defined local key store file
+END
+
+TYPE KeyGenerationConfig
+  locator: string                   // stable discovery locator, not a fresh per-call ID
+  algorithm: string                 // must be supported by provider and DNSid profile
 END
 ```
 
@@ -75,20 +82,29 @@ configuration.
 
 `cliDirectory` takes precedence over `keyStorePath` when both are supplied, as
 under `dnsid local run`. These file inputs cannot combine with cloud selection or
-`keyRef`. `entityKeyPath` independently supplies an entity provider.
+`keyRef`/`generation`. `entityKeyPath` independently supplies an entity provider;
+managed registration does not load an entity private key.
 
 ### Operational Key Source Selection
 
-- Missing `provider` selects `file` in the factory. Both default and explicit
+- Missing `provider` selects `file` in the factory. Managed setup defaults to
+  SDK-managed key files separate from recovery data. Both default and explicit
   file selection MUST warn that local keys are unsuitable for production and
   point to cloud configuration.
-- `keyRef` opens an existing key; cloud providers require it. References must
-  resolve the same signing key across restarts; unexplained alias/version changes
-  fail binding checks. `Construct` opens existing keys only, never generates.
+- `keyRef` opens an existing key; `generation` creates/recovers one at a stable
+  locator. They are mutually exclusive; cloud providers require one. References
+  must resolve the same signing key across restarts; unexplained alias/version
+  changes fail binding checks. `Construct` opens existing keys only, never generates.
 - Factories validate provider settings, authentication configuration, and supported
-  algorithms before opening a key. Settings include non-secret region,
+  algorithms before generation/registration. Settings include non-secret region,
   project/location, vault URL, or credential references; credentials come from
   ambient chains or referenced sources, never raw secrets/private JWKs in the file.
+- Generation discovery must converge across replicas and be scoped to the named
+  operation. Persist its locator before generation under
+  [13](13-managed-registration.md#storage-and-recovery). Replacement/rotation uses
+  a fresh locator. If concurrent create-or-recover is unsupported, require an
+  existing key reference; discovery failure never silently generates another key.
+  Bindings document how shared configuration scopes locators.
 - Injected `keyProvider` wins; displaced source settings/packages are not resolved.
   Otherwise an unavailable provider returns `ArgumentError` naming the provider
   and install/build remedy before discovery or mutations, without file fallback.
@@ -98,6 +114,14 @@ under `dnsid local run`. These file inputs cannot combine with cloud selection o
 Changing configuration does not import a local private key or replace an established
 signer. Local-to-cloud transition requires explicit authorized
 [key rotation](01-core-identity-manager.md#operational-key-rotation) using the old provider.
+Before enabling application signing for an established identity, the setup/recovery
+boundary MUST validate the opened provider's `SigningKey()` against the saved
+binding or a successor authorized by fresh verified lifecycle evidence. Managed
+setup owns this check under [13](13-managed-registration.md#completed-operation-resume);
+callers using low-level
+construction own the equivalent check. `Construct` only opens/wires dependencies;
+it does not establish identity continuity. Missing or conflicting evidence fails
+closed. First setup instead persists the initial public binding before registration.
 
 ## Sources
 
@@ -160,7 +184,9 @@ consumers SHOULD emit `DNSID_REGISTRY_URL`, not only the CLI's `DNSID_SERVER`.
 ### Deployment File
 
 The deployment file encodes `LoadedConfig`, including non-secret key-source settings,
-never credentials/private material. Each section maps to its owning type.
+never credentials/private material. Each section maps to its owning type;
+`registration` is consumed only by [managed setup](13-managed-registration.md),
+not core identity construction or counterparty policy.
 
 ```json
 {
@@ -175,12 +201,21 @@ never credentials/private material. Each section maps to its owning type.
 | `dnsid` | `DnsidConfig`, validated by the `IdentityManager` constructor. |
 | `logTrust` | `LogTrust`; exactly one of `managed`, `profile` (inline document), or `policyUrl`. `policyDocument` has no file member; supply it through `DNSID_LOG_POLICY_FILE` or code. |
 | `registry` | `RegistryConfig`, validated by the `RegistryClient` constructor. |
+| `registration` | [ManagedRegistrationConfig](13-managed-registration.md#configuration-and-trust); validated/resolved by setup. |
 | `keySource` | `KeySource`; availability and provider settings validated by the selected factory. |
 
-A deployment file with local identity publication settings can add this key source:
+For managed setup, a file can add:
 
 ```json
 {
+  "dnsid": { "verification": { "dnssecMode": "required" } },
+  "logTrust": { "managed": true },
+  "registry": { "registryUrl": "https://registry.example" },
+  "registration": {
+    "organizationId": "11111111-1111-4111-8111-111111111111",
+    "governanceId": "acme.example",
+    "entityKeyUrl": "https://dnsid.acme.example/.well-known/dnsid-ek.json"
+  },
   "keySource": {
     "provider": "aws-kms",
     "keyRef": "arn:aws:kms:us-east-1:111122223333:key/11111111-1111-4111-8111-111111111111",
@@ -190,8 +225,9 @@ A deployment file with local identity publication settings can add this key sour
 ```
 
 This is illustrative, not a service preset. The key must support the profile's
-algorithm and any registry algorithm restrictions. Credentials and runtime
-dependencies remain separately supplied; this configuration does not create an agent.
+algorithm. To request this GI, also supply `input.governanceDomain = "acme.example"`;
+expectations alone do not route creation or approve counterparties. Credentials,
+state-store locations, and runtime dependencies remain separately supplied.
 
 The file loader MUST reject unknown members and mistyped values, and SHOULD
 reject duplicate members where the platform parser makes that available.
@@ -285,6 +321,15 @@ Explicit caller credentials take precedence. The constructor applies the
 [05](05-transport-and-registry.md#registry-responsibilities) loopback default
 when `registryUrl` is absent.
 
+## Managed Setup Composition
+
+[Managed setup](13-managed-registration.md) consumes merged `LoadedConfig` plus
+separate credentials/storage. Bindings MUST support file loading with the same
+setup/trust rules as environment/code sources. Build its registry client from
+`loaded.registry`, explicit credentials, and effective transport settings; do not
+re-read environment configuration. Discovery/registration are workflow effects,
+never loader or `Construct` side effects.
+
 ## Convenience Constructors
 
 Bindings MAY offer one-call identity-manager constructors. Each MUST be
@@ -343,12 +388,15 @@ verify` reads; there are no SDK-local aliases.
 | Same inputs through a convenience constructor and through manual `Load → Merge → Construct` | Identical validated snapshot and dependency wiring. |
 | `DNSID_PUBLIC_URL`, `DNSID_AGENT_PORT`, `DNSID_SERVER` set | Ignored by SDK loaders. |
 | Deployment file with unknown member, or `logTrust` with zero or two variants and no caller `logRegistry` | Loader or construction fails with `ArgumentError`. |
+| File/code supplies `registration` | Preserve only supplied setup fields; identity-manager construction does not infer identity or acceptance from them. |
 | Deployment file selects an available cloud provider and existing key | Same provider/key as explicit configuration; credentials remain outside deployment/recovery data. |
 | Selected provider package is absent or not linked | ArgumentError with install/build remedy before account discovery or mutations; no file fallback. |
 | Caller injects a provider while file selects an unavailable provider | Injected provider wins; displaced provider package is not loaded. |
 | CLI source selects local files; a later source selects cloud | Replace all operational source fields; retain any independent `entityKeyPath`. |
-| Invalid/conflicting key selection or unsupported algorithm | Reject invalid settings before mutation. |
+| Invalid/conflicting key selection or unsupported algorithm; concurrent generation | Reject invalid settings before mutation; replicas recover one key or require an existing reference. |
 | Construction uses local key files | Emit the production-safety warning. |
+| Managed setup uses local key files | Emit the production-safety warning; private key files remain separate from recovery data. |
 | Existing identity changes provider/key through configuration alone | Binding error; explicit authorized rotation required, never implicit import or key replacement. |
+| Same merged config reaches setup from file or environment plus code overlay | Same registry endpoint, transport, explicit trust, and setup behavior; no environment re-read overrides a file. |
 | Invalid `dnsid` config together with a `policyUrl` | Construction fails with `ArgumentError` without fetching the policy. |
 | Any constructor invoked with environment variables or files present | Constructor reads neither. |

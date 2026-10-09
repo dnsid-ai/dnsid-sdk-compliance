@@ -459,6 +459,9 @@ terminal stale-preparation result before any bytes enter the log.
 
 ## Split ISSUANCE Flow
 
+[Managed registration](13-managed-registration.md#durable-setup) reuses this
+binding-owned issuance flow with SDK-provided storage/adapters.
+
 Delegated issuance commonly places the accountable-entity key at a registry or
 governance service and the operational key at the agent. The SDK flow is:
 

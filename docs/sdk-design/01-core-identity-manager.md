@@ -1011,6 +1011,10 @@ INTERFACE KeyProvider
 END
 ```
 
+A restored provider MAY have no active key after supersession. It MUST reopen
+that lifecycle state without activating a replacement; `SigningKey()` and `Sign()`
+fail until a key is explicitly activated, and `ListKeyIds()` returns an empty list.
+
 ---
 
 ### IdentityCache
@@ -1214,6 +1218,10 @@ use `validated`. Deployments that require DNS-rooted origin authentication use
 
 ### Initial Setup of Local Identity
 
+This is the publisher-owned flow. For registry-held entity signing/publication,
+use [managed registration](13-managed-registration.md), which supplies recovery
+and observes public readiness above core.
+
 ```
 1. IdentityManager.new(config{identity, verification, transport}, deps{keyProvider, entityKeyProvider, logRegistry})
 2. Persist one durable issuance operation; protocol status remains non-active.
@@ -1315,9 +1323,8 @@ activation is durably complete.
 After activation, a counterparty still caching the previous `ku` may reject
 new-key application signatures until its identity evidence expires or is
 explicitly evicted. Operators SHOULD measure this cache-lifetime window and
-plan rotation accordingly. It does not justify publishing overlapping live
-keys, bypassing continuity checks, or accepting signatures under an unverified
-replacement key.
+plan rotation accordingly. [Old-URL retention](05-transport-and-registry.md#key-specific-managed-operational-endpoints)
+does not permit overlapping live keys, continuity bypass, or unverified replacements.
 
 #### Managed Rotation Recovery Contract
 
@@ -1353,17 +1360,22 @@ entry-hash, log-reference, or key-binding mismatch. Its state handling is:
   exact bytes with the same idempotency key;
 - accepted but not activated: do not create a new event; reconcile activation and
   supersession idempotently from the accepted record;
-- activated but still paused: restore application signing to the saved active
-  provider/key, validate its binding, then resume signing and persist completion;
+- activated but still paused: restore application signing to the saved new
+  provider/key, verify that its actual `SigningKey()` matches the saved binding,
+  then resume signing and persist completion; finding the key through `JWK(kid)`
+  alone is insufficient;
 - rejected: return a terminal typed submission error without resubmission.
 
 Failures after completed bytes have been fixed return a typed submission or
 activation error carrying the latest recoverable rotation state. Persistence,
 pause, activation, supersession, and unpause failures never discard that state.
 In particular, unpausing before `activated=true` is durably stored is forbidden.
-Recovery tests MUST cover a crash after activation is persisted but before signer
-wiring changes: resume restores the saved new provider/key before unpausing,
-even when deployment settings still select the old provider.
+Recovery tests MUST cover stale provider snapshots, a crash after supersession but
+before completion persistence, and activation persisted before signer wiring.
+Resume restores application signing to the saved new provider/key before
+unpausing, even when deployment settings still select the old provider.
+Reconcile activation idempotently or return a typed activation error with signing
+still paused; changed deployment settings never select the recovery signer.
 
 If the previous private key is unavailable or suspected compromised, this flow
 MUST NOT be used: revoke and reissue the identity instead.

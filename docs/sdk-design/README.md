@@ -37,7 +37,11 @@ The documents are organized by SDK responsibility:
 | [10-web-bot-auth.md](10-web-bot-auth.md) | Web Bot Auth profile using RFC 9421 primitives and an HTTP Message Signatures Directory. |
 | [11-c2sp-tlog-binding.md](11-c2sp-tlog-binding.md) | C2SP transparency-log binding: references, envelopes, split signing, prepared submission, tiled-log verification, policy, witnesses, and completeness. |
 | [12-configuration-loading.md](12-configuration-loading.md) | Configuration sources: environment variable schema, deployment file, merge rule, and convenience constructors. Loaders parse; constructors default. |
+| [13-managed-registration.md](13-managed-registration.md) | Named managed setup, durable recovery, and public readiness checks. |
 | [conformance/](conformance/) | Language-neutral RFC 9421 signature-base, lifecycle reducer, snapshot, and binding-selection vectors shared by SDK implementations. |
+
+Hosted-registry work is tracked in
+[Managed Registration Server Requirements](../managed-registration-server-requirements.md).
 
 ## Configuration
 
@@ -63,7 +67,7 @@ These SDK configuration and acceptance contracts do not change protocol wire
 behavior. Implementation trackers record reviewed baselines, not claims that
 this revised surface is already implemented. Replacing the public constructors
 and configuration types is a breaking SDK API change, with no compatibility
-shims. All three SDK implementation trackers require a full review against the
+shims. SDK implementation trackers require a full review against the
 settled contract before their baselines or coverage claims are advanced; follow
 [the implementation review procedure](AGENTS.md#updating-sdk-implementation-coverage).
 
@@ -218,11 +222,16 @@ DNSid core does not depend on any application authentication profile.
   -> 01 core IdentityManager constructor
   -> 05 RegistryClient and TransportConfig
   -> 11 log-trust factories
+
+13 managed registration
+  -> 12 loaded configuration and construction
+  -> 05 registry workflows and publication
+  -> 11 managed issuance implementation
+  -> shared key and durable storage interfaces
 ```
 
-Configuration loading sits above core: it constructs an `IdentityManager` and
-its log registry, so core never imports it. Bindings place it in a separate
-package when their module system requires acyclic imports.
+Configuration loading and managed registration depend on core, not the reverse.
+Use separate packages where needed to keep imports acyclic.
 
 ## Naming
 

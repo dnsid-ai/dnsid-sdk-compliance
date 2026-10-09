@@ -240,6 +240,17 @@ allowlist the local entity, or expose a public acceptance-bypass option. Public
 `VerifyDomain`, including calls on the local domain, continues to enforce
 acceptance. The internal helper below is conceptual, not a new public API.
 
+Polling MUST retain the immutable ID/domain, publication authority, creation
+publication snapshot, and any saved OIDC issuer. Compare authoritative reads
+with those facts; a missing saved issuer is a mismatch, not permission to clear it.
+If an endpoint documents omission, retain the snapshot and obtain an authenticated
+authoritative read before reporting success. Authorized rotation is handled under
+[13: Completed-Operation Resume](13-managed-registration.md#completed-operation-resume).
+One finite deadline/cancellation budget covers polling, verification, and awaited
+progress observers. Advisory observers cannot block return indefinitely. Required
+durable writes are not advisory; cancellation does not prove an in-flight write
+was undone, and recovery must reconcile its outcome.
+
 ```
 FUNCTION AwaitRegistryManagedPublication(registryClient: RegistryClient) -> PublishedRecord
   registration = registryClient.GetRegistration(config.identity.domain)
@@ -347,9 +358,38 @@ history.
 
 ---
 
+### Consumer Managed Setup
+
+[13: Managed Registration](13-managed-registration.md) defines the consumer-facing
+composition of registration, durable recovery, managed issuance, publication,
+and public readiness checks. Bindings provide a file-backed recovery store and
+SDK-owned registry integration and retries; consumers do not implement a recovery
+adapter.
+This workflow sits above the following low-level client; it does not change
+endpoint wire behavior or registry ownership of lifecycle convergence.
+
+Automatic creation recovery requires permanent server-side idempotency and
+organization-scoped name uniqueness below. Setup resolves its organization ID
+from configuration or authenticated account discovery; the server validates the
+derived request key against its actual authenticated organization. These requirements use the existing `name`,
+`public_key`, and `Idempotency-Key` fields, not a recovery adapter or new lookup
+endpoint. This is a revised server contract, not a claim of current hosted-registry
+support. [Server requirements](../managed-registration-server-requirements.md)
+track the changes and acceptance checks. Verify them before enabling automatic
+managed recovery or replacing working examples; a consumer acknowledgement flag
+does not establish server support.
+
 ### RegistryClient
 
 Operator-side client for DNSid registry workflows for the local identity's own managed records. `RegistryClient` is not used by `VerifyDomain` when validating external identities; protocol verification always fetches the `su` endpoint asserted in the signed TXT record.
+
+Omitted transport configuration and an empty `TransportConfig` MUST apply the
+same protected defaults: validated destinations, TLS, finite deadlines/cancellation,
+redirect bounds, and streamed decoded-size limits. Only the documented literal
+loopback registry permits HTTP/local access without `privateAddressHosts`.
+Compressed bodies are decoded once; adapters wrapping decoded bytes MUST remove
+stale encoding/length metadata. Tests cover omitted versus empty configuration,
+compressed responses, and decoded-size overflow.
 
 Registry preparation responses remain untrusted transport values until the
 selected log binding parses and validates them:
@@ -375,11 +415,12 @@ RegistryClient.RegisterAgent(input: AgentRegistrationInput,
   // If supplied, send idempotencyKey as the Idempotency-Key header, not JSON.
   // Preserve creation facts before reading authenticated agent detail to obtain
   // publicationAuthority. See PublicationConfig and Registration Replay and Recovery.
+  // This low-level call is not the complete register-and-verify workflow in 13.
 
 RegistryClient.GetOrganizationOnboarding() -> OrganizationOnboardingResponse
-  // GET {baseUrl}/api/v1/org/onboarding with an organization API key or admin session.
-  // Explicit account read; no agent creation or constructor/loader side effects.
-  // Use the configured transport policies, deadline, and cancellation budget.
+  // GET {baseUrl}/api/v1/org/onboarding with the supplied API key/session credential.
+  // SDK-owned account discovery; no agent creation and no consumer callback.
+  // Use the same transport policies, deadline, and cancellation budget as setup.
 
 RegistryClient.GetRegistration(domain: string) -> AgentRegistration
   // GET {baseUrl}/api/v1/agent/{domain}/status using an owning-organization
@@ -490,22 +531,25 @@ RegistryClient.SubmitPreparedEvent(domain: string, entryBytes: bytes,
   // HTTP error and is never reported as an accepted result.
 ```
 
-For a managed `ku` rotation, the SDK generates the new key locally and never
-sends private material to the registry. In the current product,
-`PrepareKeyRotation` requires an owning-organization session credential or
-organization API key; an agent self-auth bearer credential is deliberately not
-accepted because the key being replaced must not authorize its own replacement.
-This control-plane authorization does not replace commit authority from the
-previous operational signature. For the `c2sp-tlog` binding the SDK also signs
-with the pending new key as proof of possession. Before submission, the SDK durably persists the exact
-rotation state and pauses application signing through required injected
-dependencies. After receiving an accepted submission result bound to the exact
-entry hash and new key, it persists acceptance, activates the new key, supersedes
-the old key, persists activation, and only then resumes signing. If submission is
-indeterminate after publication but before the immutable append converges,
-signing remains paused while the registry reconciles the same entry; it does not
-create a replacement rotation. Restart recovery follows the core
-[managed rotation recovery contract](01-core-identity-manager.md#managed-rotation-recovery-contract).
+`PrepareKeyRotation` requires an owning-organization session credential or API key,
+not agent self-auth. This control-plane authorization does not replace the previous
+operational signature; `c2sp-tlog` also requires new-key proof of possession.
+Private keys stay in customer-controlled providers. Persistence, signing pause,
+acceptance/publication checks, activation, and restart follow the core
+[rotation contract](01-core-identity-manager.md#operational-key-rotation).
+
+#### Key-Specific Managed Operational Endpoints
+
+Hosted products may return key-specific URLs under the
+[SR-9 hosting convention](../managed-registration-server-requirements.md#key-specific-operational-endpoints-sr-9),
+not a protocol path rule. SDKs consume registry-established `kuUrl` and signed TXT
+`ku`, never synthesize URLs from aliases, thumbprints, registry URL, or agent name.
+Host/cardinality constraints remain profile-owned. Changed `ku` follows the core
+rotation publication checks; the registry holds its entity key.
+
+Fresh verification uses signed current `ku`; historical verification uses log
+evidence. Retained old URLs are not current-key fallback or signing authority,
+and do not permit two keys in the current JWKS or unexplained key changes.
 
 Registry implementations MAY expose additional setup and publication methods,
 including verification and registry-managed TXT publication.
@@ -537,19 +581,19 @@ previous key also fails, even with another idempotency key.
 #### Account Binding Discovery
 
 `GetOrganizationOnboarding` reads the existing organization-scoped onboarding
-endpoint. Validate any account bindings obtained from it:
+endpoint. Setup validates these fields:
 
-| Account value | Existing wire field | Validation |
+| Setup value | Existing wire field | Validation |
 |---|---|---|
 | Stable organization ID | `org_id` | Nonempty internal account ID; compare any configured/saved ID. |
 | Expected governance ID | `governance_domain` | Valid domain; compare any configured/saved GI. |
 | Live governance proof | `gi.domain`, `gi.state`, `gi.gate_authorized` | GI object present, matching domain, state `verified`, and gate authorized. |
-| Entity-key delegation | `ek.status` | Must be `verified` before treating delegation as ready. |
+| Entity-key delegation | `ek.status` | Must be `verified` before discovery supplies ready setup bindings. |
 
-Absent/pending proofs are not verified. The response does not include a complete
-entity JWKS URL; CNAME instructions are not a JWKS URL or trust root. Preserve
-503 when onboarding is not configured and authorization errors for callers
-without access. This read does not establish named creation or permanent replay.
+Absent/pending proofs are not verified. `entityKeyUrl` is not returned and must
+remain configured; CNAME instructions are not a JWKS URL or trust root.
+[Server evidence](../managed-registration-server-requirements.md#existing-account-binding-discovery)
+tracks API-key access and availability separately.
 
 #### AgentRegistrationInput
 
@@ -562,7 +606,7 @@ idiomatic public names and serialize the exact JSON wire names shown.
 | `governanceDomain` | `governance_domain` | string | no | Expected accountable governance identifier (`gi`). With no `domain`, also selects an authorized root as described below. It is not an arbitrary signer override. |
 | `rootDomain` | `root_domain` | string | no | Active delegated zone owned by the caller's organization under which the registry assigns a name. Not a zone ID. May be combined with `governanceDomain`. |
 | `publicKeyJwk` | `public_key` | JWK | conditional | Public signing key required whenever the registry assigns the name or manages the identity. Optional for a self-managed exact domain whose JWKS is verified externally. Private JWK members are forbidden. |
-| `name` | `name` | string | no | Human-readable registry metadata; at most 255 characters after trimming. Not published in the DNSid record. |
+| `name` | `name` | string | conditional | Required by named managed setup (13); optional for low-level unnamed creation. Organization-scoped agent handle and display name, at most 255 Unicode code points after trimming; case-sensitive. Not published in DNS or the log. |
 | `capabilitiesUrl` | `capabilities_url` | string | no | HTTPS capabilities-document URL to publish as `cu`. |
 
 New registration omits legacy selector defaults. Existing entry points may
@@ -596,12 +640,35 @@ returns 400 `BAD_REQUEST`, an unauthorized GI returns 403
 `GOVERNANCE_NOT_AUTHORIZED`, and unavailable infrastructure returns 503
 `SERVICE_UNAVAILABLE`.
 
+##### Named Managed Registration
+
+Enforce one nonterminal identity per authenticated organization/name, including
+pending creation. Names are tenant-isolated display handles, not the source of
+public domains or immutable IDs.
+
+Named requests require a public key and
+[derived registration key](13-managed-registration.md#organization-and-creation-replay).
+Validate it against authenticated organization ID, normalized name, and submitted
+key thumbprint before allocation; mismatched configured organization must not create
+in the credential's actual organization or disclose another tenant's identity.
+
+Matching name/key/complete input opens the same identity, including concurrent
+hosts. A different unrotated key or conflicting input fails without mutation/allocation.
+Authorized rotation preserves name/identity; opening with its verified current key
+does not issue again.
+
+After revocation/retirement, explicit replacement requires a fresh key, never an
+initial or rotated key of the previous named identity. Atomically reassign the name
+to a new immutable ID/domain/log stream and retain terminal history. Old request-key
+replay takes precedence over allocation and never changes the current name holder.
+
 ##### Registration Replay and Recovery
 
-Ordinary creation permits an omitted `Idempotency-Key`. Retry-safe callers supply
-one as transport metadata; retries MUST retain the same key and complete request,
-including legacy selectors. SDKs MUST NOT automatically retry an unknown creation
-outcome without a key or use an assigned domain as replacement request input.
+Unnamed ordinary creation permits an omitted or caller-selected `Idempotency-Key`;
+[managed setup](13-managed-registration.md#organization-and-creation-replay) derives
+its keys. Send keys as transport metadata and retry with the same complete input,
+including legacy selectors. Never automatically retry an unknown creation without
+a key or substitute an assigned domain as request input.
 
 Preserve the immutable ID, domain, publication configuration, and returned OIDC
 issuer before a follow-up read. A timeout, invalid response, failed detail read,
@@ -609,15 +676,23 @@ or `MANAGED_GOVERNANCE_UNAVAILABLE` response can leave an identity already creat
 Errors retain the request/key and any known creation facts, not a claim that no
 agent exists.
 
-Idempotency claims are scoped to the authenticated organization. Within retention,
-identical keyed retries address the original identity without resolving a new
-root, even after zone deactivation. Publication configuration is
-recomputed: stale or unverified managed governance returns 409
-`MANAGED_GOVERNANCE_UNAVAILABLE`, so successful replay is not unconditional.
-SDKs do not allocate another identity or silently replace saved publication
-configuration or trust policy. Changed input can return 422
-`IDEMPOTENCY_MISMATCH` or a preceding validation/authorization/infrastructure
-error; preserve the actual error and original key.
+Atomically commit the organization-scoped key claim, complete request fingerprint,
+and one immutable registration before returning success. Concurrent matching calls
+must not allocate losing identities. Same low-level key strings in different
+organizations are independent and disclose nothing across tenants; credential
+replacement within one organization preserves the operation.
+
+Retain the binding/tombstone permanently through inactivity, root deactivation,
+terminal state, and deletion. Identical retries return the original identity without
+new root resolution; an unavailable original returns a terminal error, never replacement.
+Changed input cannot mutate/allocate; preserve 422 `IDEMPOTENCY_MISMATCH` or any
+preceding validation/authorization/infrastructure error and the original key.
+
+Publication configuration may be recomputed: stale or unverified managed
+governance returns 409 `MANAGED_GOVERNANCE_UNAVAILABLE`, so successful replay is
+not unconditional. SDKs do not silently replace saved publication configuration
+or trust policy. These creation guarantees are registry requirements, not DNSid
+protocol rules, and do not alter the separate Live workflow.
 
 #### LiveAgentRegistrationInput
 
@@ -789,7 +864,8 @@ governance persistence also require server integration tests, not SDK coordinati
 | Invalid inputs | Reject conflicting selectors, missing keys for assigned names, invalid URLs, and private JWK members, including nested JWKS material. |
 | Invalid response or root/admission failure | Fail closed, preserve known creation facts and server errors, and make no fallback request. |
 | Supported existing selectors and managed Live | Preserve existing request behavior; Live still returns 202 provisioning, not ordinary 201 registration. |
-| Keyed replay, including stale GI or changed input | Retain the original request/key and identity; preserve governance/mismatch errors without replacement allocation or cross-organization replay. |
+| Keyed replay, including stale GI or changed input | Preserve enough frozen input to reconstruct unresolved creation and its derived key; retain known identity and governance/mismatch errors without replacement allocation. |
+| Named creation and permanent replay | [Server acceptance checks](../managed-registration-server-requirements.md#acceptance-checks) establish tenant isolation, atomic convergence, permanent bindings, and fresh-key replacement. |
 | Timeout or post-creation failure | Retain known facts for recovery; never imply that failure proves no identity exists. |
 
 #### PublishedRecord
