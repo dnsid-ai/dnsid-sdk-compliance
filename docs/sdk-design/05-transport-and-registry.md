@@ -240,6 +240,17 @@ allowlist the local entity, or expose a public acceptance-bypass option. Public
 `VerifyDomain`, including calls on the local domain, continues to enforce
 acceptance. The internal helper below is conceptual, not a new public API.
 
+Polling MUST retain the immutable ID/domain, publication authority, creation
+publication snapshot, and any saved OIDC issuer. Compare authoritative reads
+with those facts; a missing saved issuer is a mismatch, not permission to clear it.
+If an endpoint documents omission, retain the snapshot and obtain an authenticated
+authoritative read before reporting success. Authorized rotation is handled under
+[13: Completed-Operation Resume](13-managed-registration.md#completed-operation-resume).
+One finite deadline/cancellation budget covers polling, verification, and awaited
+progress observers. Advisory observers cannot block return indefinitely. Required
+durable writes are not advisory; cancellation does not prove an in-flight write
+was undone, and recovery must reconcile its outcome.
+
 ```
 FUNCTION AwaitRegistryManagedPublication(registryClient: RegistryClient) -> PublishedRecord
   registration = registryClient.GetRegistration(config.identity.domain)
@@ -371,6 +382,14 @@ does not establish server support.
 ### RegistryClient
 
 Operator-side client for DNSid registry workflows for the local identity's own managed records. `RegistryClient` is not used by `VerifyDomain` when validating external identities; protocol verification always fetches the `su` endpoint asserted in the signed TXT record.
+
+Omitted transport configuration and an empty `TransportConfig` MUST apply the
+same protected defaults: validated destinations, TLS, finite deadlines/cancellation,
+redirect bounds, and streamed decoded-size limits. Only the documented literal
+loopback registry permits HTTP/local access without `privateAddressHosts`.
+Compressed bodies are decoded once; adapters wrapping decoded bytes MUST remove
+stale encoding/length metadata. Tests cover omitted versus empty configuration,
+compressed responses, and decoded-size overflow.
 
 Registry preparation responses remain untrusted transport values until the
 selected log binding parses and validates them:

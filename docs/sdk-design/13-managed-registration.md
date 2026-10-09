@@ -240,9 +240,13 @@ No example-specific storage compatibility format is required.
 ## Retry, Deadlines, and Errors
 
 The SDK schedules retries within one finite deadline/cancellation budget, with a
-binding-documented finite default. Cancellation preserves recovery state and does
-not undo creation. Retry classified transient failures, unknown outcomes with the
-same input/bytes, and narrowly classified missing DNS resources during propagation.
+binding-documented finite default. The budget covers lock acquisition, network
+calls, verification, storage, and any awaited observers, not just retry delays.
+Storage MUST prevent an unresolved write from committing after lock release;
+reconcile indeterminate outcomes before further mutations.
+Cancellation preserves recovery state and does not undo creation. Retry classified
+transient failures, unknown outcomes with the same input/bytes, and narrowly
+classified missing DNS resources during propagation.
 Signature, binding, unsupported-profile, policy, and terminal registry failures stop;
 resource/deadline limits return recoverable errors.
 
@@ -267,11 +271,11 @@ checks belong to [Server Requirements](../managed-registration-server-requiremen
 | Interrupted generation; missing/corrupt/conflicting artifacts | Recover original key or fail before further mutation; no replacement generation. |
 | Credential replacement; wrong credential organization; occupied name with another key | Same-org resume succeeds; server rejects conflicts before allocation without disclosure. |
 | Lost creation response; changed optional input; long interruption/clock change | Identical reconstructed replay or conflict; no expiration or replacement. |
-| Known identity with failed detail read; conflicting replay | Preserve facts; resume reads, not creation; conflicting bindings fail. |
+| Known identity with failed detail read; conflicting replay; changed/missing saved issuer | Preserve facts; resume authenticated reads, not creation; authoritative binding loss/change fails. |
 | Interrupt each preparation/submission/acceptance/publication/completion boundary | Resume safely; unknown submission uses exact bytes, accepted issuance is not repeated. |
 | Crash during compaction; unresolved bytes missing; completed entry retrieval | Preserve pending data or sufficient verified next-phase facts; otherwise fail without reissuing. |
 | Wrong authority, GI, endpoint/key, publication profile, log instance, or operational binding | Stop before unauthorized countersigning or success. |
-| Registry READY without public evidence; deadline/cancellation after mutation | Bounded convergence/resumable error; no success, rollback, or recreation. |
+| Registry READY without public evidence; stalled observer; deadline/cancellation after mutation or during storage | Bounded return/resumable error; retain facts, prevent late writes after lock release, reconcile unknown outcomes; no success, rollback, or recreation. |
 | Invalid signature/profile, policy denial, or terminal rejection | Fail closed without broad retry or policy changes. |
 | Completed resume; authorized key/ku rotation; old private key unavailable | New public observation of same identity, verified current key/URL, historical issuance intact. |
 | Unexplained change or pending rotation | Binding error or existing rotation recovery guidance; no rotation by setup or old-URL fallback. |

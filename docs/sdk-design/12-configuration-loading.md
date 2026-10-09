@@ -114,6 +114,14 @@ managed registration does not load an entity private key.
 Changing configuration does not import a local private key or replace an established
 signer. Local-to-cloud transition requires explicit authorized
 [key rotation](01-core-identity-manager.md#operational-key-rotation) using the old provider.
+Before enabling application signing for an established identity, the setup/recovery
+boundary MUST validate the opened provider's `SigningKey()` against the saved
+binding or a successor authorized by fresh verified lifecycle evidence. Managed
+setup owns this check under [13](13-managed-registration.md#completed-operation-resume);
+callers using low-level
+construction own the equivalent check. `Construct` only opens/wires dependencies;
+it does not establish identity continuity. Missing or conflicting evidence fails
+closed. First setup instead persists the initial public binding before registration.
 
 ## Sources
 
