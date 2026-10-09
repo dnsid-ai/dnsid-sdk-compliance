@@ -1360,9 +1360,10 @@ entry-hash, log-reference, or key-binding mismatch. Its state handling is:
   exact bytes with the same idempotency key;
 - accepted but not activated: do not create a new event; reconcile activation and
   supersession idempotently from the accepted record;
-- activated but still paused: restore the saved new provider/key, verify that its
-  actual `SigningKey()` matches the saved binding, then resume signing and persist
-  completion; finding the key through `JWK(kid)` alone is insufficient;
+- activated but still paused: restore application signing to the saved new
+  provider/key, verify that its actual `SigningKey()` matches the saved binding,
+  then resume signing and persist completion; finding the key through `JWK(kid)`
+  alone is insufficient;
 - rejected: return a terminal typed submission error without resubmission.
 
 Failures after completed bytes have been fixed return a typed submission or
@@ -1371,6 +1372,8 @@ pause, activation, supersession, and unpause failures never discard that state.
 In particular, unpausing before `activated=true` is durably stored is forbidden.
 Recovery tests MUST cover stale provider snapshots, a crash after supersession but
 before completion persistence, and activation persisted before signer wiring.
+Resume restores application signing to the saved new provider/key before
+unpausing, even when deployment settings still select the old provider.
 Reconcile activation idempotently or return a typed activation error with signing
 still paused; changed deployment settings never select the recovery signer.
 
