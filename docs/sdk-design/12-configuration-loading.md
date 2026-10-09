@@ -211,6 +211,9 @@ FUNCTION Merge(base: LoadedConfig, overlay: LoadedConfig) -> LoadedConfig
   `overlay` replaces the base value.
 - Lists replace; they are never concatenated or deduplicated across sources.
 - `logTrust` is replaced as a whole section when `overlay` sets any variant.
+- Operational `keySource` fields (`provider`, `keyRef`, `settings`, `cliDirectory`,
+  `keyStorePath`) are replaced as a group when the overlay supplies any of them.
+  `entityKeyPath` merges independently.
 - A section absent from both stays absent.
 
 A binding whose partial configuration uses value fields that cannot distinguish
@@ -343,6 +346,7 @@ verify` reads; there are no SDK-local aliases.
 | Deployment file selects an available cloud provider and existing key | Same provider/key as explicit configuration; credentials remain outside deployment/recovery data. |
 | Selected provider package is absent or not linked | ArgumentError with install/build remedy before account discovery or mutations; no file fallback. |
 | Caller injects a provider while file selects an unavailable provider | Injected provider wins; displaced provider package is not loaded. |
+| CLI source selects local files; a later source selects cloud | Replace all operational source fields; retain any independent `entityKeyPath`. |
 | Invalid/conflicting key selection or unsupported algorithm | Reject invalid settings before mutation. |
 | Construction uses local key files | Emit the production-safety warning. |
 | Existing identity changes provider/key through configuration alone | Binding error; explicit authorized rotation required, never implicit import or key replacement. |

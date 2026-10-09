@@ -1353,13 +1353,17 @@ entry-hash, log-reference, or key-binding mismatch. Its state handling is:
   exact bytes with the same idempotency key;
 - accepted but not activated: do not create a new event; reconcile activation and
   supersession idempotently from the accepted record;
-- activated but still paused: resume signing and persist the completed state;
+- activated but still paused: restore application signing to the saved active
+  provider/key, validate its binding, then resume signing and persist completion;
 - rejected: return a terminal typed submission error without resubmission.
 
 Failures after completed bytes have been fixed return a typed submission or
 activation error carrying the latest recoverable rotation state. Persistence,
 pause, activation, supersession, and unpause failures never discard that state.
 In particular, unpausing before `activated=true` is durably stored is forbidden.
+Recovery tests MUST cover a crash after activation is persisted but before signer
+wiring changes: resume restores the saved new provider/key before unpausing,
+even when deployment settings still select the old provider.
 
 If the previous private key is unavailable or suspected compromised, this flow
 MUST NOT be used: revoke and reissue the identity instead.
