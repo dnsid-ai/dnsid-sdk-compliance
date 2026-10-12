@@ -242,7 +242,8 @@ acceptance. The internal helper below is conceptual, not a new public API.
 
 Polling MUST retain the immutable ID/domain, publication authority, creation
 publication snapshot, and any saved OIDC issuer. Compare authoritative reads
-with those facts; a missing saved issuer is a mismatch, not permission to clear it.
+with those facts; omission of `oidc_issuer_url` when an issuer was saved is a mismatch,
+not permission to clear it. An issuer omitted at creation need not be present later.
 If an endpoint documents omission, retain the snapshot and obtain an authenticated
 authoritative read before reporting success. Authorized rotation is handled under
 [13: Completed-Operation Resume](13-managed-registration.md#completed-operation-resume).
@@ -260,8 +261,11 @@ FUNCTION AwaitRegistryManagedPublication(registryClient: RegistryClient) -> Publ
 
   LOOP
     registration = registryClient.GetRegistration(config.identity.domain)
-    IF registration.registryStatus IN ["REJECTED", "CANCELLED", "ERROR", "REVOKED", "RETIRED"] THEN
-      RAISE RegistryWorkflowError(registration)
+    IF registration.registryStatus IN ["REJECTED", "CANCELLED", "REVOKED", "RETIRED"] THEN
+      RAISE RegistryWorkflowError(registration, resumable=false)
+    END
+    IF registration.registryStatus == "ERROR" THEN
+      RAISE RegistryWorkflowError(registration, resumable=true)
     END
     IF registration.registryStatus == "READY" AND registration.dnsPublished THEN
       BREAK
@@ -371,13 +375,14 @@ endpoint wire behavior or registry ownership of lifecycle convergence.
 Automatic creation recovery requires permanent server-side idempotency and
 organization-scoped name uniqueness below. Setup resolves its organization ID
 from configuration or authenticated account discovery; the server validates the
-derived request key against its actual authenticated organization. These requirements use the existing `name`,
-`public_key`, and `Idempotency-Key` fields, not a recovery adapter or new lookup
-endpoint. This is a revised server contract, not a claim of current hosted-registry
-support. [Server requirements](../managed-registration-server-requirements.md)
-track the changes and acceptance checks. Verify them before enabling automatic
-managed recovery or replacing working examples; a consumer acknowledgement flag
-does not establish server support.
+derived request key against its actual authenticated organization. Named setup uses
+`name`, `public_key`, and `Idempotency-Key`; explicit replacement
+also carries `replaces`, the previous immutable identity ID. Authenticated onboarding
+MUST advertise `dnsid-managed-registration-v1` in `managed_registration` before the
+SDK enables automatic managed creation or recovery. This capability covers the
+[server requirements](../managed-registration-server-requirements.md), including
+permanent replay and atomic name claims. A consumer acknowledgement flag does not
+establish server support.
 
 ### RegistryClient
 
@@ -490,8 +495,9 @@ RegistryClient.PrepareIssuance(domain: string,
   // implementation, independently reproduce signedBytes, verify the domain,
   // governance identity, accountable-entity key and signature, local operational
   // public key, log context, and seq=0, then add only the operational signature.
-  // A retry uses the same idempotency key and must receive byte-identical prepared
-  // content; submission uses the same key and exact completed entry bytes.
+  // A retry uses the same idempotency key and receives byte-identical prepared
+  // content unless durable server state permits reclaiming an expired preparation
+  // under 11: Submission and Idempotency. Submission uses exact persisted completed bytes.
 
 RegistryClient.PrepareKeyRotation(domain: string, request: KeyRotationPreparationRequest,
                                   idempotencyKey: string) -> PreparedRegistryEvent
@@ -548,8 +554,11 @@ Host/cardinality constraints remain profile-owned. Changed `ku` follows the core
 rotation publication checks; the registry holds its entity key.
 
 Fresh verification uses signed current `ku`; historical verification uses log
-evidence. Retained old URLs are not current-key fallback or signing authority,
-and do not permit two keys in the current JWKS or unexplained key changes.
+evidence. Retained old URLs are not current-key fallback. The key-specific hosting
+contract keeps one key at each URL; cached old TXT can still select the old endpoint
+within the bounded retention window. Rotation coordinators, including self-managed
+publishers, follow [core retention rules](01-core-identity-manager.md#operational-key-rotation).
+Retention does not authorize new signing with a superseded key or bypass lifecycle checks.
 
 Registry implementations MAY expose additional setup and publication methods,
 including verification and registry-managed TXT publication.
@@ -583,9 +592,10 @@ previous key also fails, even with another idempotency key.
 `GetOrganizationOnboarding` reads the existing organization-scoped onboarding
 endpoint. Setup validates these fields:
 
-| Setup value | Existing wire field | Validation |
+| Setup value | Wire field | Validation |
 |---|---|---|
-| Stable organization ID | `org_id` | Nonempty internal account ID; compare any configured/saved ID. |
+| Stable organization ID | `org_id` | Nonempty account ID; compare configured/saved values byte-exact without reformatting. |
+| Managed registration contract | `managed_registration` | Array of supported contract identifiers; automatic managed setup requires `dnsid-managed-registration-v1`. |
 | Expected governance ID | `governance_domain` | Valid domain; compare any configured/saved GI. |
 | Live governance proof | `gi.domain`, `gi.state`, `gi.gate_authorized` | GI object present, matching domain, state `verified`, and gate authorized. |
 | Entity-key delegation | `ek.status` | Must be `verified` before discovery supplies ready setup bindings. |
@@ -606,8 +616,9 @@ idiomatic public names and serialize the exact JSON wire names shown.
 | `governanceDomain` | `governance_domain` | string | no | Expected accountable governance identifier (`gi`). With no `domain`, also selects an authorized root as described below. It is not an arbitrary signer override. |
 | `rootDomain` | `root_domain` | string | no | Active delegated zone owned by the caller's organization under which the registry assigns a name. Not a zone ID. May be combined with `governanceDomain`. |
 | `publicKeyJwk` | `public_key` | JWK | conditional | Public signing key required whenever the registry assigns the name or manages the identity. Optional for a self-managed exact domain whose JWKS is verified externally. Private JWK members are forbidden. |
-| `name` | `name` | string | conditional | Required by named managed setup (13); optional for low-level unnamed creation. Organization-scoped agent handle and display name, at most 255 Unicode code points after trimming; case-sensitive. Not published in DNS or the log. |
+| `name` | `name` | string | conditional | Required by named managed setup (13); optional for low-level unnamed creation. Organization-scoped agent handle and display name; apply [13's exact normalization](13-managed-registration.md#name-normalization) before hashing or comparison. Not published in DNS or the log. |
 | `capabilitiesUrl` | `capabilities_url` | string | no | HTTPS capabilities-document URL to publish as `cu`. |
+| `replaces` | `replaces` | string | no | Previous immutable identity ID; required only for explicit named replacement after a terminal state. |
 
 New registration omits legacy selector defaults. Existing entry points may
 retain `environment`, `tier`, `managed`, and `zone_id`: the server maps supported
@@ -642,9 +653,11 @@ returns 400 `BAD_REQUEST`, an unauthorized GI returns 403
 
 ##### Named Managed Registration
 
-Enforce one nonterminal identity per authenticated organization/name, including
-pending creation. Names are tenant-isolated display handles, not the source of
-public domains or immutable IDs.
+For keyed named managed requests, enforce one nonterminal identity per authenticated
+organization/name, including pending creation. Apply [13's normalization](13-managed-registration.md#name-normalization)
+and [registry-state rules](13-managed-registration.md#registry-states); `ERROR` retains
+the name and remains recoverable. These name-claim rules do not apply to low-level
+unnamed creation. Names are tenant-isolated handles, not public domains or immutable IDs.
 
 Named requests require a public key and
 [derived registration key](13-managed-registration.md#organization-and-creation-replay).
@@ -654,13 +667,28 @@ in the credential's actual organization or disclose another tenant's identity.
 
 Matching name/key/complete input opens the same identity, including concurrent
 hosts. A different unrotated key or conflicting input fails without mutation/allocation.
-Authorized rotation preserves name/identity; opening with its verified current key
-does not issue again.
+Authorized rotation preserves name/identity; completed setup opens the saved
+immutable identity and verifies its current key without another issuance.
 
-After revocation/retirement, explicit replacement requires a fresh key, never an
-initial or rotated key of the previous named identity. Atomically reassign the name
-to a new immutable ID/domain/log stream and retain terminal history. Old request-key
-replay takes precedence over allocation and never changes the current name holder.
+After `REJECTED`, `CANCELLED`, `REVOKED`, or `RETIRED`, explicit replacement requires
+`replaces` equal to the current terminal holder's immutable ID and a fresh key, never
+an initial or rotated key of that identity. A fresh key alone does not authorize
+replacement. Atomically reassign the name to a new immutable ID/domain/log stream
+and retain terminal history. Old request-key replay takes precedence over allocation
+and never changes the current name holder.
+
+Named failures use the following status/code pairs. Organization-binding rejection
+and occupied-name rejection have the same public error shape and disclose no foreign
+identity. Known own-organization terminal errors retain the original identity facts.
+
+| Failure | HTTP status / code |
+|---|---|
+| Derived organization binding mismatch; occupied name with another key; missing/stale replacement intent | 409 `NAME_CONFLICT` |
+| Changed input under a bound replay key | 422 `IDEMPOTENCY_MISMATCH` |
+| Original identity terminal or permanently unavailable on replay | 410 `IDENTITY_TERMINAL` |
+
+A workflow `ERROR` is resumable, not `IDENTITY_TERMINAL`; return the retained identity
+and workflow state. Preserve preceding validation, authorization, or infrastructure errors.
 
 ##### Registration Replay and Recovery
 
@@ -807,7 +835,7 @@ Registry registration or verification result for a local identity.
 | `domain` | string | yes | Registered agent FQDN. |
 | `publicationConfig` | PublicationConfig | conditional | Authoritative publication snapshot; required for the Identity Digital adapter, decoded from `publication_config`. Retained with the immutable ID and domain. |
 | `publicationAuthority` | `"client"` or `"registry"` | yes | Registry declaration of who controls the accountable-entity key and signs the DNSid record. For the current product API, `managed="dnsid"` maps to `"registry"` and `managed="self"` maps to `"client"`; other implementations MUST report this explicitly rather than infer it solely from DNS hosting, profile tags, or key availability. |
-| `registryStatus` | string | yes | Registry-controlled registration workflow state exactly as returned by the management API, such as `PENDING`, `VERIFICATION`, `VERIFIED`, `READY`, `REJECTED`, `CANCELLED`, `ERROR`, `REVOKED`, or `RETIRED`. This is not protocol `AgentStatus.state`. |
+| `registryStatus` | string | yes | Registry-controlled registration workflow state exactly as returned by the management API, such as `PENDING`, `PROVISIONING`, `VERIFICATION`, `VERIFIED`, `READY`, `REJECTED`, `CANCELLED`, `ERROR`, `REVOKED`, or `RETIRED`. This is not protocol `AgentStatus.state`. |
 | `dnsPublished` | boolean | no | Registry observation that DNS publication completed. Meaningful for registry-managed publication; successful SDK publication still requires resolving and validating the record. |
 | `protocolStatus` | AgentStatus | no | Complete protocol-facing lifecycle status, when the registry response supplies authoritative state, transition time, and conditional revocation reason. SDKs MUST NOT construct this object solely by mapping `registryStatus`; they MAY obtain it from the identity's `su` endpoint or an equivalent complete protocol-status object returned by the registry. |
 | `oidcIssuerUrl` | string | no | Exact `oidc_issuer_url` returned by the registry. Persist it for OIDC operations rather than deriving an issuer from the registry hostname. |
@@ -821,8 +849,9 @@ protocol state for display or polling, but that mapping is not an
 also requires the actual time of the most recent protocol transition and, for
 `REVOKED`, its reason. In particular, SDKs MUST NOT fabricate
 `lastTransitionAt`, and publication readiness does not by itself prove protocol
-`ACTIVE` state. Polling helpers MUST treat both `REVOKED` and `RETIRED` as
-terminal rather than waiting until timeout.
+`ACTIVE` state. Polling helpers MUST apply [13's registry-state rules](13-managed-registration.md#registry-states):
+`REJECTED`, `CANCELLED`, `REVOKED`, and `RETIRED` are terminal; `ERROR` returns a
+resumable workflow error rather than waiting until timeout.
 
 #### PublicationConfig
 
@@ -892,5 +921,6 @@ and a `retrySameEntry` flag. For the current product adapter,
 `TLOG_SUBMISSION_BUSY` and `TLOG_SUBMISSION_INDETERMINATE` retry the identical
 `entryBytes` with the same idempotency key. `IDEMPOTENCY_MISMATCH`,
 `TLOG_PREPARATION_MISMATCH`, and `TLOG_INVALID_ENTRY` are terminal for those
-prepared bytes. Unknown transport failures remain indeterminate and MUST NOT
-cause a replacement event to be created.
+prepared bytes. Named setup MUST perform [issuance recovery](13-managed-registration.md#issuance-recovery)
+before making the operation failure final. Unknown transport failures remain
+indeterminate and MUST NOT cause a replacement event to be created.

@@ -587,12 +587,18 @@ representations retain the registry error code and whether the same bytes are
 retryable. Busy, indeterminate, timeout, and unknown transport outcomes retry
 only the identical persisted entry with the same idempotency key. Validation,
 preparation mismatch, and idempotency mismatch failures are terminal for that
-prepared entry. An SDK MUST NOT turn an unclassified failure into a fresh
-rotation or issuance attempt.
+prepared entry. In [named managed setup](13-managed-registration.md#issuance-recovery),
+the SDK MUST recover and verify any accepted ISSUANCE before making the operation
+failure final; a different valid signature from another replica can identify the
+accepted entry without matching the losing submission's hash. Its receipt MUST NOT
+be treated as acceptance of the losing bytes. Unresolved submission remains
+recoverable. An SDK MUST NOT turn an unclassified failure into a fresh rotation
+or issuance attempt.
 
 Preparation state includes an expiry and the reserved prior-stream revision.
-Only an expired preparation that is durably known never to have entered
-submission may be atomically replaced. `submitting`, `indeterminate`, and
+An expired preparation may be atomically replaced only when durable server state
+establishes it never entered submission or was rejected before any append, with
+no frozen admission or possible commitment. `submitting`, `indeterminate`, and
 `accepted` records are never reclaimed or regenerated.
 Concurrent stream advancement causes a deterministic stale-preparation error
 rather than silent chain-field replacement. The assigned index and final event
