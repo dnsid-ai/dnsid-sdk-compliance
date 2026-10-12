@@ -590,14 +590,16 @@ previous key also fails, even with another idempotency key.
 #### Account Binding Discovery
 
 `GetOrganizationOnboarding` reads the existing organization-scoped onboarding
-endpoint. Setup validates these fields:
+endpoint. Registry and discovery response parsing MUST ignore additional JSON
+members. Unrecognized values MUST NOT satisfy required readiness or authority
+checks or authorize replacement. Setup validates these fields:
 
 | Setup value | Wire field | Validation |
 |---|---|---|
 | Stable organization ID | `org_id` | Nonempty account ID; compare configured/saved values byte-exact without reformatting. |
 | Managed registration contract | `managed_registration` | Array of supported contract identifiers; automatic managed setup requires `dnsid-managed-registration-v1`. |
 | Expected governance ID | `governance_domain` | Valid domain; compare any configured/saved GI. |
-| Live governance proof | `gi.domain`, `gi.state`, `gi.gate_authorized` | GI object present, matching domain, state `verified`, and gate authorized. |
+| Live governance proof | `gi.domain`, `gi.state`, `gi.gate_authorized` | GI object present, matching domain, state `verified`, and `gate_authorized` equal to `true`: the registry confirms acceptable governance-domain proof for this organization. |
 | Entity-key delegation | `ek.status` | Must be `verified` before discovery supplies ready setup bindings. |
 
 Absent/pending proofs are not verified. `entityKeyUrl` is not returned and must
