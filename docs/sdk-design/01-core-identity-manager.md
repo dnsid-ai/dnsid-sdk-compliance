@@ -618,13 +618,14 @@ FUNCTION VerifyDomain(domain: string, peerCert?: TLSCertificate) -> VerifiedDoma
       cachedCopy = Clone(cached)
       // A transport-level fetch failure raises StatusUnavailable (transient).
       (status, _) = httpsFetcher.FetchStrictJSON(cachedCopy.record.su)
+      statusAcquiredAt = Now()  // receipt of uncached or origin-revalidated status
       status.Validate()
       IF status.state != "ACTIVE" THEN
         cache.Evict(domain)
         RAISE VerificationError{Code: StatusNotActive, Transient: false, AgentState: status.state}
       END
       cachedCopy.registryStatus = status
-      cachedCopy.lastStatusCheckAt = Now()
+      cachedCopy.lastStatusCheckAt = statusAcquiredAt
       cache.Put(domain, cachedCopy)  // Put rejects expired results; cache evidence even if acceptance later denies.
       EnforceCounterpartyAcceptance(cachedCopy)
       RequireFreshIdentityEvidence(cachedCopy)
@@ -715,6 +716,7 @@ FUNCTION VerifyDomain(domain: string, peerCert?: TLSCertificate) -> VerifiedDoma
   // yields an indeterminate interactive result; stale or non-ACTIVE status fails.
   // A transport-level fetch failure raises StatusUnavailable (transient).
   (status, _) = httpsFetcher.FetchStrictJSON(record.su)
+  statusAcquiredAt = Now()  // receipt of uncached or origin-revalidated status
   status.Validate()
   IF status.state != "ACTIVE" THEN
     RAISE VerificationError{Code: StatusNotActive, Transient: false, AgentState: status.state}
@@ -738,7 +740,7 @@ FUNCTION VerifyDomain(domain: string, peerCert?: TLSCertificate) -> VerifiedDoma
     dnsTTL:             dnsTTL,
     dnsExpiresAt:       dnsExpiresAt,
     keyBoundAt:         keyBoundAt,
-    lastStatusCheckAt:  Now(),
+    lastStatusCheckAt:  statusAcquiredAt,
     dnssecState:        dnssecState,
     logReader:          logReader,
   }
@@ -802,7 +804,16 @@ response, never positive-cache reuse. `freshDNSLookup=true` permits that one
 use without a DNS lifetime check; TLS and key-age checks still apply. A completed
 zero-TTL lookup MUST NOT satisfy a later invocation through caching or completed
 in-flight work. No arbitrary grace period or fallback TTL replaces a returned
-zero TTL. These rules do not define status-response freshness.
+zero TTL.
+
+Every required `su` fetch MUST obtain an uncached or origin-revalidated response;
+an unrevalidated HTTP cache hit is not a status refresh. `lastStatusCheckAt`
+records receipt of that fresh service observation, before further verification.
+A positive `statusCheckInterval` counts age from that receipt; downloading the
+same unrevalidated cached bytes MUST NOT reset it. Zero requires a fresh service
+observation on every invocation. `AgentStatus.lastTransitionAt` describes a state
+transition, not response acquisition or freshness. If freshness cannot be
+established, verification MUST NOT report verified `ACTIVE` status.
 
 SDK validation must cover:
 
@@ -812,6 +823,9 @@ SDK validation must cover:
 | A cache hit expires while a required status fetch is in progress | No stale successful return or cache reinsertion. |
 | DNS TTL is zero or unavailable on a fresh lookup, and other evidence is valid | Current operation may succeed; the next call needs a new lookup. |
 | TLS/key-age evidence expires during verification, including with zero DNS TTL | Fail; the zero-TTL exception applies only to DNS reuse. |
+| Status interval is zero and an HTTP cache contains an old `ACTIVE` response | Obtain uncached or origin-revalidated status; the cached body alone cannot satisfy the check. |
+| Positive status interval elapses and the transport returns the same body without revalidation | Do not reset status acquisition time or report a successful refresh. |
+| Fresh `ACTIVE` response has an old `lastTransitionAt` | Accept its freshness; transition age is not response age. |
 
 ---
 
@@ -1371,10 +1385,13 @@ deployment settings.
 Resume validates the durable record before taking action and fails closed on an
 entry-hash, log-reference, or key-binding mismatch. Its state handling is:
 
-- prepared, submitting, or indeterminate: ensure signing is paused and retry the
-  exact bytes with the same idempotency key;
-- accepted but not activated: do not create a new event; reconcile activation and
-  supersession idempotently from the accepted record;
+- prepared, submitting, or indeterminate: ensure signing is paused, reconcile and
+  verify the required new-key publication before append, and retry the exact bytes
+  with the same idempotency key. For registry-owned publication/append, retry the
+  one coordinator; do not race it with local publication or append;
+- accepted but not activated: do not create a new event; verify the current signed
+  TXT/ku publication and accepted rotation continuity before reconciling activation
+  and supersession idempotently from the accepted record;
 - activated but still paused: restore application signing to the saved new
   provider/key, verify that its actual `SigningKey()` matches the saved binding,
   then resume signing and persist completion; finding the key through `JWK(kid)`
@@ -1387,8 +1404,10 @@ Failures after completed bytes have been fixed return a typed submission or
 activation error carrying the latest recoverable rotation state. Persistence,
 pause, activation, supersession, and unpause failures never discard that state.
 In particular, unpausing before `activated=true` is durably stored is forbidden.
-Recovery tests MUST cover stale provider snapshots, a crash after supersession but
-before completion persistence, and activation persisted before signer wiring.
+Recovery tests MUST cover a crash after prepared-byte persistence but before
+publication, acceptance persisted before publication/continuity verification,
+stale provider snapshots, a crash after supersession but before completion
+persistence, and activation persisted before signer wiring.
 Resume restores application signing to the saved new provider/key before
 unpausing, even when deployment settings still select the old provider.
 Reconcile activation idempotently or return a typed activation error with signing

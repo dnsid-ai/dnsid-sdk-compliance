@@ -47,7 +47,10 @@ independent policies; neither allowlist populates or replaces the other.
 Assertion lifetimes and their maximum MUST be finite and positive; clock skew
 MUST be finite and non-negative. Invalid configuration/explicit expiry is an
 argument error. Use the JOSE `DefaultIfMissing` presence rule: zero skew remains
-zero, while explicit zero expiry is invalid. OIDC uses the same strict compact
+zero, while explicit zero expiry is invalid. An explicit empty token-algorithm
+list denies all algorithms; an explicit empty scope remains empty rather than
+selecting the default. Validation MUST cover both empty values and omitted values.
+OIDC uses the same strict compact
 JSON/NumericDate parsing rules as JOSE, but retains its own issuer, audience,
 header allowlist, and algorithm policy.
 
@@ -180,7 +183,7 @@ Exchanges an agent-signed assertion for an OIDC bearer token.
 |-------|------|----------|-------------|
 | `issuer` | string | yes | Exact issuer URL used for discovery and assertion audience. |
 | `audience` | string | yes | Relying-party audience for the issued token. |
-| `scope` | string | no | Space-separated OAuth scopes. Defaults to `openid`. |
+| `scope` | string | no | Space-separated OAuth scopes. When omitted, uses `oidc.defaultScope` (`openid` if that setting is omitted). |
 | `assertion` | string | no | Prebuilt assertion. If omitted, call `CreateOIDCAssertion({issuer})`. |
 
 The `audience` form field is a DNSid OIDC provider extension, not an RFC 7523
@@ -199,7 +202,7 @@ FUNCTION ExchangeOIDCToken(opts: OIDCTokenExchangeOptions) -> OIDCTokenResponse
       RAISE ArgumentError("OIDC assertion audience must exactly match issuer")
     END
   END
-  scope = opts.scope OR (oidc.defaultScope OR "openid")
+  scope = DefaultIfMissing(opts.scope, DefaultIfMissing(oidc.defaultScope, "openid"))
 
   form = {
     grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
@@ -289,7 +292,7 @@ FUNCTION VerifyOIDCToken(token: string, opts: VerifyOIDCTokenOptions) -> Verifie
   doc = DiscoverOIDCIssuer(opts.issuer)
   jwks = HTTPS.GET_JSON(doc.jwks_uri, followRedirects=false)
   signingKey = jwks.KeyById(header.kid)
-  allowedAlgs = oidc.allowedTokenAlgorithms OR ["RS256"]
+  allowedAlgs = DefaultIfMissing(oidc.allowedTokenAlgorithms, ["RS256"])
   IF header.alg NOT IN allowedAlgs THEN
     RAISE VerificationError("OIDC token signing algorithm is not allowed")
   END

@@ -212,6 +212,14 @@ ignored, or semantically meaningful is determined by the selected
 | `unknownTags` | map[string]string | no | Syntactically valid extension tags not known to the selected profile. Preserved for canonical signature verification and serialization, but ignored for semantic validation. |
 | `IdentityFQDN`  | string | internal | The identity's FQDN. Not a TXT record tag. Set during `Parse` from the DNS owner name (`_dnsid.<fqdn>`) or during construction via [`CreateTxtRecord`](01-core-identity-manager.md#core-methods). Used by `Validate` to enforce `gi` consistency and `ku` host matching. |
 
+`NormalizeFQDN` MUST use UTS #46 non-transitional processing with STD3 ASCII
+rules and IDNA2008 validity checks, including ContextJ and bidi checks. Apply
+mapping before DNS label and octet-length validation. Transitional mappings
+(such as replacing `ß` with `ss`) MUST NOT be used. Library choice is binding-owned;
+shared normalization and rejection vectors are in
+[`fixtures/fqdn.yaml`](../../fixtures/fqdn.yaml). This normalizes domain inputs,
+not parsed TXT tag values used for signature verification.
+
 ```
 FUNCTION NormalizeFQDN(name: string) -> string
   // Converts IDNA U-labels to A-label punycode, lowercases ASCII, strips exactly one
@@ -219,7 +227,7 @@ FUNCTION NormalizeFQDN(name: string) -> string
   // Raises ValidationError if the name is empty, contains empty labels, has any label
   // over 63 octets, exceeds the 253-octet DNS presentation limit, or exceeds the
   // DNSid identity FQDN limit of 246 octets when used as an Identity FQDN.
-  ascii = IDNA.ToASCII(name)
+  ascii = IDNA.ToASCII(name, uts46=true, transitional=false, std3Rules=true)
   ascii = LowercaseASCII(ascii)
   ascii = StripOneTrailingDot(ascii)
   ValidateDNSLabels(ascii)
@@ -232,8 +240,8 @@ FUNCTION DnsIdTxtRecord.Canonical() -> string
   // tag name, semicolon-separated, with no whitespace. The exact v value remains
   // in the sorted tag set; DNSid1 is never rewritten to dnsid-draft-01.
   // Unknown extension tags are ignored semantically but preserved for signatures.
-  // Tags() omits unset/empty known optional tags, but preserves unknown tags even
-  // when their value is empty (see Serialize note below).
+  // Tags() preserves every parsed tag pair, including empty-valued known and
+  // unknown optional tags. New SDK-built records omit empty known optional tags.
   // The result is always pure ASCII: the spec ABNF (§4.2) constrains tag names to
   // ALPHA/DIGIT/"_" and tag values to printable ASCII (%x21-3A / %x3C-7E), so no
   // encoding ambiguity exists. Sign and verify over the raw ASCII bytes.
@@ -259,9 +267,9 @@ FUNCTION DnsIdTxtRecord.Serialize() -> string
   // Serialization is profile-owned. For all current profiles, v MUST appear
   // first; all other known and unknown tags follow in any order.
   // Empty known optional tags created by this SDK MUST be omitted — serializers MUST
-  // NOT emit e.g. "fl=" for an unset policy flag. Parsed unknown extension tags,
-  // including empty-valued unknown tags, MUST be preserved for canonical signature
-  // verification and round-trip serialization.
+  // NOT emit e.g. "fl=" for an unset policy flag. Every parsed tag pair, including
+  // empty-valued known optional tags and unknown extensions, MUST be preserved
+  // for canonical signature verification and round-trip serialization.
   RETURN "v=" + record.v + ";" + Join(record.Tags().Exclude("v"), ";")
 END
 
@@ -311,11 +319,12 @@ FUNCTION DnsIdTxtRecord.Parse(raw: string) -> DnsIdTxtRecord
       RAISE ParseError("duplicate TXT tag: " + tag)
     END
     seenTags.Add(tag)
+    record.tags[tag] = value  // preserve the exact pair independently of typed fields
     IF tag is known by profile THEN
       record.SetKnownTag(tag, value)
-      // SetKnownTag with an empty value for an optional tag is a no-op: the field
-      // remains unset, equivalent to the tag being absent. Required tags are
-      // profile-owned and missing/empty values are caught by ValidateRequiredTags below.
+      // An empty optional value leaves the typed field unset, but the parsed tag
+      // remains in Canonical() and Serialize(). Required tags are profile-owned;
+      // ValidateRequiredTags below rejects missing/empty required values.
     ELSE
       record.unknownTags[tag] = value  // retained for Canonical() and Serialize()
     END

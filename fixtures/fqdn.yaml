@@ -1,5 +1,6 @@
-# Agent FQDN normalization: IDNA A-label form, lowercase, exactly one trailing
-# dot stripped, 63-octet label limit, 246-octet total limit (DNSid agent limit).
+# Agent FQDN normalization: UTS #46 non-transitional / IDNA2008 with STD3,
+# ContextJ and bidi checks, lowercase A-labels, exactly one trailing dot stripped,
+# 63-octet label limit, 246-octet total limit (DNSid agent limit).
 # Error classes differ across SDKs, so error cases assert only rejection.
 suite: fqdn
 cases:
@@ -56,6 +57,48 @@ cases:
     expect:
       ok: true
       value: xn--mnchen-3ya.de
+
+  - id: fqdn-idna-nontransitional-sharp-s
+    description: Sharp s is preserved, not transitionally mapped to ss
+    spec_ref: "SDK design 07 NormalizeFQDN (UTS #46 non-transitional / IDNA2008)"
+    tags: [required, idn, security]
+    op: normalize_fqdn
+    input:
+      name: "faß.example"
+    expect:
+      ok: true
+      value: xn--fa-hia.example
+
+  - id: fqdn-idna-width-mapping
+    description: UTS #46 maps fullwidth ASCII before label validation
+    spec_ref: "SDK design 07 NormalizeFQDN (UTS #46 mapping / STD3)"
+    tags: [required, idn]
+    op: normalize_fqdn
+    input:
+      name: "ＦＡＳＳ.example"
+    expect:
+      ok: true
+      value: fass.example
+
+  - id: fqdn-idna-invalid-joiner
+    description: A joiner without valid ContextJ context is rejected
+    spec_ref: "SDK design 07 NormalizeFQDN (IDNA2008 ContextJ)"
+    tags: [required, idn, security]
+    op: normalize_fqdn
+    input:
+      name: "f\u200coo.example"
+    expect:
+      ok: false
+
+  - id: fqdn-idna-invalid-bidi
+    description: A mixed right-to-left and left-to-right label is rejected
+    spec_ref: "SDK design 07 NormalizeFQDN (IDNA2008 bidi checks)"
+    tags: [required, idn, security]
+    op: normalize_fqdn
+    input:
+      name: "אa.example"
+    expect:
+      ok: false
 
   - id: fqdn-ideographic-full-stop
     description: U+3002 ideographic full stop is treated as a label separator by IDNA

@@ -338,8 +338,8 @@ END
 The coordinator retries an unknown append outcome with the identical entry
 bytes and idempotency key. Once submission may have begun, it never regenerates
 timestamps, signatures, or chain metadata. An idempotency key reused with
-different bytes is rejected. Only an expired preparation durably known never to
-have entered submission may be replaced.
+different bytes is rejected. Expired preparations may be replaced only under
+[11's durable reclaimability rules](11-c2sp-tlog-binding.md#submission-and-idempotency).
 
 Protocol status and convergence are reported separately. Revocation can return
 protocol `REVOKED` while log evidence is `pending`; issuance cannot return
@@ -390,8 +390,10 @@ Operator-side client for DNSid registry workflows for the local identity's own m
 
 Omitted transport configuration and an empty `TransportConfig` MUST apply the
 same protected defaults: validated destinations, TLS, finite deadlines/cancellation,
-redirect bounds, and streamed decoded-size limits. Only the documented literal
-loopback registry permits HTTP/local access without `privateAddressHosts`.
+redirect bounds, and streamed decoded-size limits. Authenticated registry operations
+MUST reject redirects without forwarding credentials or replaying the request to
+the redirect target. Only the documented literal loopback registry permits
+HTTP/local access without `privateAddressHosts`.
 Compressed bodies are decoded once; adapters wrapping decoded bytes MUST remove
 stale encoding/length metadata. Tests cover omitted versus empty configuration,
 compressed responses, and decoded-size overflow.
@@ -893,6 +895,7 @@ governance persistence also require server integration tests, not SDK coordinati
 |------|-------------|
 | Key-only, exact-domain, root, and GI-selected creation | Correct wire selectors and returned domain/GI; no inferred hosting or injected legacy defaults. |
 | Invalid inputs | Reject conflicting selectors, missing keys for assigned names, invalid URLs, and private JWK members, including nested JWKS material. |
+| Authenticated read or mutation returns a redirect, including to the same origin | Reject; no request or credential reaches the redirect target. |
 | Invalid response or root/admission failure | Fail closed, preserve known creation facts and server errors, and make no fallback request. |
 | Supported existing selectors and managed Live | Preserve existing request behavior; Live still returns 202 provisioning, not ordinary 201 registration. |
 | Keyed replay, including stale GI or changed input | Preserve enough frozen input to reconstruct unresolved creation and its derived key; retain known identity and governance/mismatch errors without replacement allocation. |
