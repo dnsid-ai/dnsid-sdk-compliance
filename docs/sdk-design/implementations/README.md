@@ -5,38 +5,39 @@ TypeScript, and Python SDKs. Each tracker's `Analysis Details` table is the
 **authoritative review baseline**; use its full commits, not this summary.
 Historical review scopes and resolved findings remain available in Git history.
 
-## Latest Review — 2026-10-01
+## Latest Review — 2026-10-12
 
 | SDK | Coverage File | Reviewed Branch | Reviewed Commit | Package Version | Open Findings |
 | --- | --- | --- | --- | --- | --- |
-| Go | [go.md](./go.md) | `main` | `9850ba2` | `v0.37.1` | Missing deployment-file loader; partial construction ordering, unavailable-TTL handling, and conformance metadata |
-| TypeScript | [typescript.md](./typescript.md) | `main` | `50d5573` | `0.24.1` | Partial construction validation ordering |
-| Python | [python.md](./python.md) | `fix/leftover-sandbox` | `b218b81` | `0.23.1` | Partial missing-DoH-TTL handling, prepared-event metadata, OIDC response bounds, conformance metadata, and issuance-recovery evidence |
+| Go | [go.md](./go.md) | `main` | `3369ad9` | `v0.39.0` | Partial publication snapshot validation, signer binding, cross-provider recovery, onboarding validation, construction ordering, unavailable TTL, and conformance metadata; intermittent OIDC test failure |
+| TypeScript | [typescript.md](./typescript.md) | `main` | `18c797b` | `0.26.0` | Partial cross-provider recovery, onboarding validation, construction/provider validation ordering, and conformance metadata |
+| Python | [python.md](./python.md) | `main` | `d82ad82` | `0.25.0` | Partial signer binding, onboarding validation, provider validation ordering, managed log transport, missing DoH TTL, prepared-event metadata, OIDC response bounds, conformance metadata, and issuance-recovery evidence |
 
 Design baseline: `main` at
-`4de3e4545bf665dbe8b74d1693b4823604f798d1`. Package versions identify the reviewed
-source; these post-release heads are not claims about published release contents.
+`e2e76f963e260b899c02d0d4b8d995f24182d0fd`. Full SDK commits and review scope
+are recorded in each tracker. These versions identify source, not a claim about
+published release contents.
 
-Design changes since `9326f7a`:
+Design changes since `4de3e45` revise unified registration, authoritative
+publication snapshots, authenticated account discovery, deployment key sources,
+and cross-provider rotation/restart recovery. No identity-record profiles or
+fixtures changed. All SDKs implement unified registration and retain creation
+facts after follow-up failures. Go now implements deployment-file loading.
+All three preserve parsed empty optional TXT tags in signed canonical content.
+Go's setup snapshot validation still accepts profile-invalid ku/ek host bindings;
+published-record verification remains separate and fail-closed.
 
-- `def611a` changes the managed development selector and conformance vectors to
-  `https://log.dev.dnsid.ai`.
-- `a858525` requires zero TTL when a fresh DNS answer's TTL is unavailable.
-- `ac7ffda` updates identity examples; `c832a7e` moves root wire/generation vectors
-  to second-level `.test` identities and regenerates signatures.
+TypeScript binds configuration-selected keys to verified publication; Go and
+Python leave that check to callers. Python adds explicit cross-provider rotation,
+verified-publication gating and crash-safe signer restoration; Go and TypeScript
+still have single-provider recovery. All three expose onboarding reads but do
+not validate/compare the new account/GI/proof bindings. Other open gaps remain
+in the per-SDK findings.
 
-No identity-record profile or C2SP method revision changed. All three SDKs replace
-managed development/production trust pins without legacy overlap. Go now captures
-wire TTLs but errors when capture is unavailable; TypeScript captures wire TTLs
-and uses zero on native fallback. Python still invents a 300-second TTL when DoH
-omits it. Go and TypeScript still permit a policy fetch before rejecting injected
-transport conflicts; Go still lacks the design 12 deployment-file loader.
-
-Python's checked-in `uv.lock` labels the editable package `0.21.0`, not `0.23.1`.
-Its untracked `tests/test_validate_domain_example.py` was inspected but excluded
-from the committed-head test count. See the tracker for remaining implementation
-and evidence gaps; its standalone migration-verifier limitation does not imply
-missing recursive migration support in configured readers.
+Python's prior branch baseline is not an ancestor of `main`; its recovered
+squash commit `531b547` is an ancestor with the exact same tree as `b218b81`.
+Its checked-in `uv.lock` still labels the editable package `0.23.2`, not
+`0.25.0`. Existing installed environments were used without refreshing locks.
 
 ## Native Validation
 
@@ -44,35 +45,35 @@ Commands were run in each SDK checkout at the heads above.
 
 | SDK | Commands | Result |
 | --- | --- | --- |
-| Go | `go vet ./...`, `go test -count=1 ./...`, `go test -race ./...`, `(cd key/aws && go test ./...)` | All passed |
-| TypeScript | `npm run typecheck`, `npm run build`, `npm test -- --run` | Typecheck/build passed; 877 tests passed, 1 skipped |
-| Python | `.venv/bin/pytest -q --ignore=tests/test_validate_domain_example.py`, `.venv/bin/ruff check dnsid tests`, `.venv/bin/mypy dnsid` | 1378 tests passed; lint/types clean; existing virtualenv used without refreshing `uv.lock` |
+| Go | `go vet ./...`, `go test -count=1 ./...`, `go test -race ./...`, `(cd key/aws && go test ./...)`, `(cd examples/deployment-identity && go test ./...)`, `(cd examples/trust-policy && go test ./...)` | First full test run failed the OIDC exp=now boundary test; full rerun, race, vet, AWS and examples passed |
+| TypeScript | `npm run typecheck`, `npm run build`, `npm test -- --run`, `npm run smoke:pack` | Typecheck/build/packed-package smoke passed; 945 tests passed, 1 skipped |
+| Python | `.venv/bin/pytest -q`, `.venv/bin/ruff check dnsid tests`, `.venv/bin/mypy dnsid` | 1488 tests passed; lint/types clean |
 
 ## Shared Compliance Harness
 
-The 2026-10-01 run matched all 193 expectations per SDK: 182 passes and 11
+The 2026-10-12 run matched all 193 expectations per SDK: 182 passes and 11
 fail-closed rejections of retired selectors, with no unexpected failures or
-known-bug allowances. Coverage includes release conformance metadata, signed TXT
-generation, seven managed trust-selection vectors, and 12 RFC 9421 vectors.
+known-bug allowances. The rebuilt Go shim, rebuilt TypeScript packages and
+installed local Python package were used.
 
-The C2SP matrix also passed at those heads: all three writers produced the same
-canonical ISSUANCE → KEY_ROTATION stream; all nine writer/verifier paths succeeded;
-the Python-to-TypeScript split-signing handoff matched; and every verifier
-rejected all six mutated bundles.
+The C2SP matrix passed: all three writers produced identical canonical
+ISSUANCE → KEY_ROTATION entries; all nine writer/verifier paths succeeded;
+the Python-to-TypeScript split-signing handoff matched; every verifier rejected
+all six mutated bundles.
 
-Validation used a rebuilt Go shim, rebuilt TypeScript packages, and the installed
-local Python package. Shared commands ran from the compliance repository root:
+Commands ran from the compliance repository root:
 
 ```sh
-.venv/bin/python harness/run.py --out /tmp/dnsid-2026-10-01-harness.md
+(cd shims/go && go build -o dnsid-shim .)
+.venv/bin/python harness/run.py --out /tmp/dnsid-2026-10-12-harness.md
 DNSID_GO_DIR="$HOME/dnsid-go" DNSID_TS_DIR="$HOME/dnsid-ts" DNSID_PY_DIR="$HOME/dnsid-py" .venv/bin/python harness/c2sp_matrix.py
 ```
 
-Passing tests do **not** establish complete SDK conformance or close the documented
-gaps. The harness does not cover the registry Live workflow or the newly recorded
-unavailable-TTL paths; the matrix does not establish full recursive migration
-interoperability. Earlier focused event-identity checks are not included in the
-193 expectations and were not rerun in this review.
+Passing fixtures do not close the documented gaps. No live registry integration,
+cloud authorization, persistent server replay/organization isolation, or full
+recursive-migration interoperability was tested. SDK registration/provider and
+recovery checks use local/mocked dependencies; the shared harness does not cover
+those new requirements. Earlier focused event-identity checks were not rerun.
 
 ## Agent Update Instructions
 
