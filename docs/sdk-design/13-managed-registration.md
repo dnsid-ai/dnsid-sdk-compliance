@@ -292,9 +292,11 @@ operation by immutable ID rather than overwriting it. Persist and check the tupl
 load. Use a digest or safe encoding, never raw names as filesystem paths;
 configurations, keys, and locks are tenant-isolated.
 
-Exclusive access covers loading through return/error. Competing invocations receive
-a typed busy error. Deadline/cancellation includes lock acquisition; release the
-lock after persisting recoverable progress on return, cancellation, or failure.
+Exclusive access covers loading through return/error, including in-process and
+cross-process contention. Competing invocations receive a typed busy error.
+Deadline/cancellation includes lock acquisition. Persist recoverable progress before
+subsequent mutations. An interrupted invocation resumes from the last durable
+state rather than relying on cancellation cleanup.
 
 File storage MUST provide owner-only access, atomic durable updates (including
 required directory durability or documented platform prerequisites), and an
@@ -367,7 +369,7 @@ operations rather than overwriting them; custom stores may reuse existing interf
 
 The SDK schedules retries within one finite deadline/cancellation budget, with a
 binding-documented finite default. The budget covers lock acquisition, network
-calls, verification, storage, and any awaited observers, not just retry delays.
+calls, verification, storage, and any awaited progress callbacks, not just retry delays.
 Storage MUST prevent an unresolved write from committing after lock release;
 reconcile indeterminate outcomes before further mutations.
 Cancellation preserves recovery state and does not undo creation. Retry classified

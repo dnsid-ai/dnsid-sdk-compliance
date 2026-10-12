@@ -1503,7 +1503,9 @@ Its state handling is:
   the saved target key binding and restore the application signer. Do not pause
   signing, submit, or verify publication again. Applications archive the
   completed record; the next rotation starts a new record;
-- rejected: return a terminal typed submission error without resubmission.
+- definitively rejected: retain recovery state, keep application signing paused,
+  and return a terminal typed submission error without resubmission, new-key
+  activation, or automatic publication rollback.
 
 Failures after completed bytes have been fixed return a typed submission or
 activation error carrying the latest recoverable rotation state. Persistence,
