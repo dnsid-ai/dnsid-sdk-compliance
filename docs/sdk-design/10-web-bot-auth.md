@@ -16,7 +16,10 @@ the DNSid key-role profile, not a WBA draft revision.
 
 This cut provides request signing and directory serving. Request and directory
 verification below are mandatory behavior for a future verifier API, not an
-existing API claim. Shared RFC 9421 behavior comes from
+existing API claim. Describe this cut as **DNSid WBA request signing and
+directory serving; verification not yet available**. A signing-only binding
+MUST NOT advertise end-to-end WBA support or imply that its DNSid HTTP signature
+verifier accepts WBA requests. Shared RFC 9421 behavior comes from
 [02-rfc9421-http-message-signatures.md](02-rfc9421-http-message-signatures.md).
 
 For `dnsid-draft-01` and verification-only `DNSid1`, WBA uses the verified
@@ -40,7 +43,17 @@ SDKs intentionally use this narrower **DNSid WBA profile**:
 
 A generic WBA implementation can conform to the drafts without satisfying
 these additional DNSid policy constraints. SDK documentation and marketing
-must not claim complete general WBA interoperability.
+must not claim complete general WBA interoperability. RFC 9421 is a published
+standard; the targeted WBA protocol and directory documents are Internet-Drafts,
+not a finalized WBA standard. Any partner interoperability claim MUST name the
+external implementation/version and WBA draft revisions actually tested, and
+state which signing, discovery, directory, or verification paths were tested.
+Local signer tests alone do not establish partner interoperability.
+
+A JWT in `Authorization: Bearer` is not this profile. Reserve WBA names for this
+RFC 9421 surface; [JWT bearer transport](03-jose-jwt-jws.md#http-bearer-transport)
+remains a separately selected application authentication mechanism. WBA signing
+MUST preserve an existing `Authorization` field.
 
 WBA itself requires request signature parameters `created`, `expires`, `keyid`,
 and `tag="web-bot-auth"`. `keyid` is the unpadded base64url SHA-256 RFC 7638 JWK
@@ -64,7 +77,7 @@ fails. This design does not require a generic WBA verifier or a new mode toggle.
 | `webBotAuth.signatureAgent.uri` | HTTPS URI | `https://{domain}` | Origin for `directory`; direct endpoint for `jwks_uri`. |
 | `webBotAuth.signatureAgent.type` | `directory` or `jwks_uri` | `directory` | Discovery interpretation placed in `Signature-Agent`. |
 | `webBotAuth.signatureTTL` | seconds | 60 | Positive and no greater than 300. |
-| `webBotAuth.includeSignatureAgent` | boolean | true | Cloudflare interoperability currently requires true. |
+| `webBotAuth.includeSignatureAgent` | boolean | true | Enables Signature-Agent-based discovery. Keep enabled unless the verifier has trusted out-of-band discovery; partner compatibility requires testing the named implementation and draft revision. |
 | `webBotAuth.directorySignatureTTL` | seconds | 300 | Positive and no greater than 300. |
 | `webBotAuth.clockSkew` | seconds | 5 | Non-negative verification tolerance. |
 

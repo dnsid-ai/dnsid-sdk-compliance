@@ -123,6 +123,34 @@ represent a successful `VerifiedDomain`. Assurance tiers may tighten status
 freshness, DNSSEC, or complete-log requirements, but MUST NOT omit mandatory
 identity binding or continuity checks while describing the result as verified.
 
+## Verification Dependencies
+
+A verifier can authenticate a signer without prior bilateral enrollment, using
+public DNS and authenticated HTTPS verification resources, subject to configured
+trust and freshness policy. This is not offline or DNS-only verification.
+`VerifyDomain` uses profile-required key, status, and lifecycle-log evidence;
+see [01: VerifyDomain](01-core-identity-manager.md#verifydomaindomain-string-peercert-tlscertificate---verifieddomain).
+The default `statusCheckInterval=0` requires a status fetch on every invocation.
+Cached evidence does not remove freshness, current-peer, or acceptance checks,
+and unavailable mandatory evidence must not produce successful verification.
+
+## Presentation Naming and Transport
+
+Reserve **Web Bot Auth** and **WBA** for the RFC 9421 profile in
+[10](10-web-bot-auth.md). JWT bearer authentication, including an Agent Identity
+Assertion (AIA) helper, is a separate application profile. Its public names,
+examples, and reference documentation MUST identify it as JWT bearer
+authentication, not Web Bot Auth. A name change does not make its claims or
+audience rules interchangeable with the [JOSE profile](03-jose-jwt-jws.md).
+
+HTTP message signatures can coexist with bearer authentication. Their signing
+helpers MUST preserve an existing `Authorization` field. JWT bearer transport
+uses that field only when explicitly selected by the caller and MUST reject an
+existing field instead of replacing it; see
+[03: HTTP Bearer Transport](03-jose-jwt-jws.md#http-bearer-transport).
+SDK documentation MUST NOT claim that every DNSid application profile avoids
+`Authorization` or that bearer tokens authenticate HTTP method, URI, or content.
+
 ## Verification Resource Budgets
 
 A verification invocation MUST have a finite overall time budget, exposed through
