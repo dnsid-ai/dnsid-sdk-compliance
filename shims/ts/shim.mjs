@@ -34,6 +34,9 @@ const c2sp = existsSync(c2spEntry) ? await import(pathToFileURL(c2spEntry).href)
 const httpSignaturesEntry = join(sdkDir, 'packages', 'http-signatures', 'dist', 'index.js');
 const httpSignatures = existsSync(httpSignaturesEntry) ? await import(pathToFileURL(httpSignaturesEntry).href) : null;
 
+const wbaEntry = join(sdkDir, 'packages', 'web-bot-auth', 'dist', 'index.js');
+const wba = existsSync(wbaEntry) ? await import(pathToFileURL(wbaEntry).href) : null;
+
 const optional = (v) => (v === undefined || v === '' ? null : v);
 
 function recordJSON(r) {
@@ -102,9 +105,38 @@ async function createTxtRecord(req) {
   };
 }
 
+async function handleWba(req) {
+  if (!wba) throw new Error('Web Bot Auth package is not built');
+  if (req.op === 'wba_verify_request') {
+    if (typeof wba.verifyWebBotAuthSignedRequest === 'function' || typeof wba.WebBotAuthProfile.prototype.verifyWebBotAuthSignedRequest === 'function') {
+      return { ok: false, error: 'AdapterError', message: 'WBA verifier now exists; integrate its fixture adapter' };
+    }
+    return { ok: false, error: 'CapabilityMissing', capability: 'wba_request_verification', message: 'SDK has signing/directory serving only' };
+  }
+  const key = fixtureKeyProvider(req.key);
+  const profile = new wba.WebBotAuthProfile({ domain: req.domain, keyProvider: key.provider, webBotAuth: req.webBotAuth });
+  const raw = req.request;
+  const body = raw.bodyBase64 == null ? undefined : Buffer.from(raw.bodyBase64, 'base64');
+  const message = new Request(raw.url, { method: raw.method, headers: raw.headers, body });
+  let output;
+  if (req.operation === 'directory') {
+    const response = await profile.serveHttpMessageSignaturesDirectory(message);
+    output = { status: response.status, headers: Object.fromEntries(response.headers), bodyBase64: Buffer.from(await response.arrayBuffer()).toString('base64') };
+  } else if (req.operation === 'request') {
+    const signed = await profile.createWebBotAuthSignedRequest(message, req.options);
+    output = { headers: Object.fromEntries(signed.headers), bodyBase64: signed.body === null ? null : Buffer.from(await signed.arrayBuffer()).toString('base64') };
+  } else {
+    throw new Error('unknown WBA operation');
+  }
+  return { ok: true, message: output };
+}
+
 async function handle(req) {
   try {
     switch (req.op) {
+      case 'wba_sign':
+      case 'wba_verify_request':
+        return await handleWba(req);
       case 'http_signature_base': {
         try {
           if (!httpSignatures) throw new Error('HTTP signatures package is not built');

@@ -42,6 +42,7 @@ type c2spEntry struct {
 type httpFixtureRequest struct {
 	Method, URL string
 	Headers     map[string]string
+	BodyBase64  *string
 }
 
 type txtRecordConfig struct {
@@ -77,6 +78,9 @@ type request struct {
 	EntityKey                                     fixtureKey         `json:"entityKey"`
 	OperationalKey                                fixtureKey         `json:"operationalKey"`
 	SameKey                                       bool               `json:"sameKey"`
+	Key                                           fixtureKey         `json:"key"`
+	WebBotAuth                                    wbaConfig          `json:"webBotAuth"`
+	Options                                       wbaSigningOptions  `json:"options"`
 }
 
 type fixtureKeyProvider struct {
@@ -91,6 +95,9 @@ func newFixtureKeyProvider(fixture fixtureKey) (*fixtureKeyProvider, error) {
 	seed, err := base64.RawURLEncoding.DecodeString(fixture.Seed)
 	if err != nil {
 		return nil, err
+	}
+	if len(seed) != ed25519.SeedSize {
+		return nil, fmt.Errorf("fixture Ed25519 seed must be 32 bytes")
 	}
 	private := ed25519.NewKeyFromSeed(seed)
 	key, err := jwk.Import(private.Public().(ed25519.PublicKey))
@@ -252,6 +259,8 @@ func handleCreateTXTRecord(req request) map[string]any {
 
 func handle(req request) map[string]any {
 	switch req.Op {
+	case "wba_sign", "wba_verify_request":
+		return handleWBA(req)
 	case "sdk_conformance":
 		metadata := dnsid.SDKConformance()
 		metadata.VerificationProfiles["changed"] = "changed"

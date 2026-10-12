@@ -22,6 +22,53 @@ signature over an incorrect base is still non-interoperable, so all SDKs must
 first produce the same base or fail closed on the same unsupported component
 semantics.
 
+## Web Bot Auth
+
+[`web-bot-auth.json`](web-bot-auth.json) targets the DNSid WBA profile in
+[10](../10-web-bot-auth.md), with both WBA drafts at revision `00`. It contains
+fixed Ed25519 test keys, exact request/directory bytes, signature bases,
+signatures, and SHA-256 content digests. All private material is disposable test
+data; the private-directory-key case intentionally tests prohibited disclosure.
+
+The corpus separates three kinds of expectation:
+
+- Exact RFC 9421 request-base construction, without WBA acceptance policy.
+- Request signing and directory serving: coverage, thumbprint IDs, algorithm,
+  tags, nonce encoding, TTL limits, body bytes/digests, discovery, and preservation
+  of existing Basic or Bearer credentials.
+- Request/directory verification: positive paths, non-default labels, incomplete
+  or ambiguous signatures, missing coverage/timestamps, wrong tags/keys/algorithms,
+  modified content, expired/future evidence, DNSid failure without fallback,
+  cache-hit acceptance/key/freshness checks, SSRF/Web PKI, current-peer evidence,
+  and nonce replay/store failure.
+
+Message bodies are standard-base64 strings so empty supplied content remains
+distinct from absent content. `signatureBase` is authoritative UTF-8 text;
+`signatureValid` and `digestValid` describe cryptographic fixture integrity,
+not DNSid acceptance. Authority-only signatures remain valid after changing an
+uncovered operation; optional method/target-URI coverage protects the query.
+These vectors do not strengthen the required WBA coverage policy.
+
+Verification cases reference named signed messages and a fixed clock. Their
+`verification` values describe injected resolver, discovery, cache, current-peer,
+and replay-store behavior; they are not authenticated DNSid evidence or a
+production trust catalog. Native test adapters must implement those dependencies
+and run the real profile verifier. Negative results use normalized
+`ConformanceError`; exact error text is not normative.
+
+Regenerate deterministically or check the artifact without importing an SDK:
+
+```sh
+.venv/bin/python harness/generate_wba_fixtures.py
+.venv/bin/python harness/generate_wba_fixtures.py --check
+.venv/bin/python harness/wba_vectors.py
+```
+
+The independent cryptographic checker supports only this fixture subset of
+structured fields and component extraction. It is not a production WBA verifier,
+does not perform DNSid acceptance, and cannot establish partner interoperability.
+SDKs may consume this corpus directly in their own native tests.
+
 ## Shared lifecycle reducer and snapshots
 
 [`lifecycle-transitions.json`](lifecycle-transitions.json) exercises the shared
