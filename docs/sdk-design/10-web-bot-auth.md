@@ -14,12 +14,16 @@ This design targets:
 The Internet-Drafts are revision `00`. References to `dnsid-draft-01` describe
 the DNSid key-role profile, not a WBA draft revision.
 
-This cut provides request signing and directory serving. Request and directory
-verification below are mandatory behavior for a future verifier API, not an
-existing API claim. Describe this cut as **DNSid WBA request signing and
-directory serving; verification not yet available**. A signing-only binding
-MUST NOT advertise end-to-end WBA support or imply that its DNSid HTTP signature
-verifier accepts WBA requests. Shared RFC 9421 behavior comes from
+This design requires request signing, directory serving, and DNSid WBA request
+verification, including verification of discovered directory responses. Bindings
+MUST expose the request verifier defined below. Request and directory verification
+are required implementation work, not an existing API claim.
+
+Until verification is implemented, describe a binding as **DNSid WBA request
+signing and directory serving; verification not yet available** and record its
+verification coverage as `Missing`. A signing-only binding MUST NOT advertise
+end-to-end WBA support or imply that its DNSid HTTP signature verifier accepts
+WBA requests. Shared RFC 9421 behavior comes from
 [02-rfc9421-http-message-signatures.md](02-rfc9421-http-message-signatures.md).
 
 For `dnsid-draft-01` and verification-only `DNSid1`, WBA uses the verified
@@ -199,9 +203,39 @@ therefore emits one directory key and one signature. Multi-key implementations
 use distinct labels and signatures and must define deterministic key/signature
 selection.
 
+## Public verifier contract
+
+`VerifyWebBotAuthSignedRequest(req, opts) -> VerifiedDomain` authenticates one
+DNSid WBA request. It returns the verified signer identity only after all request,
+directory, and DNSid identity checks succeed. It does not grant application
+permissions. Verification-only construction requires an `IdentityResolver` and
+SSRF-safe HTTPS discovery transport, not a local identity or signing key.
+
+Bindings MUST reuse the shared RFC 9421 parsing, component extraction,
+signature-base construction, and content-digest primitives. WBA keeps its own
+signature selection, thumbprint key ID, discovery, and acceptance rules; the
+DNSid generic HTTP signature verifier is not a substitute.
+
+`opts` supplies trusted signer-domain/discovery policy as defined below and a
+per-invocation route for the current application peer certificate. Pass that
+certificate to `VerifyDomain`; a directory endpoint's certificate is not the
+application peer. Native cancellation/deadline support or equivalent options
+MUST cover the complete operation, including directory reads and DNSid
+verification, under the [shared resource budget](README.md#verification-resource-budgets).
+
+The verifier MUST authenticate directory evidence under the directory requirements
+below before accepting its key. Directory verification may be an internal helper;
+no separate public directory-verifier API is required. A single invocation may
+reuse its verified DNSid evidence for directory and request binding without
+omitting current-peer, acceptance, or final freshness checks.
+
+This change does not add mandatory `@method` or `@target-uri` coverage. The
+existing WBA component policy remains unchanged; applications decide whether
+that coverage is sufficient for their operations.
+
 ## Request verification requirements
 
-A future DNSid WBA verifier performs these checks:
+The DNSid WBA verifier performs these checks:
 
 1. Parse the complete `Signature-Input` and `Signature` fields and select
    exactly one complete signature tagged `web-bot-auth`.
@@ -224,21 +258,29 @@ A future DNSid WBA verifier performs these checks:
    redirect and connection; reject localhost, loopback, private, link-local,
    reserved, multicast, and IPv6 ULA targets; and enforce redirect, timeout,
    response-size, key-count, and JSON-depth limits.
-8. Select an OKP/Ed25519 directory key whose recomputed thumbprint equals
-   `keyid` and whose `alg`, if present, is `ed25519`; then verify the canonical
-   request signature base.
-9. Call `VerifyDomain(signerDomain)`, including configured counterparty
+8. Verify the discovered response under the directory verification requirements
+   below. Select an authenticated OKP/Ed25519 directory key whose recomputed
+   thumbprint equals `keyid` and whose `alg`, if present, is `ed25519`; then
+   verify the canonical request signature base.
+9. Call `VerifyDomain(signerDomain, peerCert)`, including configured counterparty
    acceptance, and accept the WBA key only when the same public-key thumbprint
    is present in verified current `ku` key material. Missing DNSid identity or
    acceptance denial rejects; directory-only verification is not a fallback.
-10. Apply local nonce replay policy when one-time request semantics are needed.
+10. Recheck request and directory time validity and DNSid evidence freshness
+    before returning, including when network work consumed the validity window.
+11. Apply caller-selected nonce replay policy when one-time request semantics
+    are needed. The binding MUST provide an integration point for that policy.
+    When enabled, require a non-empty nonce, atomically reject repeated
+    `(signerDomain, keyid, nonce)` values, retain them through `expires + clockSkew`,
+    and fail closed on replay-store errors. Without replay policy, document
+    that time validity limits reuse but does not detect it.
 
 `Signature-Agent` is recommended by WBA but remains optional. Without it, the
 caller must provide a trusted signer domain and key-discovery policy.
 
 ## Directory verification requirements
 
-For each candidate directory key, a future verifier:
+For each candidate directory key, the verifier:
 
 1. Requires status 200, the directory media type, bounded JSON, and a valid
    public JWK.
@@ -252,7 +294,7 @@ For each candidate directory key, a future verifier:
    signature with the candidate key.
 7. Rejects cache use beyond the earliest of HTTP cache freshness, signature
    `expires`, or DNSid key-state freshness.
-8. Calls `VerifyDomain(signerDomain)`, including configured counterparty
+8. Calls `VerifyDomain(signerDomain, peerCert)`, including configured counterparty
    acceptance, and binds the key to verified current `ku` material, including
    on directory cache hits.
 
@@ -264,9 +306,16 @@ acceptance (reject in the DNSid profile), a valid DNSid signer denied by policy
 (reject without fallback), and cached directory evidence (reevaluate DNSid
 acceptance and current key binding). A separately offered generic verifier must
 test explicit selection and results that make no DNSid acceptance claim. These
-requirements apply only to bindings that ship a WBA verifier; a signing-only
-binding records them as `Not applicable` in its implementation tracker until a
-verifier exists.
+requirements are mandatory for the DNSid WBA verifier. A signing-only binding
+records verification as `Missing`, not `Not applicable`.
+
+Required verifier tests include successful signed request/directory verification,
+non-default signature labels, bad request or directory signatures, wrong tags or
+thumbprints, missing required coverage, modified content, expired evidence,
+private-address discovery and redirect rejection, missing current-peer evidence
+for `fl=mtls`, cache-hit acceptance denial or key rotation, and configured nonce
+replay/store failure. Tests MUST confirm that neither DNSid verification failures
+nor acceptance denial fall back to directory-only success.
 
 ## Key reuse decision
 

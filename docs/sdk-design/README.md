@@ -34,7 +34,7 @@ The documents are organized by SDK responsibility:
 | [07-protocol-data-types.md](07-protocol-data-types.md) | Shared DNSid data structures and wire profiles. |
 | [08-open-questions.md](08-open-questions.md) | Open design questions. |
 | [09-oidc-federation.md](09-oidc-federation.md) | OIDC federation profile for JWT Bearer assertions, token exchange, and token verification using DNSid identities. |
-| [10-web-bot-auth.md](10-web-bot-auth.md) | Web Bot Auth profile using RFC 9421 primitives and an HTTP Message Signatures Directory. |
+| [10-web-bot-auth.md](10-web-bot-auth.md) | Web Bot Auth request signing and verification, with signed-directory serving and verification, using RFC 9421 primitives and DNSid identity binding. |
 | [11-c2sp-tlog-binding.md](11-c2sp-tlog-binding.md) | C2SP transparency-log binding: references, envelopes, split signing, prepared submission, tiled-log verification, policy, witnesses, and completeness. |
 | [12-configuration-loading.md](12-configuration-loading.md) | Configuration sources: environment variable schema, deployment file, merge rule, and convenience constructors. Loaders parse; constructors default. |
 | [conformance/](conformance/) | Language-neutral RFC 9421 signature-base, lifecycle reducer, snapshot, and binding-selection vectors shared by SDK implementations. |
@@ -232,9 +232,11 @@ DNSid core does not depend on any application authentication profile.
   -> transport helpers
 
 10 Web Bot Auth
+  -> core IdentityResolver
   -> RFC 9421 primitives
-  -> KeyProvider
+  -> KeyProvider (signing only)
   -> JWKS/JWK data types
+  -> SSRF-safe HTTPS discovery transport
 
 11 C2SP transparency log binding
   -> 06 shared log bindings

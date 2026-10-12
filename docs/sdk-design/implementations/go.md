@@ -34,6 +34,14 @@ and shared suites cover cross-cutting regressions. Release, dependency, CI,
 packaging, generated-reference, and example changes were included. Historical
 scopes and resolved findings remain in Git history.
 
+## Post-baseline Design Update — WBA Verification
+
+The revised [WBA design](../10-web-bot-auth.md#public-verifier-contract) requires
+request and directory verification. The WBA verification row below is reclassified
+from `Not applicable` to `Missing` using the signing-only surface at the recorded
+SDK baseline. This is a design-requirement update, not a new full SDK review;
+analysis commits and historical validation results above remain unchanged.
+
 ## Coverage Checklist
 
 ### Document Set and Shared Contracts
@@ -213,7 +221,7 @@ scopes and resolved findings remain in Git history.
 | WBA request signing | [10: Request signing](../10-web-bot-auth.md#request-signing) | Implemented: signing entry at `webbotauth/webbotauth.go:127`; active-key/profile handling at `webbotauth/webbotauth.go:277`; config bounds at `webbotauth/webbotauth.go:384`. |  |
 | `Signature-Agent` discovery | [10: Signature-Agent discovery](../10-web-bot-auth.md#signature-agent-discovery) | Implemented: typed discovery serialization at `webbotauth/webbotauth.go:321`. |  |
 | Directory response | [10: Directory serving](../10-web-bot-auth.md#directory-serving) | Implemented: response serving/signing at `webbotauth/webbotauth.go:211`; directory JWK conversion at `webbotauth/webbotauth.go:354`. |  |
-| WBA verification | [10: Request verification requirements](../10-web-bot-auth.md#request-verification-requirements), [10: Directory verification requirements](../10-web-bot-auth.md#directory-verification-requirements) | Not applicable | The design explicitly reserves these requirements for a future public verifier API. |
+| WBA verification | [10: Request verification requirements](../10-web-bot-auth.md#request-verification-requirements), [10: Directory verification requirements](../10-web-bot-auth.md#directory-verification-requirements) | Missing: `webbotauth/webbotauth.go:127`, `:211` expose signing and directory serving only; no WBA verifier API. | Required by the revised design; request and directory verification are not implemented. |
 
 ### Open Questions
 
