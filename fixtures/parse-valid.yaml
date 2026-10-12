@@ -108,7 +108,7 @@ cases:
         unknown: {zz: "!$%&()*+,-./:<>?@[]^_{|}~"}
 
   - id: parse-valid-empty-optional-tag
-    description: Optional tag with an empty value parses; normalized to absent
+    description: Empty optional tag is retained for signatures; its typed field is unset
     spec_ref: "draft-ihsanullah-dnsid-01 §Record Format (dnsid-tag-value permits empty)"
     tags: [edge-case]
     version: dnsid-draft-01

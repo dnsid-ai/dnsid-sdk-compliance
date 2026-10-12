@@ -63,6 +63,18 @@ cases:
       ok: true
       value: "ek=https://example.com/entity-keys.json;gi=example.com;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;v=dnsid-draft-01"
 
+  - id: canonical-empty-known-optional-tags-preserved
+    description: Parsed empty known optional tags remain in signature input
+    spec_ref: "draft-ihsanullah-dnsid-01 §Signature Generation (all tags except sg)"
+    tags: [edge-case, security]
+    version: dnsid-draft-01
+    op: canonical
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;fl=;ka=;cu=;sg=AAAA"
+    expect:
+      ok: true
+      value: "cu=;ek=https://example.com/entity-keys.json;fl=;gi=example.com;ka=;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;v=dnsid-draft-01"
+
   - id: canonical-empty-unknown-tag-preserved
     description: An unknown tag with an empty value stays in the canonical string
     spec_ref: "draft-ihsanullah-dnsid-01 §Record Format (unknown tags included in canonical)"

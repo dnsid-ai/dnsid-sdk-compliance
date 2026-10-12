@@ -271,8 +271,9 @@ FUNCTION Merge(base: LoadedConfig, overlay: LoadedConfig) -> LoadedConfig
   `overlay` replaces the base value.
 - Lists replace; they are never concatenated or deduplicated across sources.
 - `logTrust` is replaced as a whole section when `overlay` sets any variant.
-- Operational `keySource` fields (`provider`, `keyRef`, `settings`, `cliDirectory`,
-  `keyStorePath`) are replaced as a group when the overlay supplies any of them.
+- Operational `keySource` fields (`provider`, `keyRef`, `generation`, `settings`,
+  `cliDirectory`, `keyStorePath`) are replaced as a group when the overlay supplies
+  any of them.
   `entityKeyPath` merges independently.
 - A section absent from both stays absent.
 
@@ -320,7 +321,10 @@ constructors and apply their own defaults, like any other constructor.
 
 `LogRegistryFromTrust` dispatches on the single `LogTrust` variant.
 `managed: true` calls the
-[managed factory](11-c2sp-tlog-binding.md#dnsid-managed-trust) with no options.
+[managed factory](11-c2sp-tlog-binding.md#dnsid-managed-trust) with `resourceFetcher`
+set to a bounded safe fetcher constructed from `loaded.dnsid.transport`. All
+selected log readers therefore honor the effective DNS resolver, `caBundlePath`,
+and `privateAddressHosts`, without changing managed trust or freshness defaults.
 `profile`, `policyDocument`, and `policyUrl` call the
 [generic factory](11-c2sp-tlog-binding.md#verification-convenience-factory)
 with that one trust input, `transport` set to `loaded.dnsid.transport` so the
@@ -416,6 +420,7 @@ verify` reads; there are no SDK-local aliases.
 | Deployment file adds a checkpoint-store path or recovery member to `logTrust` | Rejected as an unknown member; store setup remains code-only. |
 | `DNSID_LOG_POLICY_URL`, `DNSID_CA_BUNDLE`, `DNSID_PRIVATE_HOSTS=.test` set | Policy fetch uses the CA bundle and private-host allowance; verification of a `.test` draft 01 identity succeeds with no further wiring. |
 | `DNSID_LOG_TRUST_PROFILE_FILE` set, profile carries bundle verifier keys | Registry constructs with the 10-minute bundle lifetime default; no `ArgumentError`. |
+| `logTrust.managed: true` with custom DNS, CA bundle, or private hosts | Managed log fetches use effective transport settings through `resourceFetcher`; trust and freshness defaults remain fixed. |
 | `DNSID_CONFIG_DIR` and `DNSID_KEY_STORE` both set | Operational key from the CLI directory; key store unused. |
 | CLI `config.json` with `entity_key_path`, no caller `entityKeyProvider` | Entity key provider loaded from the resolved path. |
 | `IdentityManagerFromDnsid()` with `DNSID_CONFIG_DIR` set | Reads `~/.dnsid`; the variable is not consulted. |
@@ -426,7 +431,9 @@ verify` reads; there are no SDK-local aliases.
 | Selected provider package is absent or not linked | ArgumentError with install/build remedy before account discovery or mutations; no file fallback. |
 | Caller injects a provider while file selects an unavailable provider | Injected provider wins; displaced provider package is not loaded. |
 | CLI source selects local files; a later source selects cloud | Replace all operational source fields; retain any independent `entityKeyPath`. |
-| Invalid/conflicting key selection or unsupported algorithm | Reject invalid settings before mutation. |
+| Base selects `generation`; overlay selects an existing `keyRef` | Replace the operational group; no `generation` remains. |
+| Base selects `keyRef`; overlay supplies only `generation` | Replace the operational group; no `keyRef` remains, then validate the effective provider selection. |
+| Invalid/conflicting key selection or unsupported algorithm; concurrent generation | Reject invalid settings before mutation; replicas recover one key or require an existing reference. |
 | Construction uses local key files | Emit the production-safety warning. |
 | Existing identity changes provider/key through configuration alone | Binding error; explicit authorized rotation required, never implicit import or key replacement. |
 | File/code supplies `registration` | Preserve only supplied setup fields; identity-manager construction does not infer identity or acceptance from them. |
