@@ -507,6 +507,12 @@ def compare(expected: dict, actual: dict) -> list[str]:
         problems.append(f"ok: expected {expected.get('ok')}, got {actual.get('ok')} ({got})")
         return problems
     if expected.get("ok"):
+        if "publishProfile" in expected:
+            deviations = actual.get("knownDeviations")
+            if not isinstance(deviations, list) or any(
+                not isinstance(item, str) or not item.strip() for item in deviations
+            ):
+                problems.append("knownDeviations: expected a list of non-empty strings")
         for key, want in (expected.get("record") or {}).items():
             got = (actual.get("record") or {}).get(key)
             if got != want:

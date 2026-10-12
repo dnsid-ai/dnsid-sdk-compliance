@@ -26,6 +26,11 @@ on:
         description: "go | ts | py"
         required: true
         type: string
+      harness-ref:
+        description: "Compliance harness and fixtures revision"
+        required: false
+        type: string
+        default: "main"
       ref:
         description: "SDK commit under test (PR head)"
         required: true
@@ -59,6 +64,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: dnsid-ai/dnsid-sdk-compliance
+          ref: ${{ inputs.harness-ref }}
           persist-credentials: false
 
       - name: Check out SDK (head)
