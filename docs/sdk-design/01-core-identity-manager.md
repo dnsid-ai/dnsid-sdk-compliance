@@ -1426,6 +1426,22 @@ window and plan rotation accordingly. It does not justify publishing overlapping
 live keys, bypassing continuity checks, or accepting signatures under an
 unverified replacement key.
 
+For key-specific publication, hosted and self-managed publishers MUST bind each
+operational-key URL permanently to one public key and publish a distinct URL for a
+new key. Retain the old URL/key for at least the previous authoritative TXT TTL plus
+a documented positive safety margin, measured from when authoritative DNS stops
+serving the old TXT. Lowering the new TXT TTL does not shorten this interval. Extend
+retention while the rotation outcome remains unresolved. The publication coordinator
+reports the retention deadline; origin/CDN cache lifetimes MUST NOT exceed the
+remaining interval.
+
+Cached old TXT may select the old key during retention. Only the new key is selected
+by the new TXT, and the application MUST NOT resume signing with the superseded key.
+Retention does not bypass lifecycle continuity, freshness, or terminal status checks;
+revocation remains authoritative even if the public key is retained. Historical
+verification uses log evidence, not old-URL fallback. [Managed hosting](05-transport-and-registry.md#key-specific-managed-operational-endpoints)
+uses these same retention rules.
+
 #### Managed Rotation Recovery Contract
 
 An SDK-managed rotation entry point MUST require two injected dependencies; they
