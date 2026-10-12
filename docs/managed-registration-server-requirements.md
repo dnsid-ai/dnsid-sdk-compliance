@@ -156,7 +156,9 @@ In-memory handler tests alone cannot establish atomic/permanent recovery.
 - [ ] SR-9: creation/rotation return and publish distinct, valid-TLS URLs with one
   bound key each; updated TXT is entity-signed and log continuity verified.
 - [ ] SR-9: interrupted rotation resumes the same operation/URLs; signing stays
-  paused until publication and accepted evidence converge.
+  paused until publication and accepted evidence converge. Definitive append
+  rejection after publication retains recovery state and returns failure with signing
+  paused, without new-key activation or automatic publication rollback.
 - [ ] SR-9: old URL serves only its bound key through the previous TXT TTL plus
   margin; retention extends for unresolved rotation and is returned to callers.
   Cache expiry stays within retention; no redirect, rebinding, unexplained current-key

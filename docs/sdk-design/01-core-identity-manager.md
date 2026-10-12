@@ -1379,7 +1379,9 @@ entry-hash, log-reference, or key-binding mismatch. Its state handling is:
   provider/key, verify that its actual `SigningKey()` matches the saved binding,
   then resume signing and persist completion; finding the key through `JWK(kid)`
   alone is insufficient;
-- rejected: return a terminal typed submission error without resubmission.
+- definitively rejected: retain recovery state, keep application signing paused,
+  and return a terminal typed submission error without resubmission, new-key
+  activation, or automatic publication rollback.
 
 Failures after completed bytes have been fixed return a typed submission or
 activation error carrying the latest recoverable rotation state. Persistence,

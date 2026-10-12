@@ -244,13 +244,13 @@ Polling MUST retain the immutable ID/domain, publication authority, creation
 publication snapshot, and any saved OIDC issuer. Compare authoritative reads
 with those facts; omission of `oidc_issuer_url` when an issuer was saved is a mismatch,
 not permission to clear it. An issuer omitted at creation need not be present later.
-If an endpoint documents omission, retain the snapshot and obtain an authenticated
-authoritative read before reporting success. Authorized rotation is handled under
+An authenticated authoritative read MUST establish the retained bindings before
+reporting success. Authorized rotation is handled under
 [13: Completed-Operation Resume](13-managed-registration.md#completed-operation-resume).
-One finite deadline/cancellation budget covers polling, verification, and awaited
-progress observers. Advisory observers cannot block return indefinitely. Required
-durable writes are not advisory; cancellation does not prove an in-flight write
-was undone, and recovery must reconcile its outcome.
+Optional progress callbacks neither establish success nor extend the finite
+deadline/cancellation budget shared by polling and verification. Durable writes
+remain required; cancellation does not prove an in-flight write was undone, and
+recovery must reconcile its outcome.
 
 ```
 FUNCTION AwaitRegistryManagedPublication(registryClient: RegistryClient) -> PublishedRecord
