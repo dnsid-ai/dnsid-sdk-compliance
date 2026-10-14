@@ -80,14 +80,17 @@ def signature_base(message: dict, request: dict, label: str = "sig1") -> bytes:
             field = request["method"].upper()
         elif component == '"@target-uri"':
             field = request["url"]
-        elif component.startswith('"signature-agent";key='):
-            key = json.loads(component.split(";key=", 1)[1])
+        elif component == '"@status"':
+            field = str(message["status"])
+        elif ";key=" in component:
+            name, key = component.split(";key=", 1)
+            key = json.loads(key)
             member = re.search(
                 r"(?:^|,\s*)" + re.escape(key) + r"=([^,]+)",
-                message["headers"]["signature-agent"],
+                message["headers"][json.loads(name)],
             )
             if member is None:
-                raise ValueError("missing selected Signature-Agent member")
+                raise ValueError("missing selected dictionary member")
             field = member.group(1).strip()
         else:
             field = message["headers"][json.loads(component)]
@@ -269,6 +272,7 @@ def load_wba_suite() -> dict:
                 **case,
                 "op": "wba_verify_request",
                 "input": {
+                    "key": vectors["key"],
                     "request": vectors["requests"][scenario["request"]]["message"],
                     "directoryRequest": vectors["directoryRequest"],
                     "directory": vectors["directories"][scenario["directory"]][

@@ -92,6 +92,36 @@ SDK's error class name (`ParseError`, `ValidationError`, ...), which is what
 cases assert on — messages are only matched via the optional, substring-based
 `error_contains`.
 
+## Web Bot Auth adapters
+
+WBA verification runs the native SDK verifier, not an independent verdict engine.
+The shared cases inject clocks, identity evidence, DNS answers, replay stores,
+and real operation sequences. Discovery uses local TLS with a test trust root;
+public-address filtering and certificate verification still run in the SDK.
+
+- Python and TypeScript inject identity results at the public resolver boundary.
+  These cases test profile handling of acceptance and key evidence, not the core
+  identity manager's complete DNSid evidence chain.
+- Go uses a batched `go test -overlay` bridge in
+  `shims/go/testdata/wba_adapter_test.go`, reusing the SDK's native WBA fixture
+  helpers and core identity manager. The CLI's `NativeAdapterRequired` marker is
+  internal; `harness/run.py` replaces it with bridge results. The bridge requires
+  the corresponding native fixture helpers in the SDK checkout. Compile or
+  setup failures remain `AdapterError`, never successful negative tests. No SDK
+  source files are changed.
+- TypeScript cases run sequentially because clock and physical-dial overrides
+  are process-wide. The adapter buffers the fixed fixture response bytes to
+  avoid a Node stream-bridge cancellation race; live streaming limits and replay
+  cleanup remain native SDK test obligations.
+
+`CAPABILITIES` in `harness/run.py` records optional directory-cache support. All
+current adapters use uncached discovery; `uncachedExpect` requires observed
+rediscovery instead of claiming cache-hit coverage. Do not enable caching there
+without a native cache adapter that preserves original age metadata.
+
+The deterministic TLS certificate and private key in `shims/testdata/` are
+public, disposable test credentials. They are not deployment credentials.
+
 ## Fixture schema
 
 ```yaml

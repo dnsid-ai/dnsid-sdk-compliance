@@ -36,7 +36,7 @@ func wbaHeaders(header http.Header) map[string]string {
 func handleWBA(req request) map[string]any {
 	if req.Op == "wba_verify_request" {
 		if _, present := reflect.TypeOf((*webbotauth.Profile)(nil)).MethodByName("VerifyWebBotAuthSignedRequest"); present {
-			return map[string]any{"ok": false, "error": "AdapterError", "message": "WBA verifier now exists; integrate its fixture adapter"}
+			return map[string]any{"ok": false, "error": "NativeAdapterRequired", "message": "harness executes the native Go WBA test bridge"}
 		}
 		return map[string]any{"ok": false, "error": "CapabilityMissing", "capability": "wba_request_verification", "message": "SDK has signing/directory serving only"}
 	}
@@ -56,6 +56,12 @@ func handleWBA(req request) map[string]any {
 		cfg.DirectorySignatureTTL = time.Duration(*req.WebBotAuth.DirectorySignatureTTL) * time.Second
 	}
 	profile := webbotauth.New(req.Domain, key, cfg)
+	if req.ConfigMutation.IncludeSignatureAgent != nil && cfg.IncludeSignatureAgent != nil {
+		*cfg.IncludeSignatureAgent = *req.ConfigMutation.IncludeSignatureAgent
+	}
+	if req.ConfigMutation.SignatureAgent.URI != "" {
+		cfg.DirectoryURL = req.ConfigMutation.SignatureAgent.URI
+	}
 	message, err := http.NewRequest(req.Request.Method, req.Request.URL, nil)
 	if err != nil {
 		return errJSON(err)

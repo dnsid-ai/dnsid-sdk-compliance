@@ -40,6 +40,7 @@ The profile depends only on the shared `IdentityResolver` contract in
 Both settings MUST be finite numeric values, not Booleans. Defaults apply only
 when omitted; explicit zero clock skew means zero tolerance. Configuration
 outside these bounds is an `ArgumentError`, rejected before network work.
+Apply shared [profile configuration ownership](README.md#profile-configuration-ownership).
 Applications needing strict replay prevention also maintain a nonce store for at least `maxAge +
 clockSkew`; the SDK does not maintain one by default.
 
@@ -195,8 +196,12 @@ content presence solely from `Content-Length` or transfer encoding.
 Signing and verification either buffer and restore the exact content bytes or
 use a language-native replay mechanism. Replacing a stream MUST preserve its
 native cleanup responsibilities so closing the replay stream releases the
-original resources. A one-shot stream without such a mechanism is rejected.
-When `content-digest` is covered, verification:
+original resources. Repeated signing or verification of the same message MUST
+NOT retain earlier replay buffers through cleanup wrappers; retain the original
+cleanup responsibility, not a chain of replaced streams. A one-shot stream
+without such a mechanism is rejected.
+When any `content-digest` component is covered, including a parameterized
+component such as `content-digest;key="sha-256"`, verification:
 
 1. Requires and parses `Content-Digest` as an RFC 9530 dictionary.
 2. Selects the supported `sha-256` member.
@@ -204,8 +209,12 @@ When `content-digest` is covered, verification:
 4. Compares the recomputed digest in constant time.
 5. Restores the stream before dispatching the request.
 
-A covered digest is always checked. A signed digest value alone does not prove
-that it matches the content.
+A covered digest is always checked. If content was not supplied to the verifier,
+a covered digest rejects; absent content is not a supplied empty byte sequence.
+Digest-validation detection is distinct from exact minimum-coverage checks:
+parameterized coverage does not substitute for required unparameterized
+`content-digest` coverage. A signed digest value alone does not prove that it
+matches the content.
 
 ## DNSid request profile
 

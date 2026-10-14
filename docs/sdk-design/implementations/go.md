@@ -42,6 +42,10 @@ from `Not applicable` to `Missing` using the signing-only surface at the recorde
 SDK baseline. This is a design-requirement update, not a new full SDK review;
 analysis commits and historical validation results above remain unchanged.
 
+A later [focused WBA conformance check](wba-verification-check.md) records native
+verifier integration, measured results, and SDK follow-up work at newer heads.
+It does not advance this tracker's full-review baseline or coverage checklist.
+
 ## Coverage Checklist
 
 ### Document Set and Shared Contracts

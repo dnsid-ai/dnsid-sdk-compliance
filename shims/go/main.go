@@ -80,6 +80,7 @@ type request struct {
 	SameKey                                       bool               `json:"sameKey"`
 	Key                                           fixtureKey         `json:"key"`
 	WebBotAuth                                    wbaConfig          `json:"webBotAuth"`
+	ConfigMutation                                wbaConfig          `json:"configMutation"`
 	Options                                       wbaSigningOptions  `json:"options"`
 }
 

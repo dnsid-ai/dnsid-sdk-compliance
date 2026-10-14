@@ -8,11 +8,12 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import yaml
-
-from generate_wba_fixtures import NOW, build_vectors
-from run import compare, evaluate_result, render_report
+from generate_wba_fixtures import NOW, build_vectors, tls_fixture_files
+from run import SubprocessAdapter, compare, evaluate_result, render_report
+from wba_adapters import verify_go
 from wba_vectors import (
     VECTOR_PATH,
     check_golden_vectors,
@@ -45,6 +46,166 @@ class WbaVectorsTest(unittest.TestCase):
             + len(self.vectors["signingCases"])
             + len(self.vectors["verificationCases"]),
         )
+
+    def test_keyed_digest_fixture_is_signed_but_has_no_content(self):
+        fixture = self.vectors["requests"]["keyed-digest-without-content"]
+        self.assertNotIn("bodyBase64", fixture["message"])
+        self.assertTrue(fixture["signatureValid"])
+        self.assertFalse(fixture["digestValid"])
+        self.assertIn(
+            '"content-digest";key="sha-256": :YWJj:', fixture["signatureBase"]
+        )
+
+    def test_fresh_non_cacheable_directory_vectors_are_positive(self):
+        cases = {case["id"]: case for case in self.vectors["verificationCases"]}
+        for name in ("no-store", "no-cache", "zero-max-age"):
+            with self.subTest(name=name):
+                self.assertTrue(cases["wba-verify-directory-" + name]["expect"]["ok"])
+                self.assertTrue(self.vectors["directories"][name]["signatureValid"])
+
+    def test_tls_credentials_are_reproducible_and_match_the_fixture(self):
+        from cryptography import x509
+        from cryptography.hazmat.primitives import serialization
+
+        files = tls_fixture_files()
+        for path, content in files.items():
+            self.assertEqual(path.read_bytes(), content)
+        cert = x509.load_pem_x509_certificate(
+            next(
+                content
+                for path, content in files.items()
+                if path.name == "wba-cert.pem"
+            )
+        )
+        key = serialization.load_pem_private_key(
+            next(
+                content for path, content in files.items() if path.name == "wba-key.pem"
+            ),
+            password=None,
+        )
+        self.assertEqual(
+            cert.public_key().public_bytes_raw(), key.public_key().public_bytes_raw()
+        )
+        self.assertEqual(
+            cert.extensions.get_extension_for_class(
+                x509.SubjectAlternativeName
+            ).value.get_values_for_type(x509.DNSName),
+            [self.vectors["domain"]],
+        )
+
+    def test_uncached_expectation_requires_actual_rediscovery(self):
+        case = next(
+            case
+            for case in load_wba_suite()["cases"]
+            if case["id"] == "wba-verify-cache-hit-http-stale"
+        )
+        for sdk in ("go", "ts", "py"):
+            for count in (1, 2):
+                actual = {
+                    "ok": True,
+                    "signerDomain": self.vectors["domain"],
+                    "discoveryRequests": count,
+                }
+                self.assertEqual(
+                    evaluate_result(case, sdk, actual)[0],
+                    "PASS" if count == 2 else "FAIL",
+                )
+            self.assertEqual(
+                evaluate_result(case, sdk, {"ok": False, "error": "ConformanceError"})[
+                    0
+                ],
+                "FAIL",
+            )
+        with patch.dict(
+            "run.CAPABILITIES", {"go": {"versions": set(), "directory_cache": True}}
+        ):
+            self.assertEqual(
+                evaluate_result(case, "go", {"ok": False, "error": "ConformanceError"})[
+                    0
+                ],
+                "PASS",
+            )
+
+    def test_go_native_batch_dispatch_preserves_other_results(self):
+        requests = [{"op": "parse"}, {"op": "wba_verify_request"}]
+        native = {"ok": True, "signerDomain": self.vectors["domain"]}
+        shim = [{"ok": True}, {"ok": False, "error": "NativeAdapterRequired"}]
+        with (
+            patch(
+                "run.subprocess.run",
+                return_value=SimpleNamespace(returncode=0, stdout=json.dumps(shim)),
+            ),
+            patch("wba_adapters.verify_go", return_value=[native]) as bridge,
+        ):
+            self.assertEqual(
+                SubprocessAdapter("go", ["unused"]).run(requests), [shim[0], native]
+            )
+            bridge.assert_called_once_with([requests[1]])
+
+    def test_go_overlay_does_not_modify_the_sdk_checkout(self):
+        def execute(_cmd, **kwargs):
+            output = Path(kwargs["env"]["DNSID_WBA_OUTPUT"])
+            output.write_text('[{"ok": true, "signerDomain": "agent.example"}]')
+            overlay = json.loads(Path(_cmd[2].split("=", 1)[1]).read_text())
+            self.assertTrue(
+                next(iter(overlay["Replace"])).endswith(
+                    "webbotauth/compliance_adapter_test.go"
+                )
+            )
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch.dict(os.environ, {"DNSID_GO_DIR": directory}),
+            patch("wba_adapters.subprocess.run", side_effect=execute),
+        ):
+            self.assertEqual(
+                verify_go([{"op": "wba_verify_request"}]),
+                [{"ok": True, "signerDomain": "agent.example"}],
+            )
+            self.assertEqual(list(Path(directory).iterdir()), [])
+
+    def test_go_bridge_failure_is_an_adapter_error(self):
+        with patch(
+            "wba_adapters.subprocess.run",
+            return_value=SimpleNamespace(
+                returncode=1, stdout="", stderr="compile failed"
+            ),
+        ):
+            results = verify_go([{}, {}])
+        self.assertEqual(len(results), 2)
+        self.assertTrue(all(result["error"] == "AdapterError" for result in results))
+
+    def test_python_adapter_runs_the_native_verifier(self):
+        try:
+            from dnsid import WBAHttpVerifier
+        except ImportError:
+            self.skipTest("Python WBA SDK is not installed")
+        from wba_adapters import verify_python
+
+        cases = {case["id"]: case for case in load_wba_suite()["cases"]}
+        original = WBAHttpVerifier.verify_web_bot_auth_signed_request
+        with patch.object(
+            WBAHttpVerifier,
+            "verify_web_bot_auth_signed_request",
+            autospec=True,
+            side_effect=original,
+        ) as verify:
+            self.assertTrue(verify_python(cases["wba-verify-valid"]["input"])["ok"])
+            self.assertEqual(
+                verify_python(cases["wba-verify-bad-signature"]["input"])["error"],
+                "ConformanceError",
+            )
+            self.assertEqual(verify.call_count, 2)
+        with patch.object(
+            WBAHttpVerifier,
+            "verify_web_bot_auth_signed_request",
+            side_effect=RuntimeError("fixture SDK bug"),
+        ):
+            self.assertEqual(
+                verify_python(cases["wba-verify-valid"]["input"])["error"],
+                "AdapterError",
+            )
 
     def test_valid_signing_and_directory_bytes(self):
         for directory in (False, True):

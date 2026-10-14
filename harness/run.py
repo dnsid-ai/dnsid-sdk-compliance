@@ -31,12 +31,15 @@ ROOT = Path(__file__).resolve().parent.parent
 # unsupported version (status REJ). Unsupported versions must fail closed.
 CAPABILITIES = {
     "go": {
+        "directory_cache": False,
         "versions": {"dnsid-draft-01", "DNSid1"},
     },
     "ts": {
+        "directory_cache": False,
         "versions": {"dnsid-draft-01", "DNSid1"},
     },
     "py": {
+        "directory_cache": False,
         "versions": {"dnsid-draft-01", "DNSid1"},
     },
 }
@@ -104,7 +107,16 @@ class SubprocessAdapter:
         )
         if proc.returncode != 0:
             raise RuntimeError(f"{self.name} shim failed (exit {proc.returncode}): {proc.stderr.strip()}")
-        return json.loads(proc.stdout)
+        results = json.loads(proc.stdout)
+        if self.name == "go":
+            from wba_adapters import verify_go
+
+            indices = [i for i, result in enumerate(results) if requests[i]["op"] == "wba_verify_request" and result.get("error") == "NativeAdapterRequired"]
+            if indices:
+                native = verify_go([requests[i] for i in indices])
+                for i, result in zip(indices, native):
+                    results[i] = result
+        return results
 
 
 class PyAdapter:
@@ -215,8 +227,10 @@ class PyAdapter:
         from dnsid.models import HttpRequest
 
         if req["op"] == "wba_verify_request":
-            if hasattr(dnsid, "WBAHttpVerifier") or hasattr(wba, "verify_web_bot_auth_signed_request") or hasattr(wba.WBAHttpSigner, "verify_web_bot_auth_signed_request"):
-                return {"ok": False, "error": "AdapterError", "message": "WBA verifier now exists; integrate its fixture adapter"}
+            if hasattr(dnsid, "WBAHttpVerifier"):
+                from wba_adapters import verify_python
+
+                return verify_python(req)
             return {"ok": False, "error": "CapabilityMissing", "capability": "wba_request_verification", "message": "SDK has signing/directory serving only"}
         key = FixtureKeyProvider(req["key"])
         config = req.get("webBotAuth", {})
@@ -236,7 +250,13 @@ class PyAdapter:
             output = {"status": result.status, "headers": result.headers, "bodyBase64": base64.b64encode(result.body).decode()}
         else:
             opts = req.get("options", {})
-            result = wba.WBAHttpSigner(key, req["domain"], config=cfg).sign(message, options=wba.WebBotAuthSigningOptions(
+            signer = wba.WBAHttpSigner(key, req["domain"], config=cfg)
+            mutation = req.get("configMutation", {})
+            if "includeSignatureAgent" in mutation:
+                cfg.include_signature_agent = mutation["includeSignatureAgent"]
+            if "signatureAgent" in mutation:
+                cfg.signature_agent_uri = mutation["signatureAgent"]["uri"]
+            result = signer.sign(message, options=wba.WebBotAuthSigningOptions(
                 additional_components=opts.get("additionalComponents", []),
                 signature_agent=opts.get("signatureAgent"),
                 ttl=opts.get("ttl"),
@@ -537,6 +557,8 @@ def resolve_expectation(case: dict, sdk: str) -> tuple[dict, str | None]:
     if version is not None and version not in CAPABILITIES[sdk]["versions"]:
         return UNSUPPORTED_VERSION_EXPECT, "gated"
     expected = case["expect"]
+    if "uncachedExpect" in case and not CAPABILITIES[sdk]["directory_cache"]:
+        return case["uncachedExpect"], "uncached"
     override = (case.get("sdk") or {}).get(sdk)
     if override and "expect" in override:
         return deep_merge(expected, override["expect"]), "override"
@@ -601,6 +623,8 @@ def evaluate_result(case: dict, sdk: str, actual: dict) -> tuple:
     else:
         status = "PASS"
     note = sdk_entry.get("note") if kind == "override" else known_bug
+    if kind == "uncached":
+        note = "Directory caching is not implemented; two fresh discoveries are required instead."
     return (status, problems, note, actual)
 
 

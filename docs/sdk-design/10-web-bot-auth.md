@@ -90,7 +90,9 @@ accepted request and directory lifetimes to five minutes. TTLs and clock skew
 MUST be finite numeric values, not Booleans. TTLs must produce a positive integer
 signature lifetime within the stated bound. Defaults apply only when omitted;
 explicit zero skew means zero tolerance. Invalid settings raise `ArgumentError`
-before network work.
+before network work. Apply shared
+[profile configuration ownership](README.md#profile-configuration-ownership),
+including nested discovery settings.
 
 ## Signature-Agent discovery
 
@@ -242,9 +244,10 @@ whether that coverage is sufficient for their operations. Bindings MUST expose
 an optional `requiredComponents` policy in verifier options, defaulting to no
 additional requirements. Every required component MUST be covered by the
 selected request signature, using the exact component equality rules in section
-02, including parameter values. Validate this policy and check coverage before
-discovery; malformed policy raises `ArgumentError`, and missing coverage rejects
-verification. Signing extra components does not make a recipient require them.
+02, including parameter values. Policy entries MUST be valid for request
+messages; response-only `@status` and components with `req` are malformed policy.
+Validate this policy and check coverage before discovery; malformed policy raises
+`ArgumentError`, and missing coverage rejects verification. Signing extra components does not make a recipient require them.
 
 ## Signature selection
 
@@ -289,8 +292,10 @@ The DNSid WBA verifier performs these checks:
    clock skew.
 3. Require a syntactically valid unpadded base64url SHA-256 JWK thumbprint in
    `keyid`, `alg="ed25519"`, and exact unparameterized `@authority` coverage.
-4. If content is supplied, require and recompute covered `content-digest` under
-   the shared RFC 9530 rules.
+4. If content is supplied, require exact unparameterized `content-digest`
+   coverage. Validate every covered Content-Digest component under the shared
+   RFC 9530 rules, including parameterized coverage; reject a covered digest
+   when content was not supplied.
 5. If `Signature-Agent` is present, require that one selected dictionary member
    is covered with `signature-agent;key="member"`. Resolve its explicit or
    default discovery type as defined above.
@@ -364,7 +369,14 @@ It does not establish domain authority by itself.
 
 ### Directory caching
 
-Directory caching is optional. Cache obligations apply whenever directory evidence
+Directory caching is optional. A freshly acquired response with `no-store`,
+`no-cache`, or a zero freshness lifetime MAY authenticate the acquiring
+invocation; those directives restrict storage or reuse, not fresh acquisition.
+Request and directory signature validity, DNSid evidence bounds, and final checks
+still apply. Missing HTTP age metadata on a fresh response is not a reason to
+substitute signature `created` for acquisition time or reject that invocation.
+
+Cache obligations apply whenever directory evidence
 is reused, including through an injected discovery transport. Reuse MUST preserve
 HTTP freshness under RFC 9111 age calculations, with applicable `Date`/`Age` fields
 and original acquisition timing. The discovery boundary MUST retain or expose
@@ -411,6 +423,10 @@ Additional required validation covers:
 | Coded directory response | Reject without transparent decompression. |
 | Valid directory signature also covering actual `@status` | Accept if all other checks pass. |
 | Non-finite, Boolean, or out-of-range duration settings | `ArgumentError` before network work. |
+| Caller mutates validated configuration, including nested discovery settings | Existing profile policy is unchanged. |
+| Parameterized Content-Digest coverage without supplied content | Reject; digest validation is not limited to exact minimum coverage. |
+| Fresh signed directory with `no-store`, `no-cache`, or `max-age=0` | Acquiring invocation may succeed; cache reuse remains restricted. |
+| Repeated signing or verification of the same streamed message | Preserve cleanup without retaining earlier replay buffers. |
 | Directory timeout or HTTP 503 | Transient failure; no successful fallback. |
 
 ## Key reuse decision

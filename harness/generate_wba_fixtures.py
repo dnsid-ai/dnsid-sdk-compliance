@@ -8,9 +8,12 @@ import base64
 import copy
 import hashlib
 import json
+from datetime import datetime, timezone
 
+from cryptography import x509
+from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-
+from cryptography.x509.oid import NameOID
 from wba_vectors import (
     DIRECTORY_TYPE,
     VECTOR_PATH,
@@ -175,6 +178,18 @@ def build_vectors() -> dict:
         "missing-created": request_fixture(created=None),
         "missing-expires": request_fixture(expires=None),
     }
+    message = request_fixture(body=None)["message"]
+    message["headers"]["content-digest"] = "sha-256=:YWJj:"
+    requests["keyed-digest-without-content"] = sign(
+        message,
+        message,
+        [
+            '"@authority"',
+            '"content-digest";key="sha-256"',
+            '"signature-agent";key="sig1"',
+        ],
+    )
+    requests["keyed-digest-without-content"]["digestValid"] = False
     requests["bad-signature"] = corrupt_signature(requests["valid"])
     requests["missing-signature"] = copy.deepcopy(requests["valid"])
     requests["missing-signature"]["message"]["headers"]["signature"] = ""
@@ -212,7 +227,9 @@ def build_vectors() -> dict:
     ]
     directory_key = {**PUBLIC, "kid": THUMB, "alg": "ed25519", "use": "sig"}
 
-    def directory_fixture(*, keys=None, components=None, cache_age=300, **params):
+    def directory_fixture(
+        *, keys=None, components=None, cache_age=300, headers=None, **params
+    ):
         body = json.dumps(
             {"keys": keys or [directory_key]}, separators=(",", ":")
         ).encode()
@@ -222,6 +239,7 @@ def build_vectors() -> dict:
                 "content-type": DIRECTORY_TYPE,
                 "cache-control": f"max-age={cache_age}",
                 "content-digest": digest(body),
+                **(headers or {}),
             },
             "bodyBase64": base64.b64encode(body).decode(),
         }
@@ -250,7 +268,78 @@ def build_vectors() -> dict:
             cache_age=60, created=NOW - 61, expires=NOW + 239
         ),
     }
+    for name, policy in (
+        ("no-store", "no-store, max-age=0"),
+        ("no-cache", "no-cache"),
+        ("zero-max-age", "max-age=0"),
+    ):
+        directories[name] = directory_fixture(headers={"cache-control": policy})
+    directories["status-covered"] = directory_fixture(
+        components=[*directory_components, '"@status"']
+    )
+    directories["coded"] = directory_fixture(headers={"content-encoding": "gzip"})
+    for name, operations in (
+        ("verify-only", ["verify"]),
+        ("sign-verify", ["sign", "verify"]),
+        ("empty", []),
+        ("sign-only", ["sign"]),
+        ("encryption-only", ["encrypt"]),
+        ("duplicate", ["verify", "verify"]),
+        ("non-string", ["verify", 1]),
+        ("not-array", "verify"),
+    ):
+        directories["key-ops-" + name] = directory_fixture(
+            keys=[{**directory_key, "key_ops": operations}]
+        )
+    for name, metadata in (
+        ("wrong-use", {"use": "enc"}),
+        ("wrong-alg", {"alg": "EdDSA"}),
+        ("omitted-metadata", {}),
+    ):
+        key = {
+            name: value
+            for name, value in directory_key.items()
+            if name not in {"use", "alg"}
+        }
+        directories[name] = directory_fixture(keys=[{**key, **metadata}])
+    other_public = {
+        **PUBLIC,
+        "x": b64url(
+            Ed25519PrivateKey.from_private_bytes(bytes(reversed(range(32))))
+            .public_key()
+            .public_bytes_raw()
+        ),
+    }
+    other_directory_key = {
+        **other_public,
+        "kid": thumbprint(other_public),
+        "alg": "ed25519",
+        "use": "sig",
+    }
+    directories["distinct-key-candidates"] = directory_fixture(
+        keys=[directory_key, other_directory_key]
+    )
+    other = sign(
+        copy.deepcopy(directories["distinct-key-candidates"]["message"]),
+        directory_request,
+        directory_components,
+        label="bot7",
+        keyid=other_directory_key["kid"],
+        tag="http-message-signatures-directory",
+        expires=NOW + 300,
+    )
+    for field in ("signature-input", "signature"):
+        directories["distinct-key-candidates"]["message"]["headers"][field] += (
+            ", " + other["message"]["headers"][field]
+        )
     directories["bad-signature"] = corrupt_signature(directories["valid"])
+    for collection in (requests, directories):
+        fixture = copy.deepcopy(collection["valid"])
+        for field in ("signature-input", "signature"):
+            fixture["message"]["headers"][field] += ", " + collection["bad-signature"][
+                "message"
+            ]["headers"][field].replace("sig1=", "bot7=", 1)
+        collection["valid-plus-invalid"] = fixture
     directories["tampered-body"] = copy.deepcopy(directories["valid"])
     directories["tampered-body"]["message"]["bodyBase64"] = (
         base64.b64decode(directories["valid"]["message"]["bodyBase64"]) + b" "
@@ -270,6 +359,7 @@ def build_vectors() -> dict:
         accepted=True,
         config=None,
         options=None,
+        mutation=None,
     ):
         signing.append(
             {
@@ -281,6 +371,7 @@ def build_vectors() -> dict:
                     "request": copy.deepcopy(message),
                     "webBotAuth": config or {},
                     "options": options or {},
+                    **({"configMutation": mutation} if mutation else {}),
                 },
                 "expect": {"ok": True}
                 if accepted
@@ -288,6 +379,16 @@ def build_vectors() -> dict:
             }
         )
 
+    signing_case(
+        "configuration-snapshot-flag",
+        config={"includeSignatureAgent": False},
+        mutation={"includeSignatureAgent": True},
+    )
+    signing_case(
+        "configuration-snapshot-discovery",
+        config={"signatureAgent": {"uri": f"https://{DOMAIN}", "type": "directory"}},
+        mutation={"signatureAgent": {"uri": "https://other.example"}},
+    )
     signing_case("default-get", message=get)
     signing_case("binary-body")
     signing_case("empty-supplied-body", message={**request, "bodyBase64": ""})
@@ -342,7 +443,15 @@ def build_vectors() -> dict:
     verification = []
 
     def verify_case(
-        name, *, req="valid", directory="valid", accepted=False, policy=None, reason=""
+        name,
+        *,
+        req="valid",
+        directory="valid",
+        accepted=False,
+        policy=None,
+        reason="",
+        error="ConformanceError",
+        transient=None,
     ):
         verification.append(
             {
@@ -356,9 +465,20 @@ def build_vectors() -> dict:
                 },
                 "expect": {"ok": True, "signerDomain": DOMAIN}
                 if accepted
-                else {"ok": False, "error": "ConformanceError"},
+                else {
+                    "ok": False,
+                    "error": error,
+                    **({"transient": transient} if transient is not None else {}),
+                },
             }
         )
+
+        if accepted and (policy or {}).get("cacheHit"):
+            verification[-1]["uncachedExpect"] = {
+                "ok": True,
+                "signerDomain": DOMAIN,
+                "discoveryRequests": 2,
+            }
 
     verify_case("valid", accepted=True)
     verify_case("non-default-label", req="non-default-label", accepted=True)
@@ -373,6 +493,8 @@ def build_vectors() -> dict:
     )
     for name in (
         "bad-signature",
+        "keyed-digest-without-content",
+        "valid-plus-invalid",
         "missing-signature",
         "ambiguous-signatures",
         "missing-created",
@@ -392,11 +514,81 @@ def build_vectors() -> dict:
         "changed-bound-query",
     ):
         verify_case(name, req=name)
+    accepted_directories = {
+        "no-store",
+        "no-cache",
+        "zero-max-age",
+        "status-covered",
+        "key-ops-verify-only",
+        "key-ops-sign-verify",
+        "omitted-metadata",
+        "distinct-key-candidates",
+    }
     for name in directories:
         if name not in {"valid", "short-cache"}:
-            verify_case("directory-" + name, directory=name)
+            verify_case(
+                "directory-" + name,
+                directory=name,
+                accepted=name in accepted_directories,
+            )
+    verify_case(
+        "required-operation-coverage",
+        policy={"requiredComponents": ["@method", "@target-uri"]},
+    )
+    verify_case(
+        "required-operation-coverage-present",
+        req="operation-bound",
+        accepted=True,
+        policy={"requiredComponents": ["@method", "@target-uri"]},
+    )
+    verify_case(
+        "required-coverage-exact-parameters",
+        policy={"requiredComponents": ["signature-agent"]},
+    )
+    verify_case(
+        "response-only-required-coverage",
+        policy={"requiredComponents": ["@status"]},
+        error="ArgumentError",
+    )
+    verify_case(
+        "malformed-required-coverage",
+        policy={"requiredComponents": ["@unknown"]},
+        error="ArgumentError",
+    )
+    verify_case(
+        "configuration-snapshot",
+        req="expired",
+        policy={"configMutation": {"clockSkew": 86400}},
+    )
+    verify_case("zero-dns-ttl", accepted=True, policy={"dnsTTL": 0})
+    verify_case(
+        "zero-dns-ttl-next-invocation",
+        accepted=True,
+        policy={"dnsTTL": 0, "cacheHit": True},
+    )
+    verify_case("directory-503", policy={"directoryStatus": 503}, transient=True)
+    verify_case(
+        "directory-timeout",
+        policy={"directoryTimeout": True, "timeoutMs": 500},
+        transient=True,
+    )
+    verification[-1]["expect"]["discoveryRequests"] = 1
+    for case in verification:
+        if case["id"] in {
+            "wba-verify-keyed-digest-without-content",
+            "wba-verify-required-operation-coverage",
+            "wba-verify-malformed-required-coverage",
+            "wba-verify-response-only-required-coverage",
+            "wba-verify-required-coverage-exact-parameters",
+            "wba-verify-configuration-snapshot",
+        }:
+            case["expect"]["discoveryRequests"] = 0
     verify_case("directory-only-no-fallback", policy={"dnsidExists": False})
-    verify_case("acceptance-denied-no-fallback", policy={"acceptanceAllowed": False})
+    verify_case(
+        "acceptance-denied-no-fallback",
+        policy={"acceptanceAllowed": False},
+        transient=False,
+    )
     verify_case("cache-hit-valid", accepted=True, policy={"cacheHit": True})
     verify_case(
         "cache-hit-acceptance-denied",
@@ -408,6 +600,15 @@ def build_vectors() -> dict:
         .public_bytes_raw()
     )
     verify_case(
+        "auxiliary-non-signing-key",
+        policy={
+            "currentKu": [
+                {**PUBLIC, "x": b64url(other_key)},
+                {**PUBLIC, "kid": "auxiliary", "use": "enc"},
+            ]
+        },
+    )
+    verify_case(
         "cache-hit-key-rotation",
         policy={"cacheHit": True, "currentKu": [{**PUBLIC, "x": b64url(other_key)}]},
     )
@@ -416,11 +617,19 @@ def build_vectors() -> dict:
         directory="short-cache",
         policy={"cacheHit": True, "cachedAt": NOW - 61},
     )
+    verification[-1]["uncachedExpect"] = {
+        "ok": True,
+        "signerDomain": DOMAIN,
+        "discoveryRequests": 2,
+    }
     verify_case(
-        "private-discovery-address", policy={"resolvedAddresses": ["127.0.0.1"]}
+        "private-discovery-address",
+        policy={"resolvedAddresses": ["127.0.0.1"]},
+        transient=False,
     )
     verify_case(
         "private-redirect-address",
+        transient=False,
         policy={
             "redirects": [
                 {
@@ -430,7 +639,7 @@ def build_vectors() -> dict:
             ]
         },
     )
-    verify_case("invalid-web-pki", policy={"directoryTlsValid": False})
+    verify_case("invalid-web-pki", policy={"directoryTlsValid": False}, transient=False)
     verify_case(
         "mtls-missing-current-peer",
         policy={"requiresMtls": True, "peerCertificate": None},
@@ -479,6 +688,34 @@ def build_vectors() -> dict:
     }
 
 
+def tls_fixture_files() -> dict:
+    """Disposable deterministic TLS credentials for the native transport adapters."""
+    subject = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, DOMAIN)])
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(subject)
+        .public_key(PRIVATE.public_key())
+        .serial_number(1)
+        .not_valid_before(datetime(2020, 1, 1, tzinfo=timezone.utc))
+        .not_valid_after(datetime(2100, 1, 1, tzinfo=timezone.utc))
+        .add_extension(
+            x509.SubjectAlternativeName([x509.DNSName(DOMAIN)]), critical=False
+        )
+        .add_extension(x509.BasicConstraints(ca=True, path_length=0), critical=True)
+        .sign(PRIVATE, algorithm=None)
+    )
+    directory = VECTOR_PATH.parents[3] / "shims/testdata"
+    return {
+        directory / "wba-cert.pem": cert.public_bytes(serialization.Encoding.PEM),
+        directory / "wba-key.pem": PRIVATE.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        ),
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
@@ -486,6 +723,13 @@ def main() -> None:
     vectors = build_vectors()
     check_golden_vectors(vectors)
     text = json.dumps(vectors, indent=2) + "\n"
+    for path, content in tls_fixture_files().items():
+        if args.check:
+            if not path.exists() or path.read_bytes() != content:
+                raise SystemExit(f"TLS fixture is stale: {path}")
+        else:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(content)
     if args.check:
         if VECTOR_PATH.read_text() != text:
             raise SystemExit(

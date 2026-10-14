@@ -69,6 +69,17 @@ settled contract before their baselines or coverage claims are advanced; follow
 
 ## Shared Profile Contracts
 
+### Profile configuration ownership
+
+Profile constructors MUST validate and independently snapshot configuration
+values, including nested settings, before network work. Later mutation of the
+caller-supplied configuration or a configuration accessor's result MUST NOT
+change an existing profile's signing or verification policy. Changing policy
+requires a new profile. Injected resolvers, key providers, and transports remain
+dependencies; this rule does not require copying them.
+
+### Identity resolution
+
 Profiles that only verify counterparties depend on this narrow core contract:
 
 ```

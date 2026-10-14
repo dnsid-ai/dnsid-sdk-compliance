@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { createHash, createPrivateKey, createPublicKey, sign as signBytes, verify as verifyBytes } from 'node:crypto';
 import process from 'node:process';
+import { verifyWba } from './wba-verify.mjs';
 
 const sdkDir = process.env.DNSID_TS_DIR;
 if (!sdkDir) {
@@ -109,12 +110,16 @@ async function handleWba(req) {
   if (!wba) throw new Error('Web Bot Auth package is not built');
   if (req.op === 'wba_verify_request') {
     if (typeof wba.verifyWebBotAuthSignedRequest === 'function' || typeof wba.WebBotAuthProfile.prototype.verifyWebBotAuthSignedRequest === 'function') {
-      return { ok: false, error: 'AdapterError', message: 'WBA verifier now exists; integrate its fixture adapter' };
+      return verifyWba(req, sdk, wba, sdkDir);
     }
     return { ok: false, error: 'CapabilityMissing', capability: 'wba_request_verification', message: 'SDK has signing/directory serving only' };
   }
   const key = fixtureKeyProvider(req.key);
   const profile = new wba.WebBotAuthProfile({ domain: req.domain, keyProvider: key.provider, webBotAuth: req.webBotAuth });
+  for (const [name, value] of Object.entries(req.configMutation ?? {})) {
+    if (name === 'signatureAgent') Object.assign(req.webBotAuth.signatureAgent, value);
+    else req.webBotAuth[name] = value;
+  }
   const raw = req.request;
   const body = raw.bodyBase64 == null ? undefined : Buffer.from(raw.bodyBase64, 'base64');
   const message = new Request(raw.url, { method: raw.method, headers: raw.headers, body });
@@ -354,4 +359,7 @@ async function c2spLifecycleVector(req) {
 let input = '';
 for await (const chunk of process.stdin) input += chunk;
 const requests = JSON.parse(input);
-process.stdout.write(JSON.stringify(await Promise.all(requests.map(handle))) + '\n');
+// WBA cases temporarily replace native clock and dial dependencies.
+const results = [];
+for (const request of requests) results.push(await handle(request));
+process.stdout.write(JSON.stringify(results) + '\n');
