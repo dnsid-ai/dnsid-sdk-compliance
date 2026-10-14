@@ -1151,15 +1151,16 @@ logs. Calling this factory is an application trust decision; it is product
 convenience, not DNSid or C2SP protocol authority. The generic verification
 factory above never selects these roots when caller trust is omitted.
 
-The initial managed catalog is:
+The managed catalog is:
 
 | Scope | Canonical log prefix | Embedded trust |
 |---|---|---|
 | `public` | `https://log.dev.dnsid.ai` | One reviewed `dnsid-c2sp-tlog-trust-profile@v1` document. |
 | `public` | `https://log.dnsid.ai` | One reviewed `dnsid-c2sp-tlog-trust-profile@v1` document. |
+| `public` | `https://log.partners.dnsid.ai` | One reviewed `dnsid-c2sp-tlog-trust-profile@v1` document. |
 
-Both initial entries prefer verified stream bundles, with raw scanning only under
-the availability and missing-consistency-evidence fallback rules below.
+Every entry prefers verified stream bundles, with raw scanning only under the
+availability and missing-consistency-evidence fallback rules below.
 
 The catalog is private SDK data, not a new wire format. Each entry contains an
 ordinary trust profile or policy document supported by the generic factory.
