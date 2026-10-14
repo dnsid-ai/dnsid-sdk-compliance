@@ -50,6 +50,7 @@ The harness also directly loads, without copying or translating them into
 another checked-in fixture format:
 
 - `docs/sdk-design/conformance/http-message-signatures.json`
+- `docs/sdk-design/conformance/web-bot-auth.json`
 - `docs/sdk-design/conformance/lifecycle-transitions.json`
 - `docs/sdk-design/conformance/c2sp-lifecycle-selection.json`
 - `docs/sdk-design/conformance/c2sp-managed-trust-selection.json`
@@ -90,6 +91,36 @@ absent/empty optionals as `null`, extension tags under `unknown`. `error` is the
 SDK's error class name (`ParseError`, `ValidationError`, ...), which is what
 cases assert on — messages are only matched via the optional, substring-based
 `error_contains`.
+
+## Web Bot Auth adapters
+
+WBA verification runs the native SDK verifier, not an independent verdict engine.
+The shared cases inject clocks, identity evidence, DNS answers, replay stores,
+and real operation sequences. Discovery uses local TLS with a test trust root;
+public-address filtering and certificate verification still run in the SDK.
+
+- Python and TypeScript inject identity results at the public resolver boundary.
+  These cases test profile handling of acceptance and key evidence, not the core
+  identity manager's complete DNSid evidence chain.
+- Go uses a batched `go test -overlay` bridge in
+  `shims/go/testdata/wba_adapter_test.go`, reusing the SDK's native WBA fixture
+  helpers and core identity manager. The CLI's `NativeAdapterRequired` marker is
+  internal; `harness/run.py` replaces it with bridge results. The bridge requires
+  the corresponding native fixture helpers in the SDK checkout. Compile or
+  setup failures remain `AdapterError`, never successful negative tests. No SDK
+  source files are changed.
+- TypeScript cases run sequentially because clock and physical-dial overrides
+  are process-wide. The adapter buffers the fixed fixture response bytes to
+  avoid a Node stream-bridge cancellation race; live streaming limits and replay
+  cleanup remain native SDK test obligations.
+
+`CAPABILITIES` in `harness/run.py` records optional directory-cache support. All
+current adapters use uncached discovery; `uncachedExpect` requires observed
+rediscovery instead of claiming cache-hit coverage. Do not enable caching there
+without a native cache adapter that preserves original age metadata.
+
+The deterministic TLS certificate and private key in `shims/testdata/` are
+public, disposable test credentials. They are not deployment credentials.
 
 ## Fixture schema
 
@@ -204,13 +235,18 @@ canonical fixtures and harness being validated.
 
 ## What a compliant result means
 
-A `PASS`/`REJ` cell asserts exactly one thing: for that fixture case, the SDK checkout under
-test produced the behavior the cited spec clause requires, on the pure-data protocol surface
-listed under Scope below. It does **not** assert that the SDK is secure, that `VerifyDomain`
-end-to-end is correct, or anything about network, TLS, caching, or key handling — those are
-out of scope here and covered by each SDK's own tests. A case that did not run (shim crash,
-missing result) aborts the run; it is never reported as passed. Where SDKs disagree, the
-matrix shows each one and the divergence appendix says why.
+A `PASS`/`REJ` cell asserts that the SDK checkout produced the behavior required
+by the cited clause for that case, on the protocol and WBA signing surfaces
+listed under Scope below. It does **not** assert that the SDK is secure, that
+`VerifyDomain` end-to-end is correct, or anything about live network, TLS, caching,
+or key handling. Those remain covered by each SDK's own tests. A shim crash or
+missing result aborts the run; it is never reported as passed.
+
+Verifier cases without an integrated SDK verifier are reported as `MISSING`,
+never as successful rejection. They remain in the denominator, do not count as
+compliant, and do not fail the regression gate. A green check does not mean that
+required WBA verification exists. Where SDKs disagree, the matrix shows each
+result and the divergence appendix explains why.
 
 The per-SDK PR gate is **regression-only**: it goes red when a PR increases the failure count,
 not when failures exist. A green check therefore means "no worse than the base branch", not
@@ -226,9 +262,31 @@ normalization, RFC 7638 JWK thumbprints, effective JWK signature algorithms,
 generic JWKS validation and selection helpers, RFC 9421 signature-base
 construction, protocol `AgentStatus` validation and ACTIVE acceptance,
 lifecycle state reduction, C2SP lifecycle candidate selection, and managed
-trust-catalog selection. Network
-fetching, TLS, cache freshness, cryptographic HTTP signing, and the complete
-`VerifyDomain` orchestration remain out of scope.
+trust-catalog selection.
+
+The WBA suite additionally calls each SDK's real request signer and directory
+server. An independent, constrained fixture checker verifies emitted signatures,
+covered components, public directory keys, body digests, freshness parameters,
+discovery serialization, and preservation of existing `Authorization`.
+It does not replace an SDK verifier. Shared signed positive/negative verifier
+vectors are present, but signing-only bindings report those cases as `MISSING`.
+When an SDK exposes the verifier entry point, the current shim fails with
+`AdapterError` until its native verification adapter is integrated; it must not
+silently keep claiming missing support.
+
+Run the focused suite and fixture checks:
+
+```sh
+.venv/bin/python harness/generate_wba_fixtures.py --check
+.venv/bin/python -m unittest discover -s harness -p 'test_*.py'
+.venv/bin/python harness/run.py --filter wba --out report-wba.md
+```
+
+See the [WBA vector contract](docs/sdk-design/conformance/README.md#web-bot-auth)
+and [recorded baseline checks](docs/wba-conformance-checks.md).
+Live network fetching, TLS, cache behavior, nonce-store concurrency, and the
+complete `VerifyDomain` orchestration remain out of scope until native verifier
+adapters run those scenarios. Live partner interoperability is not tested.
 
 **C2SP contract correction:** the design now requires signature-independent
 event IDs and predecessor chaining under the existing `c2sp-tlog` name. The

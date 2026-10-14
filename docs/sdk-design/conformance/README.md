@@ -22,6 +22,92 @@ signature over an incorrect base is still non-interoperable, so all SDKs must
 first produce the same base or fail closed on the same unsupported component
 semantics.
 
+## Web Bot Auth
+
+[`web-bot-auth.json`](web-bot-auth.json) targets the DNSid WBA profile in
+[10](../10-web-bot-auth.md), with both WBA drafts at revision `00`. It contains
+fixed Ed25519 test keys, exact request/directory bytes, signature bases,
+signatures, and SHA-256 content digests. All private material is disposable test
+data; the private-directory-key case intentionally tests prohibited disclosure.
+
+The corpus separates three kinds of expectation:
+
+- Exact RFC 9421 request-base construction, without WBA acceptance policy.
+- Request signing and directory serving: coverage, thumbprint IDs, algorithm,
+  tags, nonce encoding, TTL limits, body bytes/digests, discovery, and preservation
+  of existing Basic or Bearer credentials.
+- Request/directory verification: positive paths, non-default labels, incomplete
+  or ambiguous signatures, missing coverage/timestamps, wrong tags/keys/algorithms,
+  modified content, expired/future evidence, DNSid failure without fallback,
+  cache-hit acceptance/key/freshness checks, SSRF/Web PKI, current-peer evidence,
+  and nonce replay/store failure. Additional cases cover parameterized digest
+  coverage without supplied content, configuration mutation, fresh non-cacheable
+  directories, zero-TTL acquisition, valid-plus-invalid candidate ambiguity,
+  distinct-key directory candidates, exact recipient coverage policy, directory
+  JWK metadata, coded responses, response `@status`, HTTP 503, and timeouts.
+
+Message bodies are standard-base64 strings so empty supplied content remains
+distinct from absent content. `signatureBase` is authoritative UTF-8 text;
+`signatureValid` and `digestValid` describe cryptographic fixture integrity,
+not DNSid acceptance. Authority-only signatures remain valid after changing an
+uncovered operation; optional method/target-URI coverage protects the query.
+These vectors do not strengthen the required WBA coverage policy.
+
+Verification cases reference named signed messages and a fixed clock. Their
+`verification` values describe injected resolver, discovery, cache, current-peer,
+and replay-store behavior; they are not authenticated DNSid evidence or a
+production trust catalog. Native test adapters must implement those dependencies
+and run the real profile verifier. Scenario flags must drive injected dependencies
+or real operation sequences, not directly supply expected verdicts. Transport
+failure cases must exercise the actual discovery transport boundary. Adapter
+errors and unsupported capabilities MUST NOT count as successful negative tests.
+Native verification rejections use normalized `ConformanceError`; malformed
+caller policy uses `ArgumentError`. Unknown adapter/runtime exceptions are not
+verification rejections. Exact error text is not normative. Where an expectation
+includes `transient` or `discoveryRequests`, adapters must report the native error
+classification or observed discovery count, not infer it from the expectation.
+`configMutation` changes the caller's configuration after constructing the
+profile; an expired request must remain rejected under the original policy.
+Signing cases also mutate discovery inclusion and nested URI settings; output
+must still match the original configuration.
+
+Directory caching is optional. Cache cases apply only when a binding reuses
+directory evidence; uncached bindings must instead test repeated fresh discovery
+with renewed DNSid checks, including later acceptance denial and current-key
+changes. Cache adapters must preserve original acquisition/age metadata through
+the native discovery boundary, not assume fixture-only `cachedAt` is a verifier
+input. Repeated invocations must prove that the freshness window does not restart.
+`uncachedExpect` supplies the alternative expectation for bindings that do not
+cache directories: successful repeated operations must perform two fresh
+network discoveries. A newly fetched non-cacheable response remains usable in
+its acquiring invocation.
+
+Remaining required native coverage includes certificate and key-age expiry with
+zero DNS TTL, all numeric configuration boundaries (including non-finite and
+Boolean inputs where representable), configuration accessor ownership, and repeated
+stream replay without retained buffers or lost cleanup. Bindings supporting
+caching must also test original age/deadline retention, including missing
+`Date`/`Age`; uncached discovery does not prove cache-reuse correctness. The full
+matrix remains in [10: Directory verification requirements](../10-web-bot-auth.md#directory-verification-requirements).
+Passing this corpus does not establish complete SDK coverage or a full SDK
+review. Native adapters and measured runs are required before advancing
+implementation coverage claims.
+
+Regenerate deterministically or check the artifact without importing an SDK:
+
+```sh
+.venv/bin/python harness/generate_wba_fixtures.py
+.venv/bin/python harness/generate_wba_fixtures.py --check
+.venv/bin/python harness/wba_vectors.py
+```
+
+The independent cryptographic checker supports only this fixture subset of
+structured fields and component extraction. It is not a production WBA verifier,
+does not perform DNSid acceptance, and cannot establish partner interoperability.
+SDKs may consume this corpus directly in their own native tests. Generation also
+maintains deterministic local TLS credentials under `shims/testdata/`; these
+public test credentials must never be used in a deployment.
+
 ## Shared lifecycle reducer and snapshots
 
 [`lifecycle-transitions.json`](lifecycle-transitions.json) exercises the shared

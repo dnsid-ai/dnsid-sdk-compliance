@@ -120,6 +120,8 @@ def load_semantic_suites() -> list[dict]:
     loaded = {Path(suite["path"]).name for suite in suites}
     # Hash primitives run separately in c2sp_event_identity_check.py, not SDK adapters.
     loaded.add("c2sp-event-identity.json")
+    # WBA signing/verification cases are loaded by wba_vectors.py.
+    loaded.add("web-bot-auth.json")
     available = {path.name for path in CONFORMANCE_DIR.glob("*.json")}
     if loaded != available:
         raise ValueError(f"unhandled conformance vectors: {sorted(available - loaded)}")

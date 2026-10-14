@@ -613,6 +613,9 @@ FUNCTION VerifiedDomain.RequiresLogCheck() -> bool
   // operation or perform network I/O.
   RETURN record.PolicyFlags().Has("logchk")
 
+// Cache-reuse bound, not an acquisition-operation validity test: fresh zero-TTL
+// DNS evidence may be used only by its acquiring operation. TLS and ka bounds
+// still apply; see 01: RequireFreshIdentityEvidence.
 FUNCTION VerifiedDomain.Expiry() -> timestamp
   candidates = []
 

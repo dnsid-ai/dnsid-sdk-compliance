@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { createHash, createPrivateKey, createPublicKey, sign as signBytes, verify as verifyBytes } from 'node:crypto';
 import process from 'node:process';
+import { verifyWba } from './wba-verify.mjs';
 
 const sdkDir = process.env.DNSID_TS_DIR;
 if (!sdkDir) {
@@ -33,6 +34,9 @@ const c2spEntry = join(sdkDir, 'packages', 'log-c2sp-tlog', 'dist', 'index.js');
 const c2sp = existsSync(c2spEntry) ? await import(pathToFileURL(c2spEntry).href) : null;
 const httpSignaturesEntry = join(sdkDir, 'packages', 'http-signatures', 'dist', 'index.js');
 const httpSignatures = existsSync(httpSignaturesEntry) ? await import(pathToFileURL(httpSignaturesEntry).href) : null;
+
+const wbaEntry = join(sdkDir, 'packages', 'web-bot-auth', 'dist', 'index.js');
+const wba = existsSync(wbaEntry) ? await import(pathToFileURL(wbaEntry).href) : null;
 
 const optional = (v) => (v === undefined || v === '' ? null : v);
 
@@ -102,9 +106,42 @@ async function createTxtRecord(req) {
   };
 }
 
+async function handleWba(req) {
+  if (!wba) throw new Error('Web Bot Auth package is not built');
+  if (req.op === 'wba_verify_request') {
+    if (typeof wba.verifyWebBotAuthSignedRequest === 'function' || typeof wba.WebBotAuthProfile.prototype.verifyWebBotAuthSignedRequest === 'function') {
+      return verifyWba(req, sdk, wba, sdkDir);
+    }
+    return { ok: false, error: 'CapabilityMissing', capability: 'wba_request_verification', message: 'SDK has signing/directory serving only' };
+  }
+  const key = fixtureKeyProvider(req.key);
+  const profile = new wba.WebBotAuthProfile({ domain: req.domain, keyProvider: key.provider, webBotAuth: req.webBotAuth });
+  for (const [name, value] of Object.entries(req.configMutation ?? {})) {
+    if (name === 'signatureAgent') Object.assign(req.webBotAuth.signatureAgent, value);
+    else req.webBotAuth[name] = value;
+  }
+  const raw = req.request;
+  const body = raw.bodyBase64 == null ? undefined : Buffer.from(raw.bodyBase64, 'base64');
+  const message = new Request(raw.url, { method: raw.method, headers: raw.headers, body });
+  let output;
+  if (req.operation === 'directory') {
+    const response = await profile.serveHttpMessageSignaturesDirectory(message);
+    output = { status: response.status, headers: Object.fromEntries(response.headers), bodyBase64: Buffer.from(await response.arrayBuffer()).toString('base64') };
+  } else if (req.operation === 'request') {
+    const signed = await profile.createWebBotAuthSignedRequest(message, req.options);
+    output = { headers: Object.fromEntries(signed.headers), bodyBase64: signed.body === null ? null : Buffer.from(await signed.arrayBuffer()).toString('base64') };
+  } else {
+    throw new Error('unknown WBA operation');
+  }
+  return { ok: true, message: output };
+}
+
 async function handle(req) {
   try {
     switch (req.op) {
+      case 'wba_sign':
+      case 'wba_verify_request':
+        return await handleWba(req);
       case 'http_signature_base': {
         try {
           if (!httpSignatures) throw new Error('HTTP signatures package is not built');
@@ -322,4 +359,7 @@ async function c2spLifecycleVector(req) {
 let input = '';
 for await (const chunk of process.stdin) input += chunk;
 const requests = JSON.parse(input);
-process.stdout.write(JSON.stringify(await Promise.all(requests.map(handle))) + '\n');
+// WBA cases temporarily replace native clock and dial dependencies.
+const results = [];
+for (const request of requests) results.push(await handle(request));
+process.stdout.write(JSON.stringify(results) + '\n');

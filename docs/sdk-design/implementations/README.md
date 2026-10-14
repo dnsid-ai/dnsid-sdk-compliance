@@ -39,6 +39,18 @@ squash commit `531b547` is an ancestor with the exact same tree as `b218b81`.
 Its checked-in `uv.lock` still labels the editable package `0.23.2`, not
 `0.25.0`. Existing installed environments were used without refreshing locks.
 
+## Post-baseline Design Update — WBA Verification
+
+The revised [WBA design](../10-web-bot-auth.md#public-verifier-contract) makes
+request verification, including signed-directory verification, mandatory.
+All three SDK baselines above expose signing and directory serving only, so their
+WBA verification rows now read `Missing`, not `Not applicable`. The separate
+Python JWT bot-token verifier does not satisfy this requirement.
+
+This is a design-requirement update, not a new SDK review or validation run.
+The recorded analysis commits and test results remain historical baselines;
+newer SDK branches have not been certified against this revised verifier contract.
+
 ## Native Validation
 
 Commands were run in each SDK checkout at the heads above.
