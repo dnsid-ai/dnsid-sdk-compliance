@@ -37,8 +37,10 @@ The profile depends only on the shared `IdentityResolver` contract in
 | `httpMessageSignatures.maxAge` | seconds | 300 | Positive upper bound for `now - created` and `expires - created`. |
 | `httpMessageSignatures.clockSkew` | seconds | 5 | Non-negative tolerance for future `created` and elapsed `expires`. |
 
-Configuration outside these bounds is an argument error. Applications needing
-strict replay prevention also maintain a nonce store for at least `maxAge +
+Both settings MUST be finite numeric values, not Booleans. Defaults apply only
+when omitted; explicit zero clock skew means zero tolerance. Configuration
+outside these bounds is an `ArgumentError`, rejected before network work.
+Applications needing strict replay prevention also maintain a nonce store for at least `maxAge +
 clockSkew`; the SDK does not maintain one by default.
 
 ## Structured Field data model
@@ -138,7 +140,9 @@ against the profile and accepts only when exactly one candidate verifies.
 Well-formed unrelated or verification-invalid coexisting signatures do not
 invalidate that candidate; zero valid candidates and multiple valid candidates
 are errors. A malformed Structured Field still makes the complete field
-unparseable.
+unparseable. The WBA profile explicitly overrides this selection rule with
+exactly-one-complete-candidate selection for requests and per-key directory
+signatures; see [10: Signature selection](10-web-bot-auth.md#signature-selection).
 
 ## Signature-base construction
 
@@ -154,8 +158,9 @@ unparseable.
 
 Field values, repeated field-line combination, derived components, and request
 context MUST follow RFC 9421 and RFC 9110. Implementations must use a message
-abstraction that retains the information those rules require. In particular,
-proxy deployments MUST establish trusted scheme and authority before
+abstraction that retains the information those rules require, including the
+actual response status for `@status` and the originating request for `req`.
+In particular, proxy deployments MUST establish trusted scheme and authority before
 verification; untrusted forwarding headers do not define `@authority` or
 `@target-uri`.
 
@@ -188,8 +193,10 @@ changes content coding or representation bytes. Implementations MUST NOT infer
 content presence solely from `Content-Length` or transfer encoding.
 
 Signing and verification either buffer and restore the exact content bytes or
-use a language-native replay mechanism. A one-shot stream without such a
-mechanism is rejected. When `content-digest` is covered, verification:
+use a language-native replay mechanism. Replacing a stream MUST preserve its
+native cleanup responsibilities so closing the replay stream releases the
+original resources. A one-shot stream without such a mechanism is rejected.
+When `content-digest` is covered, verification:
 
 1. Requires and parses `Content-Digest` as an RFC 9530 dictionary.
 2. Selects the supported `sha-256` member.

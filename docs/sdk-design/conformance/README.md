@@ -53,8 +53,28 @@ Verification cases reference named signed messages and a fixed clock. Their
 `verification` values describe injected resolver, discovery, cache, current-peer,
 and replay-store behavior; they are not authenticated DNSid evidence or a
 production trust catalog. Native test adapters must implement those dependencies
-and run the real profile verifier. Negative results use normalized
-`ConformanceError`; exact error text is not normative.
+and run the real profile verifier. Scenario flags must drive injected dependencies
+or real operation sequences, not directly supply expected verdicts. Transport
+failure cases must exercise the actual discovery transport boundary. Adapter
+errors and unsupported capabilities MUST NOT count as successful negative tests.
+Negative results use normalized `ConformanceError`; exact error text is not
+normative.
+
+Directory caching is optional. Cache cases apply only when a binding reuses
+directory evidence; uncached bindings must instead test repeated fresh discovery
+with renewed DNSid checks, including later acceptance denial and current-key
+changes. Cache adapters must preserve original acquisition/age metadata through
+the native discovery boundary, not assume fixture-only `cachedAt` is a verifier
+input. Repeated invocations must prove that the freshness window does not restart.
+
+The corpus must be extended to cover the additional validation matrix in
+[10: Directory verification requirements](../10-web-bot-auth.md#directory-verification-requirements),
+including auxiliary-key rejection, zero-TTL acquisition semantics, valid-plus-invalid
+candidate ambiguity, required-component policy, JWK metadata, directory coding,
+response `@status`, numeric configuration validation, and transient availability
+failures. These are required coverage additions, not claims that the current
+artifact already exercises them. Native adapters and measured runs are required
+before advancing implementation coverage claims.
 
 Regenerate deterministically or check the artifact without importing an SDK:
 
