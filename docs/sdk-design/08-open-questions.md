@@ -2,7 +2,13 @@
 
 This document tracks SDK design questions that are not yet resolved.
 
-There are no unresolved shared SDK design questions at this time.
+There are no unresolved shared protocol/lifecycle design questions at this time.
+
+## Managed Registration Configuration
+
+Decide how to remove duplication between `input.governanceDomain` (routing) and
+`registration.governanceId` (expected accountability) while retaining independent
+publication validation. For now both remain; contradictions fail before creation.
 
 ## Resolved Questions
 

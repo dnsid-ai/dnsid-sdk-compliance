@@ -618,13 +618,14 @@ FUNCTION VerifyDomain(domain: string, peerCert?: TLSCertificate) -> VerifiedDoma
       cachedCopy = Clone(cached)
       // A transport-level fetch failure raises StatusUnavailable (transient).
       (status, _) = httpsFetcher.FetchStrictJSON(cachedCopy.record.su)
+      statusAcquiredAt = Now()  // receipt of uncached or origin-revalidated status
       status.Validate()
       IF status.state != "ACTIVE" THEN
         cache.Evict(domain)
         RAISE VerificationError{Code: StatusNotActive, Transient: false, AgentState: status.state}
       END
       cachedCopy.registryStatus = status
-      cachedCopy.lastStatusCheckAt = Now()
+      cachedCopy.lastStatusCheckAt = statusAcquiredAt
       cache.Put(domain, cachedCopy)  // Put rejects expired results; cache evidence even if acceptance later denies.
       EnforceCounterpartyAcceptance(cachedCopy)
       RequireFreshIdentityEvidence(cachedCopy)
@@ -715,6 +716,7 @@ FUNCTION VerifyDomain(domain: string, peerCert?: TLSCertificate) -> VerifiedDoma
   // yields an indeterminate interactive result; stale or non-ACTIVE status fails.
   // A transport-level fetch failure raises StatusUnavailable (transient).
   (status, _) = httpsFetcher.FetchStrictJSON(record.su)
+  statusAcquiredAt = Now()  // receipt of uncached or origin-revalidated status
   status.Validate()
   IF status.state != "ACTIVE" THEN
     RAISE VerificationError{Code: StatusNotActive, Transient: false, AgentState: status.state}
@@ -738,7 +740,7 @@ FUNCTION VerifyDomain(domain: string, peerCert?: TLSCertificate) -> VerifiedDoma
     dnsTTL:             dnsTTL,
     dnsExpiresAt:       dnsExpiresAt,
     keyBoundAt:         keyBoundAt,
-    lastStatusCheckAt:  Now(),
+    lastStatusCheckAt:  statusAcquiredAt,
     dnssecState:        dnssecState,
     logReader:          logReader,
   }
@@ -802,7 +804,16 @@ response, never positive-cache reuse. `freshDNSLookup=true` permits that one
 use without a DNS lifetime check; TLS and key-age checks still apply. A completed
 zero-TTL lookup MUST NOT satisfy a later invocation through caching or completed
 in-flight work. No arbitrary grace period or fallback TTL replaces a returned
-zero TTL. These rules do not define status-response freshness.
+zero TTL.
+
+Every required `su` fetch MUST obtain an uncached or origin-revalidated response;
+an unrevalidated HTTP cache hit is not a status refresh. `lastStatusCheckAt`
+records receipt of that fresh service observation, before further verification.
+A positive `statusCheckInterval` counts age from that receipt; downloading the
+same unrevalidated cached bytes MUST NOT reset it. Zero requires a fresh service
+observation on every invocation. `AgentStatus.lastTransitionAt` describes a state
+transition, not response acquisition or freshness. If freshness cannot be
+established, verification MUST NOT report verified `ACTIVE` status.
 
 SDK validation must cover:
 
@@ -812,6 +823,9 @@ SDK validation must cover:
 | A cache hit expires while a required status fetch is in progress | No stale successful return or cache reinsertion. |
 | DNS TTL is zero or unavailable on a fresh lookup, and other evidence is valid | Current operation may succeed; the next call needs a new lookup. |
 | TLS/key-age evidence expires during verification, including with zero DNS TTL | Fail; the zero-TTL exception applies only to DNS reuse. |
+| Status interval is zero and an HTTP cache contains an old `ACTIVE` response | Obtain uncached or origin-revalidated status; the cached body alone cannot satisfy the check. |
+| Positive status interval elapses and the transport returns the same body without revalidation | Do not reset status acquisition time or report a successful refresh. |
+| Fresh `ACTIVE` response has an old `lastTransitionAt` | Accept its freshness; transition age is not response age. |
 
 ---
 
@@ -1010,6 +1024,10 @@ INTERFACE KeyProvider
 
 END
 ```
+
+A restored provider MAY have no active key after supersession. It MUST reopen
+that lifecycle state without activating a replacement; `SigningKey()` and `Sign()`
+fail until a key is explicitly activated, and `ListKeyIds()` returns an empty list.
 
 ---
 
@@ -1214,6 +1232,10 @@ use `validated`. Deployments that require DNS-rooted origin authentication use
 
 ### Initial Setup of Local Identity
 
+This is the publisher-owned flow. For registry-held entity signing/publication,
+use [managed registration](13-managed-registration.md), which supplies recovery
+and observes public readiness above core.
+
 ```
 1. IdentityManager.new(config{identity, verification, transport}, deps{keyProvider, entityKeyProvider, logRegistry})
 2. Persist one durable issuance operation; protocol status remains non-active.
@@ -1315,9 +1337,23 @@ activation is durably complete.
 After activation, a counterparty still caching the previous `ku` may reject
 new-key application signatures until its identity evidence expires or is
 explicitly evicted. Operators SHOULD measure this cache-lifetime window and
-plan rotation accordingly. It does not justify publishing overlapping live
-keys, bypassing continuity checks, or accepting signatures under an unverified
-replacement key.
+plan rotation accordingly.
+
+For key-specific publication, hosted and self-managed publishers MUST bind each
+operational-key URL permanently to one public key and publish a distinct URL for a
+new key. Retain the old URL/key for at least the previous authoritative TXT TTL plus
+a documented positive safety margin, measured from when authoritative DNS stops
+serving the old TXT. Lowering the new TXT TTL does not shorten this interval. Extend
+retention while the rotation outcome remains unresolved. The publication coordinator
+reports the retention deadline; origin/CDN cache lifetimes MUST NOT exceed the
+remaining interval.
+
+Cached old TXT may select the old key during retention. Only the new key is selected
+by the new TXT, and the application MUST NOT resume signing with the superseded key.
+Retention does not bypass lifecycle continuity, freshness, or terminal status checks;
+revocation remains authoritative even if the public key is retained. Historical
+verification uses log evidence, not old-URL fallback. [Managed hosting](05-transport-and-registry.md#key-specific-managed-operational-endpoints)
+uses these same retention rules.
 
 #### Managed Rotation Recovery Contract
 
@@ -1349,21 +1385,33 @@ deployment settings.
 Resume validates the durable record before taking action and fails closed on an
 entry-hash, log-reference, or key-binding mismatch. Its state handling is:
 
-- prepared, submitting, or indeterminate: ensure signing is paused and retry the
-  exact bytes with the same idempotency key;
-- accepted but not activated: do not create a new event; reconcile activation and
-  supersession idempotently from the accepted record;
-- activated but still paused: restore application signing to the saved active
-  provider/key, validate its binding, then resume signing and persist completion;
-- rejected: return a terminal typed submission error without resubmission.
+- prepared, submitting, or indeterminate: ensure signing is paused, reconcile and
+  verify the required new-key publication before append, and retry the exact bytes
+  with the same idempotency key. For registry-owned publication/append, retry the
+  one coordinator; do not race it with local publication or append;
+- accepted but not activated: do not create a new event; verify the current signed
+  TXT/ku publication and accepted rotation continuity before reconciling activation
+  and supersession idempotently from the accepted record;
+- activated but still paused: restore application signing to the saved new
+  provider/key, verify that its actual `SigningKey()` matches the saved binding,
+  then resume signing and persist completion; finding the key through `JWK(kid)`
+  alone is insufficient;
+- definitively rejected: retain recovery state, keep application signing paused,
+  and return a terminal typed submission error without resubmission, new-key
+  activation, or automatic publication rollback.
 
 Failures after completed bytes have been fixed return a typed submission or
 activation error carrying the latest recoverable rotation state. Persistence,
 pause, activation, supersession, and unpause failures never discard that state.
 In particular, unpausing before `activated=true` is durably stored is forbidden.
-Recovery tests MUST cover a crash after activation is persisted but before signer
-wiring changes: resume restores the saved new provider/key before unpausing,
-even when deployment settings still select the old provider.
+Recovery tests MUST cover a crash after prepared-byte persistence but before
+publication, acceptance persisted before publication/continuity verification,
+stale provider snapshots, a crash after supersession but before completion
+persistence, and activation persisted before signer wiring.
+Resume restores application signing to the saved new provider/key before
+unpausing, even when deployment settings still select the old provider.
+Reconcile activation idempotently or return a typed activation error with signing
+still paused; changed deployment settings never select the recovery signer.
 
 If the previous private key is unavailable or suspected compromised, this flow
 MUST NOT be used: revoke and reissue the identity instead.
