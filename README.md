@@ -45,7 +45,9 @@ dnsid-sdk-compliance/
     └── security/      # SDK threat model + data/network inventory
 ```
 
-dnsid-py is imported in-process by the harness (installed editable into `.venv`).
+`harness/py_adapter.py` imports dnsid-py in-process (installed editable into `.venv`).
+Setup rebuilds Go and reinstalls the selected Python checkout on every run.
+The Python adapter rejects imports from a different checkout.
 The harness also directly loads, without copying or translating them into
 another checked-in fixture format:
 
@@ -221,7 +223,7 @@ jobs:
 
 It runs the suite against the PR head and the base branch and reports
 `N/total compliant (%)` in the job summary. The check goes **red only if the PR
-raises the failure count** — a regression — so an SDK with pre-existing failures
+introduces a newly failing case** — even if another failure is fixed — so an SDK with pre-existing failures
 (the fixtures encode the spec, not what the SDK does today) can keep merging
 while it digs out, without a new break slipping through. Omit `base-ref` to gate
 on zero failures instead.
@@ -249,8 +251,8 @@ compliant, and do not fail the regression gate. A green check does not mean that
 required WBA verification exists. Where SDKs disagree, the matrix shows each
 result and the divergence appendix explains why.
 
-The per-SDK PR gate is **regression-only**: it goes red when a PR increases the failure count,
-not when failures exist. A green check therefore means "no worse than the base branch", not
+The per-SDK PR gate is **regression-only**: it goes red when a previously passing case fails,
+not when unchanged failures exist. A green check therefore means "no new failing cases", not
 "conformant". Any conformance claim about a release must cite the full report
 (`make run` → `report.md`) for that exact commit, not the CI status.
 
@@ -311,8 +313,12 @@ entries, checkpoints, and proofs used by candidate-selection cases. The old
 harness only loads those bytes; it does not import one SDK to manufacture input
 for the others. The fixture records the SHA-256 digest of its authoritative
 semantic source, so changing those semantics without refreshing the evidence
-fails before any SDK runs. Every SDK verifies the embedded checkpoint policy
-and inclusion proofs rather than trusting a harness-supplied validity flag.
+fails before any SDK runs. Regeneration follows the current candidate order and
+scenario flags; unsupported candidates or mismatched wire definitions fail rather
+than certifying old evidence with a new source hash. Every SDK verifies the
+checkpoint policy and inclusion proofs rather than trusting a harness-supplied
+validity flag. The invalid-checkpoint case contains a corrupted log signature;
+Python and TypeScript send incomplete evidence through their native readers.
 
 `fixtures/c2sp-stream-bundle-logical-v1.json` is the corrected deterministic
 portable bundle used by the writer/verifier matrix. Its historical predecessor
@@ -340,9 +346,9 @@ make c2sp-matrix \
 inputs: fixed Ed25519 seeds, identity fields, timestamps, and event order.
 Each SDK independently prepares and signs the complete checked-in ISSUANCE to
 KEY_ROTATION stream through its production writer API. The harness requires all
-three results to be byte-identical and bound by the signed golden checkpoint,
-then explicitly runs each writer's stream through every production bundle
-verifier. It also exercises a Python-to-TypeScript split ISSUANCE handoff and
+three streams to match the golden entries byte-for-byte, then runs the signed
+golden bundle once through each production verifier. It also exercises a
+Python-to-TypeScript split ISSUANCE handoff and
 requires every verifier to reject each checked-in negative mutation for the
 declared reason.
 

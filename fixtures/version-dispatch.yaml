@@ -150,6 +150,7 @@ cases:
       raw: "v=dnsid-draft-01-20260504;gi=example.com;oi=example.com;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=EdDSA:AAAA"
     expect:
       ok: false
+      error: ParseError
 
   - id: version-20260504-rejects-ek
     description: ek is not defined for the 20260504 single-key profile; a 20260504 record carrying ek MUST be rejected
@@ -161,6 +162,7 @@ cases:
       raw: "v=dnsid-draft-01-20260504;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=EdDSA:AAAA"
     expect:
       ok: false
+      error: ParseError
 
   - id: version-20260527-missing-ek
     description: ek is REQUIRED from the 20260527 profile onward
