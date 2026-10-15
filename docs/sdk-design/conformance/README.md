@@ -289,3 +289,7 @@ selection outcome but is not a normative error string.
 | `CHAIN_CONTINUITY` | An authenticated C2SP event does not continue the signed stream chain, or accepted completeness evidence contradicts the applied chain. |
 | `INVALID_EVIDENCE` | An accepted checkpoint, policy, witness quorum, trusted bundle, or other completeness evidence fails. |
 | `INCOMPLETE_STREAM` | The binding cannot establish complete logged-state history. |
+| `LOG_ROLLBACK` | A candidate checkpoint's tree is smaller than the trusted one. Fail closed; it may be a stale replica, a replay, an operator recovery, or an attack, and the category does not say which. Go kind `rollback`. |
+| `LOG_FORK` | A candidate checkpoint has the trusted size but a different root: an observed equivocation signal, not proven malice. Fail closed and escalate to security. Go kind `root_conflict`. |
+| `LOG_INCONSISTENT` | A larger candidate checkpoint does not extend the trusted one: a consistency proof or complete-scan prefix failed. Fail closed and investigate the evidence. Go kind `consistency_failed`. |
+| `CHECKPOINT_STORE_ERROR` | Trusted checkpoint storage is unavailable, corrupt, or refused the write. Fail closed; never substitute empty trust. |
