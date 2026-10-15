@@ -10,7 +10,7 @@ import hashlib
 import json
 import re
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, quote, urlsplit
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
@@ -48,7 +48,7 @@ def signature_parts(message: dict, label: str = "sig1") -> tuple[str, list[str],
         raise ValueError("missing selected Signature-Input member")
     value = member.group(1)
     components_text, params_text = value[1:].split(")", 1)
-    components = re.findall(r'"[^"\\]+"(?:;(?:key="[^"\\]+"|req))*', components_text)
+    components = re.findall(r'"[^"\\]+"(?:;(?:(?:key|name)="[^"\\]+"|req))*', components_text)
     if " ".join(components) != components_text:
         raise ValueError("unsupported component serialization")
     params = {}
@@ -80,6 +80,14 @@ def signature_base(message: dict, request: dict, label: str = "sig1") -> bytes:
             field = request["method"].upper()
         elif component == '"@target-uri"':
             field = request["url"]
+        elif component.startswith('"@query-param";name='):
+            name = json.loads(component.split(";name=", 1)[1])
+            values = [
+                value for key, value in parse_qsl(urlsplit(request["url"]).query, keep_blank_values=True)
+                if key == name
+            ]
+            require(len(values) == 1, "query parameter must occur once")
+            field = quote(values[0], safe="*-._").replace("~", "%7E")
         elif component == '"@status"':
             field = str(message["status"])
         elif ";key=" in component:
@@ -131,6 +139,10 @@ def check_signed_output(
 ) -> dict:
     """Check output from a real SDK signer; never manufacture SDK acceptance."""
     if actual.get("ok") is not True:
+        if actual.get("ok") is False and case_input.get("signingKeyChange") and actual.get("error") in {
+            "SigningRejected", "ArgumentError", "VerificationError",
+        }:
+            return {"ok": True}
         return actual
     try:
         request = case_input["request"]
@@ -140,6 +152,9 @@ def check_signed_output(
         directory = case_input["operation"] == "directory"
         public = {"kty": "OKP", "crv": "Ed25519", "x": case_input["key"]["x"]}
         _, components, params = signature_parts(message)
+        changed = case_input.get("signingKeyChange")
+        if changed and params["keyid"] == thumbprint(changed):
+            public = {name: changed[name] for name in ("kty", "crv", "x")}
         if directory:
             expected_components = [
                 '"@authority";req',
@@ -153,9 +168,20 @@ def check_signed_output(
                 message["headers"]["content-type"] == DIRECTORY_TYPE,
                 "directory media type",
             )
+            backdate = min(5, ttl - 1)
+            directives = [
+                part.strip().lower()
+                for part in message["headers"]["cache-control"].split(",")
+            ]
             require(
-                message["headers"]["cache-control"] == f"max-age={ttl}",
-                "directory cache policy",
+                len(directives) == 2 and directives.count("must-revalidate") == 1,
+                "directory cache policy requires max-age and must-revalidate only",
+            )
+            directives.remove("must-revalidate")
+            cache_age = re.fullmatch(r"max-age=([0-9]+)", directives[0])
+            require(
+                cache_age is not None and int(cache_age[1]) <= ttl - backdate,
+                "directory cache policy exceeds remaining signature lifetime",
             )
             keys = json.loads(body_bytes(message))["keys"]
             require(
@@ -207,10 +233,16 @@ def check_signed_output(
             "integer timestamps",
         )
         require(params["expires"] - params["created"] == ttl, "signature lifetime")
-        require(
-            started - 5 <= params["created"] <= finished + (0 if directory else 5),
-            "signature creation time",
-        )
+        if directory:
+            require(
+                started - backdate <= params["created"] <= finished - backdate,
+                "backdated directory creation time",
+            )
+        else:
+            require(
+                started - 5 <= params["created"] <= finished + 5,
+                "signature creation time",
+            )
         nonce = params["nonce"]
         require(re.fullmatch(r"[A-Za-z0-9_-]+", nonce) is not None, "nonce encoding")
         require(len(base64.urlsafe_b64decode(nonce + "==")) == 64, "64-byte nonce")

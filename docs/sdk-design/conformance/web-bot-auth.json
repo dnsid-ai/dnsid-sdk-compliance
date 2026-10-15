@@ -385,6 +385,74 @@
       "signatureValid": true,
       "digestValid": true
     },
+    "query-form-encoding": {
+      "message": {
+        "method": "POST",
+        "url": "https://api.example/v1/items?q=~*",
+        "headers": {
+          "authorization": "Bearer application-token",
+          "content-digest": "sha-256=:k6I5cakU5erL8KjSUVTNownDwccvu5kU1Hxg88toFYg=:",
+          "signature-agent": "sig1=\"https://agent.example\";type=directory",
+          "signature-input": "sig1=(\"@authority\" \"content-digest\" \"signature-agent\";key=\"sig1\" \"@query-param\";name=\"q\");created=1700000000;expires=1700000060;keyid=\"1IG2tMH7J2wbJZnOf8LJzQitKf7LMvoAElsuDMVM54Y\";alg=\"ed25519\";nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-Pw\";tag=\"web-bot-auth\"",
+          "signature": "sig1=:Y8LTEoZYWI+LDC1s2SF55/NOnpPXNk45t4AizplSAUvdcRTbMJLRHs+77zr1D6aMjxx7kT7aLWUwXxNvVZf3BQ==:"
+        },
+        "bodyBase64": "eyJoZWxsbyI6IndvcmxkIn0="
+      },
+      "signatureBase": "\"@authority\": api.example\n\"content-digest\": sha-256=:k6I5cakU5erL8KjSUVTNownDwccvu5kU1Hxg88toFYg=:\n\"signature-agent\";key=\"sig1\": \"https://agent.example\";type=directory\n\"@query-param\";name=\"q\": %7E*\n\"@signature-params\": (\"@authority\" \"content-digest\" \"signature-agent\";key=\"sig1\" \"@query-param\";name=\"q\");created=1700000000;expires=1700000060;keyid=\"1IG2tMH7J2wbJZnOf8LJzQitKf7LMvoAElsuDMVM54Y\";alg=\"ed25519\";nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-Pw\";tag=\"web-bot-auth\"",
+      "signatureValid": true,
+      "digestValid": true
+    },
+    "query-plus-space": {
+      "message": {
+        "method": "POST",
+        "url": "https://api.example/v1/items?q=x+y",
+        "headers": {
+          "authorization": "Bearer application-token",
+          "content-digest": "sha-256=:k6I5cakU5erL8KjSUVTNownDwccvu5kU1Hxg88toFYg=:",
+          "signature-agent": "sig1=\"https://agent.example\";type=directory",
+          "signature-input": "sig1=(\"@authority\" \"content-digest\" \"signature-agent\";key=\"sig1\" \"@query-param\";name=\"q\");created=1700000000;expires=1700000060;keyid=\"1IG2tMH7J2wbJZnOf8LJzQitKf7LMvoAElsuDMVM54Y\";alg=\"ed25519\";nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-Pw\";tag=\"web-bot-auth\"",
+          "signature": "sig1=:id7SbZS7kNPhpzTf6ANkJdMYgBkxFpxbGMZzdRSFmv9h3XPGj92HxYLGoqrLEydaYRTIL5YMCPXuCESVZ2pDAw==:"
+        },
+        "bodyBase64": "eyJoZWxsbyI6IndvcmxkIn0="
+      },
+      "signatureBase": "\"@authority\": api.example\n\"content-digest\": sha-256=:k6I5cakU5erL8KjSUVTNownDwccvu5kU1Hxg88toFYg=:\n\"signature-agent\";key=\"sig1\": \"https://agent.example\";type=directory\n\"@query-param\";name=\"q\": x%20y\n\"@signature-params\": (\"@authority\" \"content-digest\" \"signature-agent\";key=\"sig1\" \"@query-param\";name=\"q\");created=1700000000;expires=1700000060;keyid=\"1IG2tMH7J2wbJZnOf8LJzQitKf7LMvoAElsuDMVM54Y\";alg=\"ed25519\";nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-Pw\";tag=\"web-bot-auth\"",
+      "signatureValid": true,
+      "digestValid": true
+    },
+    "query-percent-space": {
+      "message": {
+        "method": "POST",
+        "url": "https://api.example/v1/items?q=x%20y",
+        "headers": {
+          "authorization": "Bearer application-token",
+          "content-digest": "sha-256=:k6I5cakU5erL8KjSUVTNownDwccvu5kU1Hxg88toFYg=:",
+          "signature-agent": "sig1=\"https://agent.example\";type=directory",
+          "signature-input": "sig1=(\"@authority\" \"content-digest\" \"signature-agent\";key=\"sig1\" \"@query-param\";name=\"q\");created=1700000000;expires=1700000060;keyid=\"1IG2tMH7J2wbJZnOf8LJzQitKf7LMvoAElsuDMVM54Y\";alg=\"ed25519\";nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-Pw\";tag=\"web-bot-auth\"",
+          "signature": "sig1=:id7SbZS7kNPhpzTf6ANkJdMYgBkxFpxbGMZzdRSFmv9h3XPGj92HxYLGoqrLEydaYRTIL5YMCPXuCESVZ2pDAw==:"
+        },
+        "bodyBase64": "eyJoZWxsbyI6IndvcmxkIn0="
+      },
+      "signatureBase": "\"@authority\": api.example\n\"content-digest\": sha-256=:k6I5cakU5erL8KjSUVTNownDwccvu5kU1Hxg88toFYg=:\n\"signature-agent\";key=\"sig1\": \"https://agent.example\";type=directory\n\"@query-param\";name=\"q\": x%20y\n\"@signature-params\": (\"@authority\" \"content-digest\" \"signature-agent\";key=\"sig1\" \"@query-param\";name=\"q\");created=1700000000;expires=1700000060;keyid=\"1IG2tMH7J2wbJZnOf8LJzQitKf7LMvoAElsuDMVM54Y\";alg=\"ed25519\";nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-Pw\";tag=\"web-bot-auth\"",
+      "signatureValid": true,
+      "digestValid": true
+    },
+    "query-empty": {
+      "message": {
+        "method": "POST",
+        "url": "https://api.example/v1/items?q=",
+        "headers": {
+          "authorization": "Bearer application-token",
+          "content-digest": "sha-256=:k6I5cakU5erL8KjSUVTNownDwccvu5kU1Hxg88toFYg=:",
+          "signature-agent": "sig1=\"https://agent.example\";type=directory",
+          "signature-input": "sig1=(\"@authority\" \"content-digest\" \"signature-agent\";key=\"sig1\" \"@query-param\";name=\"q\");created=1700000000;expires=1700000060;keyid=\"1IG2tMH7J2wbJZnOf8LJzQitKf7LMvoAElsuDMVM54Y\";alg=\"ed25519\";nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-Pw\";tag=\"web-bot-auth\"",
+          "signature": "sig1=:KgW8ScNfQcTN60JjzGNQVxxxy7pIAv+5zgc0MRCGCaGoNkJ9gHkumnf/sy9RN2MJRD9TUtulbs/wJDKtaL8LDg==:"
+        },
+        "bodyBase64": "eyJoZWxsbyI6IndvcmxkIn0="
+      },
+      "signatureBase": "\"@authority\": api.example\n\"content-digest\": sha-256=:k6I5cakU5erL8KjSUVTNownDwccvu5kU1Hxg88toFYg=:\n\"signature-agent\";key=\"sig1\": \"https://agent.example\";type=directory\n\"@query-param\";name=\"q\": \n\"@signature-params\": (\"@authority\" \"content-digest\" \"signature-agent\";key=\"sig1\" \"@query-param\";name=\"q\");created=1700000000;expires=1700000060;keyid=\"1IG2tMH7J2wbJZnOf8LJzQitKf7LMvoAElsuDMVM54Y\";alg=\"ed25519\";nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-Pw\";tag=\"web-bot-auth\"",
+      "signatureValid": true,
+      "digestValid": true
+    },
     "directory-path": {
       "message": {
         "method": "POST",
@@ -604,6 +672,74 @@
         "bodyBase64": "eyJrZXlzIjpbeyJrdHkiOiJPS1AiLCJjcnYiOiJFZDI1NTE5IiwieCI6IkE2RUh2X1BPRUw0ZGNOMFk1MHZBbVdmazFqQ2JwUTFmSGR5R1pCSlZNYmciLCJraWQiOiIxSUcydE1IN0oyd2JKWm5PZjhMSnpRaXRLZjdMTXZvQUVsc3VETVZNNTRZIiwiYWxnIjoiZWQyNTUxOSIsInVzZSI6InNpZyJ9XX0="
       },
       "signatureBase": "\"@authority\";req: agent.example\n\"content-type\": application/http-message-signatures-directory+json\n\"cache-control\": max-age=300\n\"content-digest\": sha-256=:gUi+YdsdS1J7KSjcDfuIlkcsNSuBt41aVHeQ7Fr6vRc=:\n\"@signature-params\": (\"@authority\";req \"content-type\" \"cache-control\" \"content-digest\");created=1700000000;expires=1700000300;keyid=\"1IG2tMH7J2wbJZnOf8LJzQitKf7LMvoAElsuDMVM54Y\";alg=\"ed25519\";nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-Pw\";tag=\"http-message-signatures-directory\"",
+      "signatureValid": true,
+      "digestValid": true
+    },
+    "http-age-stale": {
+      "message": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/http-message-signatures-directory+json",
+          "cache-control": "max-age=300",
+          "content-digest": "sha-256=:gUi+YdsdS1J7KSjcDfuIlkcsNSuBt41aVHeQ7Fr6vRc=:",
+          "age": "300",
+          "signature-input": "sig1=(\"@authority\";req \"content-type\" \"cache-control\" \"content-digest\");created=1700000000;expires=1700000300;keyid=\"1IG2tMH7J2wbJZnOf8LJzQitKf7LMvoAElsuDMVM54Y\";alg=\"ed25519\";nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-Pw\";tag=\"http-message-signatures-directory\"",
+          "signature": "sig1=:QoCGKHZLgyGm8R6N16cGGPNqG707bvE3NPbTIxnJfiIJlpP5xxsvwCE5doOA7GyI/dgWRt0TsV3+8tPoilzPDw==:"
+        },
+        "bodyBase64": "eyJrZXlzIjpbeyJrdHkiOiJPS1AiLCJjcnYiOiJFZDI1NTE5IiwieCI6IkE2RUh2X1BPRUw0ZGNOMFk1MHZBbVdmazFqQ2JwUTFmSGR5R1pCSlZNYmciLCJraWQiOiIxSUcydE1IN0oyd2JKWm5PZjhMSnpRaXRLZjdMTXZvQUVsc3VETVZNNTRZIiwiYWxnIjoiZWQyNTUxOSIsInVzZSI6InNpZyJ9XX0="
+      },
+      "signatureBase": "\"@authority\";req: agent.example\n\"content-type\": application/http-message-signatures-directory+json\n\"cache-control\": max-age=300\n\"content-digest\": sha-256=:gUi+YdsdS1J7KSjcDfuIlkcsNSuBt41aVHeQ7Fr6vRc=:\n\"@signature-params\": (\"@authority\";req \"content-type\" \"cache-control\" \"content-digest\");created=1700000000;expires=1700000300;keyid=\"1IG2tMH7J2wbJZnOf8LJzQitKf7LMvoAElsuDMVM54Y\";alg=\"ed25519\";nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-Pw\";tag=\"http-message-signatures-directory\"",
+      "signatureValid": true,
+      "digestValid": true
+    },
+    "http-age-fresh": {
+      "message": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/http-message-signatures-directory+json",
+          "cache-control": "max-age=300",
+          "content-digest": "sha-256=:gUi+YdsdS1J7KSjcDfuIlkcsNSuBt41aVHeQ7Fr6vRc=:",
+          "age": "1",
+          "signature-input": "sig1=(\"@authority\";req \"content-type\" \"cache-control\" \"content-digest\");created=1700000000;expires=1700000300;keyid=\"1IG2tMH7J2wbJZnOf8LJzQitKf7LMvoAElsuDMVM54Y\";alg=\"ed25519\";nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-Pw\";tag=\"http-message-signatures-directory\"",
+          "signature": "sig1=:QoCGKHZLgyGm8R6N16cGGPNqG707bvE3NPbTIxnJfiIJlpP5xxsvwCE5doOA7GyI/dgWRt0TsV3+8tPoilzPDw==:"
+        },
+        "bodyBase64": "eyJrZXlzIjpbeyJrdHkiOiJPS1AiLCJjcnYiOiJFZDI1NTE5IiwieCI6IkE2RUh2X1BPRUw0ZGNOMFk1MHZBbVdmazFqQ2JwUTFmSGR5R1pCSlZNYmciLCJraWQiOiIxSUcydE1IN0oyd2JKWm5PZjhMSnpRaXRLZjdMTXZvQUVsc3VETVZNNTRZIiwiYWxnIjoiZWQyNTUxOSIsInVzZSI6InNpZyJ9XX0="
+      },
+      "signatureBase": "\"@authority\";req: agent.example\n\"content-type\": application/http-message-signatures-directory+json\n\"cache-control\": max-age=300\n\"content-digest\": sha-256=:gUi+YdsdS1J7KSjcDfuIlkcsNSuBt41aVHeQ7Fr6vRc=:\n\"@signature-params\": (\"@authority\";req \"content-type\" \"cache-control\" \"content-digest\");created=1700000000;expires=1700000300;keyid=\"1IG2tMH7J2wbJZnOf8LJzQitKf7LMvoAElsuDMVM54Y\";alg=\"ed25519\";nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-Pw\";tag=\"http-message-signatures-directory\"",
+      "signatureValid": true,
+      "digestValid": true
+    },
+    "http-date-stale": {
+      "message": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/http-message-signatures-directory+json",
+          "cache-control": "max-age=60",
+          "content-digest": "sha-256=:gUi+YdsdS1J7KSjcDfuIlkcsNSuBt41aVHeQ7Fr6vRc=:",
+          "date": "Tue, 14 Nov 2023 22:12:19 GMT",
+          "signature-input": "sig1=(\"@authority\";req \"content-type\" \"cache-control\" \"content-digest\");created=1700000000;expires=1700000300;keyid=\"1IG2tMH7J2wbJZnOf8LJzQitKf7LMvoAElsuDMVM54Y\";alg=\"ed25519\";nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-Pw\";tag=\"http-message-signatures-directory\"",
+          "signature": "sig1=:X8Szr7+Xw5yB29JoNUACJzHEBvfs7FZMOorMy9CyaZTcNqfGTIj6wEOw1eCjA6pYm3mqBwmdzfeKOZwEEX0ACg==:"
+        },
+        "bodyBase64": "eyJrZXlzIjpbeyJrdHkiOiJPS1AiLCJjcnYiOiJFZDI1NTE5IiwieCI6IkE2RUh2X1BPRUw0ZGNOMFk1MHZBbVdmazFqQ2JwUTFmSGR5R1pCSlZNYmciLCJraWQiOiIxSUcydE1IN0oyd2JKWm5PZjhMSnpRaXRLZjdMTXZvQUVsc3VETVZNNTRZIiwiYWxnIjoiZWQyNTUxOSIsInVzZSI6InNpZyJ9XX0="
+      },
+      "signatureBase": "\"@authority\";req: agent.example\n\"content-type\": application/http-message-signatures-directory+json\n\"cache-control\": max-age=60\n\"content-digest\": sha-256=:gUi+YdsdS1J7KSjcDfuIlkcsNSuBt41aVHeQ7Fr6vRc=:\n\"@signature-params\": (\"@authority\";req \"content-type\" \"cache-control\" \"content-digest\");created=1700000000;expires=1700000300;keyid=\"1IG2tMH7J2wbJZnOf8LJzQitKf7LMvoAElsuDMVM54Y\";alg=\"ed25519\";nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-Pw\";tag=\"http-message-signatures-directory\"",
+      "signatureValid": true,
+      "digestValid": true
+    },
+    "http-zero-age-stale": {
+      "message": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/http-message-signatures-directory+json",
+          "cache-control": "max-age=0",
+          "content-digest": "sha-256=:gUi+YdsdS1J7KSjcDfuIlkcsNSuBt41aVHeQ7Fr6vRc=:",
+          "age": "1",
+          "signature-input": "sig1=(\"@authority\";req \"content-type\" \"cache-control\" \"content-digest\");created=1700000000;expires=1700000300;keyid=\"1IG2tMH7J2wbJZnOf8LJzQitKf7LMvoAElsuDMVM54Y\";alg=\"ed25519\";nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-Pw\";tag=\"http-message-signatures-directory\"",
+          "signature": "sig1=:/fHODnVL5aYdaOy02ztslfLLuUVTbQG1WDrahEXqTPXh6XhpNm/U3ysZBW4qczJJRQGEXW/issa4NWqL2eysDQ==:"
+        },
+        "bodyBase64": "eyJrZXlzIjpbeyJrdHkiOiJPS1AiLCJjcnYiOiJFZDI1NTE5IiwieCI6IkE2RUh2X1BPRUw0ZGNOMFk1MHZBbVdmazFqQ2JwUTFmSGR5R1pCSlZNYmciLCJraWQiOiIxSUcydE1IN0oyd2JKWm5PZjhMSnpRaXRLZjdMTXZvQUVsc3VETVZNNTRZIiwiYWxnIjoiZWQyNTUxOSIsInVzZSI6InNpZyJ9XX0="
+      },
+      "signatureBase": "\"@authority\";req: agent.example\n\"content-type\": application/http-message-signatures-directory+json\n\"cache-control\": max-age=0\n\"content-digest\": sha-256=:gUi+YdsdS1J7KSjcDfuIlkcsNSuBt41aVHeQ7Fr6vRc=:\n\"@signature-params\": (\"@authority\";req \"content-type\" \"cache-control\" \"content-digest\");created=1700000000;expires=1700000300;keyid=\"1IG2tMH7J2wbJZnOf8LJzQitKf7LMvoAElsuDMVM54Y\";alg=\"ed25519\";nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-Pw\";tag=\"http-message-signatures-directory\"",
       "signatureValid": true,
       "digestValid": true
     },
@@ -1202,6 +1338,107 @@
       }
     },
     {
+      "id": "wba-sign-key-change-during-request",
+      "description": "key change during request",
+      "spec_ref": "SDK design 10: request/directory verification; RFC 9421; RFC 9530; draft-ietf-webbotauth-httpsig-protocol-00",
+      "input": {
+        "operation": "request",
+        "request": {
+          "method": "GET",
+          "url": "https://api.example/v1/items?limit=10",
+          "headers": {}
+        },
+        "webBotAuth": {},
+        "options": {},
+        "signingKeyChange": {
+          "kty": "OKP",
+          "crv": "Ed25519",
+          "kid": "fixture-next",
+          "seed": "Hx4dHBsaGRgXFhUUExIREA8ODQwLCgkIBwYFBAMCAQA",
+          "x": "cSZR9FC6BbY4mLme9fe6RWMujiUn9_cVzWcexAJMxR4"
+        }
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "id": "wba-sign-key-change-during-directory",
+      "description": "key change during directory",
+      "spec_ref": "SDK design 10: request/directory verification; RFC 9421; RFC 9530; draft-ietf-webbotauth-httpsig-protocol-00",
+      "input": {
+        "operation": "directory",
+        "request": {
+          "method": "GET",
+          "url": "https://agent.example/.well-known/http-message-signatures-directory",
+          "headers": {}
+        },
+        "webBotAuth": {},
+        "options": {},
+        "signingKeyChange": {
+          "kty": "OKP",
+          "crv": "Ed25519",
+          "kid": "fixture-next",
+          "seed": "Hx4dHBsaGRgXFhUUExIREA8ODQwLCgkIBwYFBAMCAQA",
+          "x": "cSZR9FC6BbY4mLme9fe6RWMujiUn9_cVzWcexAJMxR4"
+        }
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "id": "wba-sign-reject-local-ku-empty-path",
+      "description": "reject local ku empty path",
+      "spec_ref": "SDK design 10: request/directory verification; RFC 9421; RFC 9530; draft-ietf-webbotauth-httpsig-protocol-00",
+      "input": {
+        "operation": "request",
+        "request": {
+          "method": "POST",
+          "url": "https://api.example/v1/items?limit=10",
+          "headers": {},
+          "bodyBase64": "AP9iaW5hcnkK"
+        },
+        "webBotAuth": {
+          "signatureAgent": {
+            "uri": "https://agent.example/",
+            "type": "jwks_uri"
+          }
+        },
+        "options": {},
+        "localKu": "https://agent.example"
+      },
+      "expect": {
+        "ok": false,
+        "error": "ArgumentError"
+      }
+    },
+    {
+      "id": "wba-sign-separate-local-ku",
+      "description": "separate local ku",
+      "spec_ref": "SDK design 10: request/directory verification; RFC 9421; RFC 9530; draft-ietf-webbotauth-httpsig-protocol-00",
+      "input": {
+        "operation": "request",
+        "request": {
+          "method": "POST",
+          "url": "https://api.example/v1/items?limit=10",
+          "headers": {},
+          "bodyBase64": "AP9iaW5hcnkK"
+        },
+        "webBotAuth": {
+          "signatureAgent": {
+            "uri": "https://agent.example/directory",
+            "type": "jwks_uri"
+          }
+        },
+        "options": {},
+        "localKu": "https://agent.example/ku"
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
       "id": "wba-sign-directory",
       "description": "directory",
       "spec_ref": "SDK design 10: request/directory verification; RFC 9421; RFC 9530; draft-ietf-webbotauth-httpsig-protocol-00",
@@ -1552,6 +1789,62 @@
       }
     },
     {
+      "id": "wba-verify-query-form-encoding",
+      "description": "query form encoding",
+      "spec_ref": "SDK design 10: request/directory verification; RFC 9421; RFC 9530; draft-ietf-webbotauth-httpsig-protocol-00",
+      "input": {
+        "request": "query-form-encoding",
+        "directory": "valid",
+        "verification": {}
+      },
+      "expect": {
+        "ok": true,
+        "signerDomain": "agent.example"
+      }
+    },
+    {
+      "id": "wba-verify-query-plus-space",
+      "description": "query plus space",
+      "spec_ref": "SDK design 10: request/directory verification; RFC 9421; RFC 9530; draft-ietf-webbotauth-httpsig-protocol-00",
+      "input": {
+        "request": "query-plus-space",
+        "directory": "valid",
+        "verification": {}
+      },
+      "expect": {
+        "ok": true,
+        "signerDomain": "agent.example"
+      }
+    },
+    {
+      "id": "wba-verify-query-percent-space",
+      "description": "query percent space",
+      "spec_ref": "SDK design 10: request/directory verification; RFC 9421; RFC 9530; draft-ietf-webbotauth-httpsig-protocol-00",
+      "input": {
+        "request": "query-percent-space",
+        "directory": "valid",
+        "verification": {}
+      },
+      "expect": {
+        "ok": true,
+        "signerDomain": "agent.example"
+      }
+    },
+    {
+      "id": "wba-verify-query-empty",
+      "description": "query empty",
+      "spec_ref": "SDK design 10: request/directory verification; RFC 9421; RFC 9530; draft-ietf-webbotauth-httpsig-protocol-00",
+      "input": {
+        "request": "query-empty",
+        "directory": "valid",
+        "verification": {}
+      },
+      "expect": {
+        "ok": true,
+        "signerDomain": "agent.example"
+      }
+    },
+    {
       "id": "wba-verify-authority-only-other-operation",
       "description": "Current authority-only policy does not bind method, path, or query.",
       "spec_ref": "SDK design 10: request/directory verification; RFC 9421; RFC 9530; draft-ietf-webbotauth-httpsig-protocol-00",
@@ -1885,6 +2178,62 @@
       "input": {
         "request": "changed-bound-query",
         "directory": "valid",
+        "verification": {}
+      },
+      "expect": {
+        "ok": false,
+        "error": "ConformanceError"
+      }
+    },
+    {
+      "id": "wba-verify-directory-http-age-stale",
+      "description": "directory http age stale",
+      "spec_ref": "SDK design 10: request/directory verification; RFC 9421; RFC 9530; draft-ietf-webbotauth-httpsig-protocol-00",
+      "input": {
+        "request": "valid",
+        "directory": "http-age-stale",
+        "verification": {}
+      },
+      "expect": {
+        "ok": false,
+        "error": "ConformanceError"
+      }
+    },
+    {
+      "id": "wba-verify-directory-http-age-fresh",
+      "description": "directory http age fresh",
+      "spec_ref": "SDK design 10: request/directory verification; RFC 9421; RFC 9530; draft-ietf-webbotauth-httpsig-protocol-00",
+      "input": {
+        "request": "valid",
+        "directory": "http-age-fresh",
+        "verification": {}
+      },
+      "expect": {
+        "ok": true,
+        "signerDomain": "agent.example"
+      }
+    },
+    {
+      "id": "wba-verify-directory-http-date-stale",
+      "description": "directory http date stale",
+      "spec_ref": "SDK design 10: request/directory verification; RFC 9421; RFC 9530; draft-ietf-webbotauth-httpsig-protocol-00",
+      "input": {
+        "request": "valid",
+        "directory": "http-date-stale",
+        "verification": {}
+      },
+      "expect": {
+        "ok": false,
+        "error": "ConformanceError"
+      }
+    },
+    {
+      "id": "wba-verify-directory-http-zero-age-stale",
+      "description": "directory http zero age stale",
+      "spec_ref": "SDK design 10: request/directory verification; RFC 9421; RFC 9530; draft-ietf-webbotauth-httpsig-protocol-00",
+      "input": {
+        "request": "valid",
+        "directory": "http-zero-age-stale",
         "verification": {}
       },
       "expect": {

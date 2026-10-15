@@ -2,541 +2,473 @@
 
 ## Status and scope
 
-Web Bot Auth (WBA) is an application profile over RFC 9421. It is not part of
-DNSid protocol core.
-
-This design targets:
-
-- [draft-ietf-webbotauth-httpsig-protocol-00](https://datatracker.ietf.org/doc/html/draft-ietf-webbotauth-httpsig-protocol-00),
-  published September 1, 2026, including its directory discovery and format
-- RFC 9421, RFC 8941, RFC 9530, RFC 7638, and RFC 8037
-
-The WG draft replaces the individual protocol draft and incorporates the former
-separate directory draft. References to `dnsid-draft-01` describe the DNSid
-key-role profile, not a WBA draft revision.
+Web Bot Auth (WBA) is an application profile over RFC 9421, not DNSid core.
+This design targets
+[draft-ietf-webbotauth-httpsig-protocol-00](https://datatracker.ietf.org/doc/html/draft-ietf-webbotauth-httpsig-protocol-00)
+(September 1, 2026), including directory discovery, plus RFCs 8941, 9530, 7638,
+and 8037. `dnsid-draft-01` names the DNSid key-role profile, not a WBA revision.
 
 The [editor's copy](https://webbotauth.github.io/draft-ietf-webbotauth-httpsig-protocol/)
-is not the normative baseline. At
-[commit `be12662`](https://github.com/webbotauth/draft-ietf-webbotauth-httpsig-protocol/tree/be12662f3c5cc97e10e65a37355bdb33ba0d2fc4),
-it requires direct JWKS URLs without member parameters and separates JWK `alg`
-from HTTP signature `alg` registries. Those unpublished changes are not adopted
-here; typed discovery and directory JWK `alg="ed25519"` below follow published
-WG revision `00`.
+at [commit `be12662`](https://github.com/webbotauth/draft-ietf-webbotauth-httpsig-protocol/tree/be12662f3c5cc97e10e65a37355bdb33ba0d2fc4)
+requires direct JWKS URLs without member parameters and separates JWK and HTTP
+signature algorithm registries. Those unpublished changes are not adopted:
+typed discovery and directory JWK `alg="ed25519"` follow WG revision `00`.
 
-This design requires request signing, directory serving, and DNSid WBA request
-verification, including verification of discovered directory responses. Bindings
-MUST expose the request verifier defined below. Request and directory verification
-are required implementation work, not an existing API claim.
-
-Until verification is implemented, describe a binding as **DNSid WBA request
-signing and directory serving; verification not yet available** and record its
-verification coverage as `Missing`. A signing-only binding MUST NOT advertise
-end-to-end WBA support or imply that its DNSid HTTP signature verifier accepts
-WBA requests. Shared RFC 9421 behavior comes from
+Bindings MUST provide request signing, signed-directory serving, and request
+verification including directory verification. These requirements, identity
+refresh, and directory backdating do not imply existing SDK support. Until a
+binding implements verification, describe it as **DNSid WBA request signing and
+directory serving; verification not yet available**, record verification as
+`Missing`, and do not claim end-to-end WBA support or substitute the DNSid HTTP
+signature verifier. Reuse the primitives in
 [02-rfc9421-http-message-signatures.md](02-rfc9421-http-message-signatures.md).
 
 For `dnsid-draft-01` and verification-only `DNSid1`, WBA uses the verified
-agent `ku` key. `ek` is not an application-signing key.
+current `ku` key. Onboarding MUST state that it must be Ed25519; ES256 operational
+keys are unsupported. `ek` is not an application-signing key and may use ES256.
 
 ## WBA requirements and DNSid constraints
 
-The WBA draft permits broader behavior than this SDK. The first public DNSid
-SDKs intentionally use this narrower **DNSid WBA profile**:
+This **DNSid WBA profile** intentionally narrows the draft:
 
 | Area | WBA draft | DNSid WBA profile |
 |---|---|---|
-| Target coverage | At least one of `@authority` or `@target-uri` | Exact unparameterized `@authority` required |
-| Signing algorithms | Registered asymmetric algorithms | Ed25519 only |
-| Discovery schemes | HTTPS only | HTTPS only |
-| Discovery types | `directory`, `jwks_uri`, or `cimd` | `directory` or `jwks_uri` |
-| Discovery header | Required and covered | Required and covered; no omission option |
-| Signature label | Any valid label | Signers default to `sig1`; verifiers accept any valid label |
-| `alg` parameter | Not one of WBA's four mandatory parameters | Signers emit and DNSid verifiers require `ed25519` |
+| Target coverage | `@authority` or `@target-uri` | Exact unparameterized `@authority` |
+| Algorithms | Registered asymmetric algorithms | Ed25519; `alg="ed25519"` required |
+| HTTPS discovery | `directory`, `jwks_uri`, `cimd` | `directory`, `jwks_uri`; covered header required |
+| Labels and count | Any label; multiple signatures | Signers default to `sig1`; verifier accepts any label but exactly one complete WBA candidate |
 | Content | No universal digest requirement | Supplied content requires covered SHA-256 `Content-Digest` |
-| Request signature count | Multiple WBA signatures permitted | Exactly one complete WBA candidate |
-| Signature lifetimes | Request expiry within 24 hours recommended | Request and directory lifetimes limited to 300 seconds |
-| Directory response signatures | Optional for directly resolved keys; required proof for URL attribution from redistributed keys | Required for every accepted key |
-| Directory response coverage | Appendix B proof covers `@authority;req` and `content-digest` | Also covers `content-type` and `cache-control` |
-| Directory JWK `kid` | Optional; when present at the well-known endpoint, equals the thumbprint | Required and equal to the thumbprint |
-| Rotation | Overlapping old and new directory keys recommended | Only the current DNSid operational key can authenticate requests |
-| DNS authority | Outside WBA | Directory key must bind to the profile-selected current operational signing key |
+| Lifetime | Request expiry within 24 hours recommended | Request and directory signatures at most 300 seconds |
+| Directory proof | Optional for directly resolved keys; required for redistributed-key URL attribution | Required for every accepted key; also covers `content-type` and `cache-control` |
+| Directory JWK `kid` | Optional; equals thumbprint when present at well-known endpoint | Required thumbprint |
+| Rotation and authority | Overlap recommended; DNS authority out of scope | Only the verified current DNSid operational key |
 
-A generic WBA implementation can conform to the draft without satisfying
-these additional DNSid policy constraints. SDK documentation and marketing
-must not claim complete general WBA interoperability. RFC 9421 is a published
-standard; the targeted WBA document is an Internet-Draft, not a finalized WBA
-standard. Any partner interoperability claim MUST name the external
-implementation/version and WBA draft revision actually tested, and
-state which signing, discovery, directory, or verification paths were tested.
-Local signer tests alone do not establish partner interoperability.
+Do not claim complete general WBA interoperability or a finalized WBA standard.
+Partner claims MUST name the tested external implementation/version, WBA draft
+revision, and signing, discovery, directory, or verification paths. Local signer
+tests do not establish partner interoperability.
 
-A JWT in `Authorization: Bearer` is not this profile. Reserve WBA names for this
-RFC 9421 surface; [JWT bearer transport](03-jose-jwt-jws.md#http-bearer-transport)
-remains a separately selected application authentication mechanism. WBA signing
-MUST preserve an existing `Authorization` field.
-
-WBA itself requires request signature parameters `created`, `expires`, `keyid`,
-and `tag="web-bot-auth"`. `keyid` is the unpadded base64url SHA-256 RFC 7638 JWK
-thumbprint, not the DNSid `{domain}#{kid}` identifier.
+[JWT bearer transport](03-jose-jwt-jws.md#http-bearer-transport) is separate and
+MUST NOT be called WBA. WBA signing MUST preserve existing `Authorization` fields.
 
 ## Configuration
 
-WBA settings are profile-owned, not members of `DnsidConfig`. The DNSid WBA
-profile MUST verify the signer's DNSid identity and enforce the supplied identity
-resolver's configured accountable-entity acceptance on every invocation. Directory
-self-signatures alone do not satisfy either requirement.
+WBA settings belong to the profile, not `DnsidConfig`. Every DNSid WBA invocation
+MUST verify DNSid identity and enforce the resolver's configured accountable-entity
+acceptance. A directory self-signature satisfies neither requirement.
 
-A binding offering generic, non-DNSid WBA verification must expose it as a
-separately and explicitly selected mode, including when DNSid acceptance is
-configured. Its result MUST NOT claim DNSid verification or entity acceptance.
-It MUST NOT be an automatic fallback after DNSid verification or acceptance
-fails. This design does not require a generic WBA verifier or a new mode toggle.
+Generic non-DNSid verification is optional, must be explicitly selected, and MUST
+NOT claim DNSid verification or entity acceptance. It is never an automatic
+fallback after DNSid verification or acceptance failure; no generic-mode API is
+required here.
 
 | Field | Type | Default | Requirement |
 |---|---|---|---|
-| `webBotAuth.signatureAgent.uri` | HTTPS URI | `https://{domain}` | Origin for `directory`; direct endpoint for `jwks_uri`. |
-| `webBotAuth.signatureAgent.type` | `directory` or `jwks_uri` | `directory` | Discovery interpretation placed in `Signature-Agent`. |
-| `webBotAuth.signatureTTL` | seconds | 60 | Positive and no greater than 300. |
-| `webBotAuth.directorySignatureTTL` | seconds | 300 | Positive and no greater than 300. |
-| `webBotAuth.clockSkew` | seconds | 5 | Non-negative verification tolerance; never permits a future directory signature `created`. |
+| `webBotAuth.signatureAgent.uri` | HTTPS URI | `https://{domain}` | Origin for `directory`; endpoint for `jwks_uri`. |
+| `webBotAuth.signatureAgent.type` | `directory` or `jwks_uri` | `directory` | Discovery interpretation. |
+| `webBotAuth.signatureTTL` | seconds | 60 | Positive, at most 300. |
+| `webBotAuth.directorySignatureTTL` | seconds | 300 | Positive, at most 300. |
+| `webBotAuth.clockSkew` | seconds | 5 | Non-negative; never allows future directory `created`. |
 
-The draft recommends expiry no later than 24 hours. DNSid deliberately limits
-accepted request and directory lifetimes to five minutes. TTLs and clock skew
-MUST be finite numeric values, not Booleans. TTLs must produce a positive integer
-signature lifetime within the stated bound. Defaults apply only when omitted;
-explicit zero skew means zero tolerance. Invalid settings raise `ArgumentError`
+Durations MUST be finite numbers, not Booleans; TTLs must produce positive integer
+signature lifetimes within the bound. Defaults apply only to omitted values;
+zero skew means zero tolerance. Invalid configuration raises `ArgumentError`
 before network work. Apply shared
-[profile configuration ownership](README.md#profile-configuration-ownership),
-including nested discovery settings.
+[configuration ownership](README.md#profile-configuration-ownership), including
+snapshotting nested discovery settings against caller mutation.
+
+`{domain}` is the agent identity FQDN, not `gi` or the request destination.
+The WBA directory is separate from the live `ku` JWKS. Signing configuration
+MUST reject `jwks_uri` identifying local `ku`; verifiers MUST reject discovery
+identifying authenticated signer `ku`. Compare normalized WBA identifiers without
+query or fragment, not URL path-name conventions.
 
 ## Signature-Agent discovery
 
-`Signature-Agent` is a required RFC 8941 Dictionary. A signer MUST provide and
-cover the member keyed to its HTTP signature label. DNSid signers use `sig1`,
-for example:
+`Signature-Agent` MUST be an RFC 8941 Dictionary. Signers emit and cover the
+member keyed to their signature label:
 
 ```http
 Signature-Agent: sig1="https://agent.example";type=directory
 ```
 
-The discovery types supported by this profile are:
+- `directory`: require an ASCII HTTPS origin without userinfo, path, query,
+  fragment, or trailing `/`. Fetch
+  `/.well-known/http-message-signatures-directory` at that origin. Signers reject
+  invalid configuration before network work; verifiers MUST NOT strip components
+  to repair invalid origins.
+- `jwks_uri`: fetch the HTTPS directory/JWKS endpoint as supplied. `type` is an
+  RFC 8941 Token, not a String.
 
-- `directory`: the value MUST be the ASCII serialization of an HTTPS origin,
-  without userinfo, path, query, or fragment. The verifier ignores a member
-  carrying anything else; it MUST NOT discard URL components to make the value
-  usable. This profile does not accept the draft's optional trailing `/` form.
-  Fetch `/.well-known/http-message-signatures-directory` at that origin.
-  Signers reject invalid configured origin values before network work.
-- `jwks_uri`: the HTTPS URI is the direct directory/JWKS endpoint and is emitted
-  with `;type=jwks_uri`. The `type` parameter is an RFC 8941 Token, not a String.
+Signers emit `type` explicitly; absent `type` means `directory`, never a custom
+endpoint. Ignore unsupported types and invalid origins during member selection;
+an invalid, unsupported, missing, or uncovered selected member rejects before
+network work, even with trusted caller discovery. Do not infer type from path,
+media type, or body. Legacy bare String discovery is unsupported.
 
-An absent `type` has the draft's `directory` meaning and MUST NOT be interpreted
-as a direct custom URL. The SDK emits `type` explicitly to avoid ambiguity.
-Unsupported discovery types MUST be ignored, without inferring discovery from
-the URI path, media type, or body. An unsupported or invalid selected member
-rejects the DNSid request; trusted caller discovery is not a fallback for it.
-This profile does not accept the draft's optional legacy bare String form.
+Verifiers select by WBA tag, not a hard-coded label, and resolve the exact covered
+`"signature-agent";key="member"`. An intermediary may relabel `Signature` and
+`Signature-Input`; the covered discovery member may therefore retain a different
+key. Verifiers MUST NOT relabel that member or attribute a signature to an
+uncovered one.
 
-The selected member is covered using the exact component identifier
-matching its member key:
-
-```text
-"signature-agent";key="sig1"
-```
-
-Inbound verifiers do not hard-code `sig1`: they select the WBA signature by
-`tag`, read its label and covered `signature-agent;key` identifier, and resolve
-that selected dictionary member. RFC 9421 permits an intermediary to relabel
-`Signature` and `Signature-Input` members without changing the signed bytes.
-Verifiers therefore resolve the covered member even when its key differs from
-the received signature label. They MUST NOT relabel a covered `Signature-Agent`
-member or attribute the signature to an uncovered member.
-
-For `directory`, the WBA identifier is the resolved well-known URL. For
-`jwks_uri`, fetch the configured URL as sent, but discard query and fragment
-from the identifier. Normalize identifiers as specified in WBA section 5.5
-(RFC 3986 sections 6.2.2 and 6.2.3). Key lookup and cached attribution MUST use
-the normalized resolved URL and key thumbprint together, within the verification
-policy context; neither the thumbprint nor the hostname alone identifies this
-association. DNSid additionally requires the current-key binding below.
+The WBA identifier is the resolved well-known URL for `directory`, or the supplied
+`jwks_uri` without query and fragment. Normalize per WBA section 5.5 (RFC 3986
+sections 6.2.2 and 6.2.3). Key lookup and cached attribution MUST use the normalized
+URL and thumbprint together within the verification policy context, not either
+alone or just the hostname. Normalize an empty HTTPS path to `/`.
 
 ## Request signing
 
-`CreateWebBotAuthSignedRequest(req, opts)`:
+`CreateWebBotAuthSignedRequest(req, opts)` MUST:
 
-1. Requires an Ed25519 `ku` signing key.
-2. Starts with exact unparameterized `@authority`.
-3. If content is supplied, buffers/replays the exact bytes, sets RFC 9530
-   `Content-Digest` with SHA-256, and covers `content-digest`. Empty supplied
-   content is hashed as an empty byte sequence.
-4. Always emits the configured `Signature-Agent` member keyed to the signature
-   label and covers that exact `key` component. No configuration or per-request
+1. Use the current Ed25519 `ku` key and default label `sig1`.
+2. Start coverage with exact unparameterized `@authority` and include the configured
+   discovery member keyed to the signature label. No setting or per-request
    option may omit it.
-5. Validates additional components against the constrained matrix in the RFC
-   9421 design.
-6. Rejects a non-positive TTL or one greater than 300 seconds.
-7. Emits:
-   - `keyid` as the active public JWK thumbprint;
-   - `alg="ed25519"`;
-   - integer `created` and `expires`, with `expires = created + ttl`;
-   - 64 cryptographically random bytes encoded as unpadded base64url in
-     `nonce`;
-   - `tag="web-bot-auth"`.
-8. Signs under label `sig1` by default.
+3. For supplied content, buffer/replay exact bytes, set SHA-256 `Content-Digest`,
+   and cover exact `content-digest`. Empty supplied content hashes empty bytes;
+   body presence is not inferred only from length or transfer framing.
+4. Validate extra components against section 02's constrained matrix and reject
+   TTLs outside `(0, 300]` seconds.
+5. Emit the unpadded base64url SHA-256 RFC 7638 JWK thumbprint as `keyid` (not
+   `{domain}#{kid}`), `alg="ed25519"`, integer `created` and
+   `expires = created + ttl`, `tag="web-bot-auth"`, and 64 cryptographically random
+   bytes encoded as unpadded base64url in `nonce`.
 
-A request signature therefore has at least:
-
-```text
-Signature-Input: sig1=("@authority" "signature-agent";key="sig1" ...);keyid="...";alg="ed25519";created=...;expires=...;nonce="...";tag="web-bot-auth"
-```
-
-The shared RFC 9421 content rules define stream handling and digest
-verification. Body presence is not inferred solely from `Content-Length` or
-HTTP transfer framing.
+Shared RFC 9421 content rules govern stream replay, cleanup, and digest handling.
 
 ## Directory serving
 
-`ServeHttpMessageSignaturesDirectory(req)` serves:
+`ServeHttpMessageSignaturesDirectory(req)` serves an uncoded JWKS object at
+`/.well-known/http-message-signatures-directory` with
+`Content-Type: application/http-message-signatures-directory+json`. The helper
+MUST NOT emit `Content-Encoding` or apply content coding.
+
+Each JWK contains public material only, `use="sig"`, `alg="ed25519"` (the HTTP
+signature name, not JOSE `EdDSA`), and `kid` equal to its recomputed unpadded RFC
+7638 thumbprint. Hash only the required public members: `crv`, `kty`, and `x` for
+Ed25519; exclude metadata, private material, and extensions.
+
+Set SHA-256 `Content-Digest` over exact JSON bytes and
+`Cache-Control: max-age=N, must-revalidate`, with `N` no greater than remaining
+signature validity at response generation. Deployments MUST disable stale-serving
+for this endpoint, including CDN overrides, `stale-while-revalidate`, and
+`stale-if-error`.
+Emit one complete signature per usable key when able to sign with each. Each
+signature covers exact `"@authority";req`, `content-type`, `cache-control`, and
+`content-digest`, and includes the thumbprint `keyid`, `alg="ed25519"`, integer
+`created`/`expires` with lifetime at most 300 seconds, a random nonce, and
+`tag="http-message-signatures-directory"`.
+
+Signers MUST backdate directory signatures, without extending the configured
+lifetime. For integer `ttl` and `now = floor(unixTime)`:
 
 ```text
-/.well-known/http-message-signatures-directory
-Content-Type: application/http-message-signatures-directory+json
+backdate = min(5, ttl - 1)
+created = now - backdate
+expires = created + ttl
 ```
 
-The response body is an uncoded JWKS object. The helper MUST NOT apply a content
-coding or emit `Content-Encoding`. This constrained profile does not support
-compressed directories; see [Directory transport](#directory-transport).
-Each directory JWK:
+The default leaves at most 295 seconds of cache freshness. TTLs below six seconds
+provide less clock tolerance; TTL 1 has none. Do not serve already expired
+signatures. Verifiers still reject future directory `created` without skew.
 
-- contains public key material only;
-- has `kid` equal to its unpadded RFC 7638 thumbprint;
-- uses the HTTP Message Signatures algorithm name `ed25519` in `alg`, not JOSE
-  `EdDSA`;
-- has `use="sig"`;
-- is rejected if recomputing the thumbprint does not reproduce `kid`.
-
-The thumbprint input contains only the RFC 7638 required public members (`crv`,
-`kty`, and `x` for Ed25519). It excludes `kid`, `alg`, `use`, `d`, and extension
-members.
-
-The DNSid directory helper sets:
-
-- `Cache-Control: max-age=300` or the lower configured TTL;
-- a SHA-256 `Content-Digest` over the exact JSON bytes;
-- one complete signature per usable directory key when the binding can sign
-  with each key.
-
-Each directory signature covers:
-
-- `"@authority";req`
-- `content-type`
-- `cache-control`
-- `content-digest`
-
-and includes:
-
-- the key thumbprint as `keyid`;
-- `alg="ed25519"`;
-- integer `created` and `expires` with a lifetime no greater than 300 seconds;
-- a random nonce;
-- `tag="http-message-signatures-directory"`.
-
-The minimal DNSid implementation has exactly one current operational key and
-therefore emits one directory key and one signature. Multi-key implementations
-use distinct labels and signatures and must define deterministic key/signature
+The minimal implementation emits one current operational key and one signature.
+Multi-key implementations need distinct labels and deterministic key/signature
 selection.
 
 ## Rotation compatibility
 
-WBA sections 4.2 and 5.5.2 recommend publishing old and new directory keys
-together before removing the old key. DNSid draft 01 instead requires a single
-current operational key at `ku` and forbids retaining superseded keys there;
-see [Operational Key Rotation](01-core-identity-manager.md#operational-key-rotation).
-This profile retains that DNSid rule and its current-key acceptance check.
+WBA sections 4.2 and 5.5.2 recommend overlapping directory keys (a SHOULD).
+DNSid [operational rotation](01-core-identity-manager.md#operational-key-rotation)
+requires one current live `ku` key, with no superseded keys. Historical logs or
+overlap in a generic WBA directory do not authorize old keys in this profile.
+Once a verifier learns the new key, it rejects outstanding old-key requests even
+if their signatures remain time-valid. No overlap grace or dedicated-key binding
+is defined here.
 
-A verifier caching the previous key can reject new-key requests until its
-evidence is refreshed. After it learns the new current key, this profile rejects
-outstanding old-key requests even if their request and directory signatures
-remain time-valid. Historical log material does not grant current WBA signing
-authority. WBA's overlapping-key recommendation is a SHOULD, not a MUST;
-operators must account for this profile's transition disruption. Short request
-lifetimes bound replay; they do not revoke a stolen key whose holder can still
-produce fresh signatures accepted under cached key state.
+Request TTL does not bound rotation disruption or revoke a stolen key. DNS/HTTP
+caches, publication/log convergence, refresh limits, and availability can delay
+new-key acceptance. A cached directory missing the new key permits a bounded
+[directory re-fetch](#directory-caching) before signature checking; DNSid mismatch
+refresh still requires verified signatures.
 
-A separate WBA directory could overlap keys for generic WBA consumers without
-changing the live `ku` endpoint. That alone would not authorize the superseded
-key in this DNSid profile. No overlap grace period, dedicated WBA-key binding,
-or automatic refresh-on-key-mismatch mechanism is introduced by this revision.
+### Key-mismatch refresh
+
+After directory and request signatures, coverage, and time checks pass, a mismatch
+with the verified current `ku` thumbprint MUST trigger one
+`RefreshDomain(signerDomain, peerCert)` attempt, subject to these limits:
+
+- Allow at most one attempt per normalized domain per five seconds in the
+  verifier's immutable context. Concurrent invocations share admission state;
+  changing keys, labels, or discovery URLs does not obtain another allowance.
+- Callers MAY join an admitted in-flight refresh; otherwise suppress retries
+  during cooldown. Bound state and network work under the shared resource budget;
+  refuse new refreshes when state is full rather than evict active cooldowns.
+- Failed attempts consume the allowance. Do not refresh for malformed input,
+  failed signatures, invalid discovery, DNSid verification failure, or acceptance
+  denial. Never loop until keys match.
+- Recheck both signatures' current-key binding, discovery/`ku` separation, all
+  evidence validity, and per-invocation policy after refresh.
+
+Suppressed, failed, or still-mismatched refresh MUST NOT authenticate a request.
+Preserve normal evidence-error classification; never accept auxiliary, historical,
+or stale keys, bypass revocation, or fall back to directory-only verification.
+
+### Operational guidance
+
+WBA tooling MUST reuse the shared
+[managed rotation/recovery contract](01-core-identity-manager.md#operational-key-rotation),
+including durable state. Pause and drain request/directory signing before activation;
+do not introduce a separate WBA rotation transaction or overlapping live `ku` keys.
+Test new-key acceptance through
+a verifier caching the old key, bounded refresh, and restart recovery without
+old-key signing.
+
+For an unavailable or suspected compromised operational key, disable signing and
+use [revocation/reissuance](01-core-identity-manager.md#registry-status-change-eg-revocation),
+not routine rotation. The lifecycle coordinator promptly publishes non-active
+status; invalidate verifier caches where possible. Short TTLs and mismatch
+refresh do not stop an attacker signing under a still-cached current key.
+
+Hosts MUST bound unauthenticated verification rate and concurrency. Retry limits
+do not bound initial directory fetches or per-invocation status checks. Before
+crawler-volume claims, measure throughput and upstream load with the deployed
+cache and status policies; uncached verification can require both reads per request.
 
 ## Public verifier contract
 
-`VerifyWebBotAuthSignedRequest(req, opts) -> VerifiedDomain` authenticates one
-DNSid WBA request. It returns the verified signer identity only after all request,
-directory, and DNSid identity checks succeed. It does not grant application
-permissions. Verification-only construction requires an `IdentityResolver` and
-SSRF-safe HTTPS discovery transport, not a local identity or signing key.
+Bindings MUST expose
+`VerifyWebBotAuthSignedRequest(req, opts) -> VerifiedDomain`. It authenticates the
+request, directory, and DNSid identity before returning, without granting
+application permissions. Construction needs a
+[`RefreshingIdentityResolver`](README.md#identity-resolution) and SSRF-safe HTTPS
+transport, not a local identity/key. Missing refresh capability is a construction
+error; profiles MUST NOT work around it with cache eviction.
 
-Bindings MUST reuse the shared RFC 9421 parsing, component extraction,
-signature-base construction, and content-digest primitives. WBA keeps its own
-signature selection, thumbprint key ID, discovery, and acceptance rules; the
-DNSid generic HTTP signature verifier is not a substitute.
+Reuse shared RFC 9421 parsing, component extraction, signature-base, and digest
+primitives, but apply WBA selection, discovery, key-ID, and acceptance rules.
+Directory verification may be internal; no separate public API is required.
 
-`opts` supplies trusted signer-domain/discovery policy as defined below and a
-per-invocation route for the current application peer certificate. Pass that
-certificate to `VerifyDomain`; a directory endpoint's certificate is not the
-application peer. Native cancellation/deadline support or equivalent options
-MUST cover the complete operation, including directory reads and DNSid
-verification, under the [shared resource budget](README.md#verification-resource-budgets).
+`opts` supplies trusted signer-domain/discovery policy and the current application
+peer certificate for `VerifyDomain`. Endpoint certificates are not peer evidence.
+Cancellation/deadlines MUST cover directory reads and DNSid verification under
+the [shared resource budget](README.md#verification-resource-budgets).
 
-The verifier MUST authenticate directory evidence under the directory requirements
-below before accepting its key. Directory verification may be an internal helper;
-no separate public directory-verifier API is required. A single invocation may
-reuse its verified DNSid evidence for directory and request binding without
-omitting current-peer, acceptance, or final freshness checks.
+Without `fl=mtls`, fetching `ku` over validated HTTPS at the agent FQDN supplies
+DNSid section 9.1 step 4's TLS connection. Only public identity resources, not the
+crawler process, need inbound reachability. WBA does not replace that TLS check;
+with `fl=mtls`, hosting cannot replace current application-peer evidence.
 
-This change does not add mandatory `@method` or `@target-uri` coverage. The
-existing WBA minimum component policy remains unchanged; applications decide
-whether that coverage is sufficient for their operations. Bindings MUST expose
-an optional `requiredComponents` policy in verifier options, defaulting to no
-additional requirements. Every required component MUST be covered by the
-selected request signature, using the exact component equality rules in section
-02, including parameter values. Policy entries MUST be valid for request
-messages; response-only `@status` and components with `req` are malformed policy.
-Validate this policy and check coverage before discovery; malformed policy raises
-`ArgumentError`, and missing coverage rejects verification. Signing extra components does not make a recipient require them.
+Expose optional `requiredComponents`, defaulting to no extra coverage. Entries
+must be valid request components; `@status` and components with `req` are invalid.
+Before discovery, raise `ArgumentError` for malformed policy and reject missing
+coverage using section 02's exact component/parameter equality. `@method` and
+`@target-uri` remain optional unless required by the recipient; signer-selected
+extra coverage does not set recipient policy. For modifying operations, examples
+MUST enforce both method and target URI at the recipient:
+
+```text
+signed = CreateWebBotAuthSignedRequest(req, {additionalComponents: ["@method", "@target-uri"]})
+identity = VerifyWebBotAuthSignedRequest(signed, {
+  signerDomain: expectedDomain,
+  requiredComponents: ["@method", "@target-uri"]
+})
+```
 
 ## Signature selection
 
-The DNSid WBA profile overrides section 02's
-exactly-one-successfully-verified-candidate rule. This is a local restriction;
-WBA section 5.2.2 permits multiple independently verified signatures. Signature
-nesting alone does not express authorization, delegation, or consent.
+A complete candidate has matching labels in parsed `Signature-Input` and
+`Signature`. Before cryptographic verification, require exactly one complete
+request candidate tagged `web-bot-auth`, or, for each directory key, exactly one
+tagged `http-message-signatures-directory` with that thumbprint `keyid`. Distinct
+keys' directory signatures do not create ambiguity. Ignore well-formed unrelated
+or incomplete members; malformed Structured Fields reject the complete field.
 
-A binding that offers nested signing MUST enforce WBA section 5.2.2: covering
-`"signature";key="X"` also requires covering `"signature-input";key="X"` and
-every component identifier covered by the inner signature. Reject signing if
-any of those values cannot be preserved. Verify each signature independently;
-a valid outer signature does not validate the inner one. This revision does not
-require a nested-signing API.
+This overrides section 02's exactly-one-successfully-verified-candidate rule:
+one valid plus one invalid complete same-tag request candidate rejects. WBA
+section 5.2.2 permits broader multi-signature behavior.
 
-A complete candidate has the same label in both parsed `Signature-Input` and
-`Signature` dictionaries. Request selection requires exactly one complete
-candidate tagged `web-bot-auth`, before cryptographic verification. One valid
-candidate plus another complete verification-invalid candidate with that tag
-MUST be rejected, not resolved by trying both signatures.
-
-Directory selection applies the same rule per candidate key thumbprint: exactly
-one complete candidate tagged `http-message-signatures-directory` with that
-`keyid` is required. Signatures for other keys do not create ambiguity; this
-preserves multi-key directory support. Well-formed unrelated or incomplete
-members do not count as complete candidates. Malformed Structured Fields still
-reject the complete field under the shared parsing rules.
+Nested signing is optional. If offered, covering `"signature";key="X"` MUST also
+cover `"signature-input";key="X"` and all inner covered component identifiers;
+reject signing if their values cannot be preserved. Verify signatures independently:
+an outer signature neither validates the inner nor establishes authorization,
+delegation, or consent.
 
 ## Directory transport
 
-Discovery MUST return HTTP `200 OK`. All other status codes are discovery
-failures. Verifiers MUST NOT automatically follow redirects, including HTTPS
-redirects to the same host. Injected transports have the same obligation; core
-DNSid fetcher redirect allowances do not apply to WBA discovery.
+Require HTTP 200; all other statuses fail discovery. MUST NOT follow any redirect,
+including same-host HTTPS. These rules also bind injected transports, regardless
+of core DNSid fetcher redirect allowances.
 
-Verifiers MUST request uncoded directory content and reject responses containing
-`Content-Encoding`. Discovery transports MUST disable transparent decompression
-and preserve the original response fields and content bytes so this rejection
-and the shared Content-Digest checks operate on the received representation.
-Injected transports have the same obligations. This is a DNSid WBA profile
-restriction, not a change to section 02's general digest byte-layer contract.
+Request uncoded content; reject `Content-Encoding`. Transports MUST disable
+transparent decompression and preserve original fields and bytes for digest
+verification. This restriction does not change section 02's general byte-layer
+contract.
 
-Directory availability failures, including network timeouts and temporary HTTP
-503 responses, MUST be classified as transient verification failures, not invalid
-signatures. Invalid TLS, unsafe destinations, malformed or cryptographically
-invalid evidence, and acceptance denial remain permanent failures. Neither
-classification permits success, stale-evidence fallback, or directory-only
-fallback.
+Timeouts and temporary failures such as HTTP 503 are transient, not invalid
+signatures. Invalid TLS, unsafe destinations, malformed/cryptographically invalid
+evidence, and acceptance denial are permanent failures. Neither permits stale
+success or directory-only fallback.
 
 ## Request verification requirements
 
-The DNSid WBA verifier performs these checks:
+1. Parse complete signature fields and apply [selection](#signature-selection).
+2. Require integer `created`/`expires`, `created <= expires`, lifetime at most
+   300 seconds, and current-time validity with configured skew.
+3. Require a valid unpadded base64url SHA-256 JWK thumbprint `keyid`,
+   `alg="ed25519"`, exact unparameterized `@authority`, and recipient-required
+   coverage.
+4. Supplied content requires exact unparameterized `content-digest` coverage.
+   Validate every covered digest, including parameterized components, under
+   shared RFC 9530 rules; reject covered digests without supplied content.
+5. Validate the selected covered `Signature-Agent` member before network work
+   under [discovery](#signature-agent-discovery), even with trusted caller discovery.
+6. Establish `signerDomain` from caller policy. Use the discovery origin host only
+   if policy allows it to identify the signer. Cross-host delegation requires a
+   separate authenticated proof and is otherwise unsupported.
+7. Treat discovery as SSRF input: require HTTPS/Web PKI and public addresses for
+   the approved host. Validate every connection; reject redirects, localhost,
+   loopback, private, link-local, reserved, multicast, and IPv6 ULA destinations.
+   Bound timeout, response size, key count, and JSON depth.
+8. On a cached-directory key miss, apply the bounded re-fetch below. Validate
+   directory transport, structure, digest, signature, and time. Select the
+   candidate key matching request `keyid` and verify the canonical
+   request signature. Defer DNSid binding until both signatures pass; a
+   self-signed directory is not domain authority.
+9. Call `VerifyDomain(signerDomain, peerCert)` with configured acceptance. Bind
+   both request and directory to the profile-selected current operational key's
+   thumbprint, not mere JWKS membership. Reject discovery identifying authenticated
+   `ku`. Only a key mismatch permits [bounded refresh](#key-mismatch-refresh).
+10. Before returning, recheck request/directory time validity and core
+    [acquisition-operation freshness](01-core-identity-manager.md#verifydomaindomain-string-peercert-tlscertificate---verifieddomain).
+    Fresh zero-TTL DNS evidence is usable only by its acquiring invocation;
+    positive DNS TTL, runtime/record-signing certificate validity, and key-age
+    bounds still apply. `Expiry()` alone is insufficient.
+11. Provide an integration point for caller-selected nonce replay policy. When
+    enabled, require a non-empty nonce, atomically reject repeated
+    `(signerDomain, keyid, nonce)`, retain entries through `expires + clockSkew`,
+    and fail closed on store errors. Otherwise document that time limits reuse
+    but does not detect replay.
 
-1. Parse the complete `Signature-Input` and `Signature` fields and select
-   exactly one complete signature tagged `web-bot-auth`.
-2. Require integer `created` and `expires`, `created <= expires`, a lifetime no
-   greater than 300 seconds, and current-time validity with the configured
-   clock skew.
-3. Require a syntactically valid unpadded base64url SHA-256 JWK thumbprint in
-   `keyid`, `alg="ed25519"`, and exact unparameterized `@authority` coverage.
-4. If content is supplied, require exact unparameterized `content-digest`
-   coverage. Validate every covered Content-Digest component under the shared
-   RFC 9530 rules, including parameterized coverage; reject a covered digest
-   when content was not supplied.
-5. Require `Signature-Agent` and one selected dictionary member covered with
-   `signature-agent;key="member"`. Resolve its explicit or default discovery
-   type as defined above. Reject missing, uncovered, invalid, or unsupported
-   selected discovery before network work, even with trusted caller discovery.
-6. Establish `signerDomain` from caller policy. Discovery from
-   `Signature-Agent` is allowed only when policy permits its HTTPS origin host
-   to identify the signer. Cross-host delegation is unsupported without a
-   separate authenticated delegation proof.
-7. Treat discovery as SSRF input: require HTTPS and valid Web PKI; resolve and
-   connect only to public addresses for the approved host; validate each
-   connection and reject redirects; reject localhost, loopback, private,
-   link-local, reserved, multicast, and IPv6 ULA targets; and enforce timeout,
-   response-size, key-count, and JSON-depth limits.
-8. Verify the discovered response under the directory verification requirements
-   below. Select an authenticated OKP/Ed25519 directory key whose recomputed
-   thumbprint equals `keyid` and whose `alg`, if present, is `ed25519`; then
-   verify the canonical request signature base.
-9. Call `VerifyDomain(signerDomain, peerCert)`, including configured counterparty
-   acceptance, and accept the WBA key only when the same public-key thumbprint
-   equals that of the profile-selected current operational signing key in the
-   verified runtime JWKS. Membership in that JWKS alone is insufficient; auxiliary
-   or historical keys do not gain operational signing authority. Missing DNSid
-   identity or acceptance denial rejects; directory-only verification is not a
-   fallback.
-10. Recheck request and directory time validity and DNSid evidence freshness
-    before returning, including when network work consumed the validity window.
-    Apply core's [acquisition-operation freshness rules](01-core-identity-manager.md#verifydomaindomain-string-peercert-tlscertificate---verifieddomain):
-    fresh zero-TTL DNS evidence may be used within this acquiring WBA invocation,
-    but never by a later invocation. Positive DNS TTL, runtime and record-signing
-    certificate validity, and key-age bounds remain enforced. `Expiry()` alone
-    is not a sufficient acquisition-operation validity check.
-11. Apply caller-selected nonce replay policy when one-time request semantics
-    are needed. The binding MUST provide an integration point for that policy.
-    When enabled, require a non-empty nonce, atomically reject repeated
-    `(signerDomain, keyid, nonce)` values, retain them through `expires + clockSkew`,
-    and fail closed on replay-store errors. Without replay policy, document
-    that time validity limits reuse but does not detect it.
-
-Trusted caller signer-domain and discovery policy constrains the signed
-`Signature-Agent`; it does not make that header optional. WBA's thumbprint-only
-verifier outcome does not satisfy this DNSid profile and is not a fallback.
+Missing DNSid identity, failed verification, or acceptance denial rejects without
+directory-only fallback. Trusted discovery never makes `Signature-Agent` optional.
 
 ## Directory verification requirements
 
-For each candidate directory key, the verifier:
+For each candidate key:
 
-1. Requires status 200, the directory media type, bounded JSON, and a valid
-   public OKP/Ed25519 JWK with no private material. Preserve and validate standard
-   JWK metadata: `use`, if present, MUST be `sig`; `alg`, if present, MUST be
-   `ed25519`. `key_ops`, if present, MUST be an array of distinct strings containing
-   `verify` and no operations other than `sign` or `verify`. Malformed, empty, or
-   verification-excluding arrays reject. Algorithm translation MUST NOT discard
-   these restrictions.
-2. Recomputes the candidate JWK thumbprint and requires it to equal `kid`.
-3. Requires exactly one complete signature tagged
-   `http-message-signatures-directory` whose `keyid` equals that thumbprint,
-   under the signature-selection rule above.
-4. Applies the same lifetime, expiry, and algorithm limits as above, but rejects
-   a directory signature whose `created` is later than the current time, without
-   clock-skew tolerance, as required by WBA Appendix B.1.
-5. Requires exact `@authority;req`, `content-type`, `cache-control`, and
-   `content-digest` coverage.
-6. Verifies the recomputed SHA-256 content digest and then the canonical HTTP
-   signature with the candidate key.
-7. Rejects cache use beyond the earliest of HTTP cache freshness, signature
-   `expires`, or DNSid key-state freshness.
-8. Calls `VerifyDomain(signerDomain, peerCert)`, including configured counterparty
-   acceptance, and binds the key to the profile-selected current operational
-   signing key, including on directory cache hits. A single invocation may reuse
-   the same verified DNSid result for request and directory binding; two separate
-   `VerifyDomain` calls are not required.
-
-A directory self-signature proves possession and protects the response bytes.
-It does not establish domain authority by itself.
+1. Require directory transport/media type, bounded JSON, and a valid public
+   OKP/Ed25519 JWK without private members. If present, `use` MUST be `sig`, `alg`
+   MUST be `ed25519`, and `key_ops` MUST be an array of distinct strings including
+   `verify`, with no operations outside `sign`/`verify`. Reject malformed or empty
+   arrays; algorithm translation MUST preserve metadata restrictions.
+2. Recompute the RFC 7638 thumbprint and require matching `kid` and signature
+   `keyid`, with [directory signature selection](#signature-selection).
+3. Apply request lifetime, expiry, and algorithm limits, but reject any future
+   `created` without skew, per WBA Appendix B.1.
+4. Require exact `@authority;req`, `content-type`, `cache-control`, and
+   `content-digest` coverage; verify SHA-256 digest and canonical signature.
+5. Bind to the verified current DNSid operational key with current-peer and
+   acceptance checks, including cache hits. One invocation may reuse its DNSid
+   result for both bindings; a mismatch refresh waits until the request signature
+   also verifies.
+6. Limit reuse to the earliest HTTP freshness, signature expiry, or DNSid
+   key-state freshness deadline.
 
 ### Directory caching
 
-Directory caching is optional. A freshly acquired response with `no-store`,
-`no-cache`, or a zero freshness lifetime MAY authenticate the acquiring
-invocation; those directives restrict storage or reuse, not fresh acquisition.
-Request and directory signature validity, DNSid evidence bounds, and final checks
-still apply. Missing HTTP age metadata on a fresh response is not a reason to
-substitute signature `created` for acquisition time or reject that invocation.
+Caching is optional. On network acquisition as well as reuse, SDKs MUST enforce
+any HTTP freshness deadline established by response metadata, using RFC 9111 age
+calculations, and recheck it before return. For example, `max-age=300` with
+`Age: 300` is stale even with a valid signature. Sending `Cache-Control: no-cache`
+does not prove freshness. Enforce this in the verifier or supplied transport,
+not only as an obligation on an external cache.
 
-Cache obligations apply whenever directory evidence
-is reused, including through an injected discovery transport. Reuse MUST preserve
-HTTP freshness under RFC 9111 age calculations, with applicable `Date`/`Age` fields
-and original acquisition timing. The discovery boundary MUST retain or expose
-sufficient age metadata to establish the original freshness deadline. Returning
-the same response MUST NOT restart its freshness window. Missing `Date` and `Age`
-do not prove that reused evidence has age zero; evidence without sufficient age
-metadata MUST NOT be reused as fresh. No new public metadata field is required
-when a binding can enforce this internally.
+Freshly acquired or revalidated `no-store`, `no-cache`, or zero-freshness responses
+MAY serve their acquiring invocation subject to signature/DNSid bounds. Zero
+freshness with positive upstream `Age` is stale. Missing age metadata does not
+invalidate fresh acquisition or justify using signature `created` as acquisition
+time; it still prevents reuse without enough original timing evidence.
 
-Newer successfully resolved key material replaces older material for that URL,
-including when it omits a previously cached key. Order direct resolutions by
-fetch time and signed directory proofs by `created`, not by the time a proof
-was received. A failed resolution MUST NOT evict existing cached evidence or
-extend its freshness. Retention does not authorize stale use: an invocation
-that needs fresh discovery fails if discovery is unavailable.
+If a cached directory lacks the syntactically valid request thumbprint, the
+verifier MUST attempt one re-fetch when admitted: bypass local caches and send an
+unconditional GET with `Cache-Control: no-cache`. Injected caches MUST revalidate;
+the response must satisfy normal HTTP 200, signature, DNSid, and freshness checks.
+This precedes request authentication, so allow at most one attempt per five seconds
+for each normalized URL and each signer domain within the verifier context.
+Apply the DNSid-refresh coalescing, failed-attempt accounting, bounded-state, and
+resource-budget rules to this separate limiter; varying keys, URL queries, or
+paths must not bypass the limits. Do not retry a freshly fetched directory that
+still lacks the key, or fall back after a suppressed or failed re-fetch.
 
-Each invocation still requires current-peer handling, DNSid acceptance, current
-operational-key binding, and final freshness checks. Directory caching does not
-replace core's DNSid evidence freshness policy.
+All reuse, including injected transport caches, MUST preserve RFC 9111 age using
+applicable `Date`/`Age` and original acquisition timing. Retain or expose enough
+metadata to establish the original deadline; do not restart freshness on access.
+Without sufficient age metadata, do not reuse evidence as fresh. No new public
+metadata field is required if enforced internally.
 
-SDK verifier validation MUST cover a directory-only signer with configured
-acceptance (reject in the DNSid profile), a valid DNSid signer denied by policy
-(reject without fallback), and, when caching is supported, cached directory
-evidence (reevaluate DNSid acceptance and current key binding). Uncached bindings
-MUST instead test repeated fresh discovery, with acceptance denial and changed
-current operational keys on later invocations. A separately offered generic
-verifier must test explicit selection and results that make no DNSid acceptance claim. These
-requirements are mandatory for the DNSid WBA verifier. A signing-only binding
-records verification as `Missing`, not `Not applicable`.
+Newer successful evidence replaces older keys for that URL, including removed
+keys. Order direct resolutions by fetch time and signed proofs by `created`, not
+receipt time. Failed resolution MUST NOT evict retained evidence or extend its
+freshness; an invocation needing fresh evidence fails if discovery is unavailable.
+Every invocation still checks current peer, acceptance, current-key binding, and
+core freshness.
 
-Required verifier tests include successful signed request/directory verification,
-non-default signature labels, bad request or directory signatures, wrong tags or
-thumbprints, missing required coverage, modified content, expired evidence,
-private-address discovery and redirect rejection, missing current-peer evidence
-for `fl=mtls`, cache-hit acceptance denial or key rotation when caching is
-supported, and configured nonce replay/store failure. Tests MUST confirm that neither DNSid verification failures
-nor acceptance denial fall back to directory-only success.
+Native validation MUST cover:
 
-Additional required validation covers:
-
-| Scenario | Required result |
-|---|---|
-| Missing `Signature-Agent`, including with trusted caller discovery | Reject before discovery. |
-| Selected `Signature-Agent` member is uncovered, has an unsupported type, or is not a valid origin for `directory` | Reject before discovery; no URL-component stripping or fallback. |
-| Intermediary relabels a signature but preserves its covered `Signature-Agent` member | Resolve the covered member; accept if all other checks pass. |
-| Binding offers nested signing but cannot cover the inner `signature-input` and all inner components | Reject signing; an outer signature never substitutes for independent inner verification. |
-| Discovery returns a redirect, including to a public address on the same host | Reject without following it. |
-| Directory signature `created` is one second in the future with five seconds of configured skew | Reject. |
-| Same key is known under a different discovery URL only | Do not attribute it to the asserted URL without that URL's authenticated association. |
-| Newer directory omits a cached key; older signed proof is still time-valid | Do not restore the removed key from the older proof. |
-| Directory refresh fails while evidence is cached | Retain existing evidence without extending freshness; never use expired evidence successfully. |
-| Auxiliary non-signing key signs request and directory alongside a valid current operational key | Reject. |
-| Fresh zero-TTL DNS evidence, otherwise valid | Acquiring invocation may succeed; next invocation needs fresh DNS. |
-| Certificate or key-age bound expires, including with zero DNS TTL | Reject. |
-| Repeated cache use, including without `Date`/`Age` | Preserve original freshness deadline; reject reuse without sufficient age metadata. |
-| One valid plus one invalid complete same-tag request candidate | Reject before cryptographic selection. |
-| One valid plus one invalid complete directory candidate for the same key | Reject that key; signatures for distinct keys are not ambiguous. |
-| Authority-only signature with omitted versus configured operation coverage policy | Default may accept; configured missing coverage rejects. |
-| Malformed, empty, or encryption-only directory `key_ops` | Reject. |
-| Coded directory response | Reject without transparent decompression. |
-| Valid directory signature also covering actual `@status` | Accept if all other checks pass. |
-| Non-finite, Boolean, or out-of-range duration settings | `ArgumentError` before network work. |
-| Caller mutates validated configuration, including nested discovery settings | Existing profile policy is unchanged. |
-| Parameterized Content-Digest coverage without supplied content | Reject; digest validation is not limited to exact minimum coverage. |
-| Fresh signed directory with `no-store`, `no-cache`, or `max-age=0` | Acquiring invocation may succeed; cache reuse remains restricted. |
-| Repeated signing or verification of the same streamed message | Preserve cleanup without retaining earlier replay buffers. |
-| Directory timeout or HTTP 503 | Transient failure; no successful fallback. |
+- Successful verification and non-default/intermediary-relabeled labels; bad
+  signatures, tags, thumbprints, coverage, modified content, and expired evidence.
+- Directory-only signers with configured acceptance, DNSid failures, and policy
+  denial without fallback; explicit generic-mode selection/results if offered.
+  Cached bindings recheck acceptance and changed keys; uncached bindings test
+  repeated fresh discovery with later denial and changed current keys.
+- Missing/uncovered/unsupported discovery and non-origin `directory` URLs before
+  network work, even with trusted discovery; URL/key-pair isolation; `ku` discovery
+  including empty-path, query, and fragment variants; SSRF, invalid TLS, and
+  same-host redirects.
+- Future directory `created` by one second despite five-second skew; serving TTLs
+  300/5/1 backdated 5/4/0 with bounded `max-age`; default-TTL verification with a
+  clock five seconds behind generation.
+- Mismatch refresh success, unchanged/revoked/denied/unavailable outcomes,
+  concurrent cooldowns across changed keys/URLs, failed-attempt accounting,
+  invalid-signature/failure suppression, evidence expiring during refresh, and
+  a real resolver retaining no cached `ACTIVE` success after learning revocation.
+- Cached-directory key-miss re-fetch, upstream revalidation, cooldowns across key/
+  URL variants, fresh-miss suppression, and failure without fallback; signed
+  `must-revalidate` output and rejection of HTTP-stale or signature-expired evidence.
+- Cache deadline/age retention, including missing `Date`/`Age`, newer-key removal
+  despite older time-valid proofs, failed refresh without stale success, and fresh
+  `no-store`/`no-cache`/`max-age=0` responses.
+- Auxiliary-key rejection; zero-TTL acquisition versus later invocation and
+  certificate/key-age expiry; missing current-peer evidence for `fl=mtls`.
+- Valid-plus-invalid request candidates and same-key directory candidates;
+  distinct-key directory signatures; nested signing's inner-coverage requirements.
+- Default authority-only versus required operation coverage; malformed/empty/
+  encryption-only `key_ops`; coded responses; valid extra `@status` coverage;
+  parameterized digest coverage without content; nonce replay/store failure.
+- Invalid numeric settings; configuration mutation including nested discovery;
+  key activation during request/directory signing (valid matching-key output or
+  explicit rejection); repeated stream cleanup and real-network early rejection
+  without process crashes; transient directory timeout/HTTP 503.
 
 ## Key reuse decision
 
-The WBA draft advises against reusing signing keys across purposes and
-protocols. DNSid intentionally defines `ku` as the current application/runtime
-identity key, so the first profile permits the same Ed25519 key for WBA and
-other DNSid runtime signatures. This is a deliberate profile deviation.
+WBA advises against cross-purpose key reuse. This profile deliberately uses the
+current Ed25519 `ku` for WBA and other DNSid runtime signatures. It also authorizes
+`KEY_ROTATION`: compromise of a signing node with unrestricted key access can
+authorize operational identity rotation. Tags do not stop fresh rotation
+signatures; this does not grant `ek` authority or prevent entity revocation.
+Deployment guidance MUST state this exposure.
 
-Cross-protocol separation is mandatory:
+Cross-protocol separation is mandatory: WBA requests use thumbprint `keyid`,
+`tag="web-bot-auth"`, and request policy; directories use their distinct tag and
+response policy; DNSid generic HTTP signatures use domain-qualified IDs and their
+own coverage. Never accept one profile's signature under another profile's rules.
 
-- WBA requests use a JWK-thumbprint `keyid`, required
-  `tag="web-bot-auth"`, and WBA component policy.
-- Directory responses use a different required tag and response component
-  policy.
-- DNSid generic HTTP signatures use a domain-qualified `keyid` and their own
-  minimum component policy.
-
-Verifiers never accept a signature under one profile's selection and policy as
-another profile. A future dedicated WBA key can be introduced only with an
-owner-authoritative DNSid binding; no unbound directory key is accepted.
+Dedicated WBA delegation needs a separate security design before broad multi-node
+fleet deployment: owner-authoritative binding, signer identity, purpose, discovery
+attribution, lifetime/withdrawal, current-issuer checks, and `ku` rotation behavior.
+Delegated WBA-key overlap alone cannot bridge authorizing `ku` rotation. No unbound
+directory key is accepted.

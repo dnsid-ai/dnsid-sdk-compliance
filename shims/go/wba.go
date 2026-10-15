@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dnsid-ai/dnsid-go"
 	"github.com/dnsid-ai/dnsid-go/webbotauth"
 )
 
@@ -33,6 +34,15 @@ func wbaHeaders(header http.Header) map[string]string {
 	return values
 }
 
+type wbaSigningIdentity struct {
+	domain, ku string
+	keys       dnsid.KeyProvider
+}
+
+func (m wbaSigningIdentity) Domain() string                 { return m.domain }
+func (m wbaSigningIdentity) KeyProvider() dnsid.KeyProvider { return m.keys }
+func (m wbaSigningIdentity) OperationalKeyURL() string      { return m.ku }
+
 func handleWBA(req request) map[string]any {
 	if req.Op == "wba_verify_request" {
 		if _, present := reflect.TypeOf((*webbotauth.Profile)(nil)).MethodByName("VerifyWebBotAuthSignedRequest"); present {
@@ -43,6 +53,12 @@ func handleWBA(req request) map[string]any {
 	key, err := newFixtureKeyProvider(req.Key)
 	if err != nil {
 		return errJSON(err)
+	}
+	if req.SigningKeyChange != nil {
+		key.next, err = newFixtureKeyProvider(*req.SigningKeyChange)
+		if err != nil {
+			return errJSON(err)
+		}
 	}
 	cfg := webbotauth.Config{
 		DirectoryURL:          req.WebBotAuth.SignatureAgent.URI,
@@ -56,6 +72,9 @@ func handleWBA(req request) map[string]any {
 		cfg.DirectorySignatureTTL = time.Duration(*req.WebBotAuth.DirectorySignatureTTL) * time.Second
 	}
 	profile := webbotauth.New(req.Domain, key, cfg)
+	if req.LocalKu != "" {
+		profile = webbotauth.NewFromIdentityManager(wbaSigningIdentity{req.Domain, req.LocalKu, key}, cfg)
+	}
 	if req.ConfigMutation.IncludeSignatureAgent != nil && cfg.IncludeSignatureAgent != nil {
 		*cfg.IncludeSignatureAgent = *req.ConfigMutation.IncludeSignatureAgent
 	}
@@ -83,7 +102,11 @@ func handleWBA(req request) map[string]any {
 	case "directory":
 		response, serveErr := profile.ServeHttpMessageSignaturesDirectory(message)
 		if serveErr != nil {
-			return errJSON(serveErr)
+			result := errJSON(serveErr)
+			if req.SigningKeyChange != nil {
+				result["error"] = "SigningRejected"
+			}
+			return result
 		}
 		body, readErr := io.ReadAll(response.Body)
 		if readErr != nil {
@@ -97,7 +120,11 @@ func handleWBA(req request) map[string]any {
 		}
 		signed, signErr := profile.CreateWebBotAuthSignedRequest(message, opts)
 		if signErr != nil {
-			return errJSON(signErr)
+			result := errJSON(signErr)
+			if req.SigningKeyChange != nil {
+				result["error"] = "SigningRejected"
+			}
+			return result
 		}
 		var encoded any
 		if req.Request.BodyBase64 != nil {

@@ -165,10 +165,10 @@ In particular, proxy deployments MUST establish trusted scheme and authority bef
 verification; untrusted forwarding headers do not define `@authority` or
 `@target-uri`.
 
-The shared `@query-param` vector covers reserved-character decoding and
-re-encoding. It does not currently cover `+` versus `%20`, empty, absent, or
-duplicate values; their handling is still required by RFC 9421 §2.2.8 and the
-supported component rules above. For example `?a!=v!` produces:
+Shared `@query-param` vectors cover reserved characters, `+` versus `%20`, and
+empty values. Form-percent encoding preserves `*` but encodes `~` as `%7E` and
+spaces as `%20`; RFC 3986's unreserved-character set is not a substitute.
+Absent or duplicate selected parameters still reject. For example `?a!=v!` produces:
 
 ```text
 "@query-param";name="a%21": v%21
@@ -180,7 +180,9 @@ Malformed dictionaries and absent members are errors.
 `SignHttpMessage` adds or replaces only the selected label in `Signature-Input`
 and `Signature`; other valid dictionary members are preserved through parse
 and serialization. Callers set ordinary fields such as `Content-Digest` and
-`Signature-Agent` before signing.
+`Signature-Agent` before signing. Metadata and signature MUST refer to the same
+key: activation between key selection and signing must produce valid matching-key
+output or an explicit error, never a silently invalid signature.
 
 ## Content-Digest
 

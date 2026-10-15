@@ -66,19 +66,21 @@ const errJSON = (e) => ({
 function fixtureKeyProvider(fixture) {
   const jwk = { kty: 'OKP', crv: 'Ed25519', alg: 'EdDSA', use: 'sig', kid: fixture.kid, x: fixture.x };
   const privateKey = createPrivateKey({ key: { ...jwk, d: fixture.seed }, format: 'jwk' });
-  const state = { signedPayload: new Uint8Array(), signCalls: 0 };
+  const state = { signedPayload: new Uint8Array(), signCalls: 0, next: null };
+  let active = { jwk, privateKey };
   return {
     jwk,
     privateKey,
     state,
     provider: {
-      signingKey: async () => jwk,
-      jwk: async () => jwk,
-      listKeyIds: async () => [fixture.kid],
+      signingKey: async () => active.jwk,
+      jwk: async () => active.jwk,
+      listKeyIds: async () => [active.jwk.kid],
       sign: async (payload) => {
+        if (state.next) { active = state.next; state.next = null; }
         state.signCalls += 1;
         state.signedPayload = payload;
-        return signBytes(null, payload, privateKey);
+        return signBytes(null, payload, active.privateKey);
       },
       signKey: async (_kid, payload) => signBytes(null, payload, privateKey),
       generateKey: async () => { throw new Error('not implemented'); },
@@ -115,7 +117,13 @@ async function handleWba(req) {
     return { ok: false, error: 'CapabilityMissing', capability: 'wba_request_verification', message: 'SDK has signing/directory serving only' };
   }
   const key = fixtureKeyProvider(req.key);
-  const profile = new wba.WebBotAuthProfile({ domain: req.domain, keyProvider: key.provider, webBotAuth: req.webBotAuth });
+  if (req.signingKeyChange) key.state.next = fixtureKeyProvider(req.signingKeyChange);
+  const profile = req.localKu ? wba.WebBotAuthProfile.fromIdentityManager({
+    config: { identity: { domain: req.domain, kuUrl: req.localKu } },
+    getKeyProvider: () => key.provider,
+    verifyDomain: async () => { throw new Error('unexpected identity lookup'); },
+    refreshDomain: async () => { throw new Error('unexpected identity refresh'); },
+  }, req.webBotAuth) : new wba.WebBotAuthProfile({ domain: req.domain, keyProvider: key.provider, webBotAuth: req.webBotAuth });
   for (const [name, value] of Object.entries(req.configMutation ?? {})) {
     if (name === 'signatureAgent') Object.assign(req.webBotAuth.signatureAgent, value);
     else req.webBotAuth[name] = value;

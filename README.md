@@ -109,10 +109,11 @@ public-address filtering and certificate verification still run in the SDK.
   the corresponding native fixture helpers in the SDK checkout. Compile or
   setup failures remain `AdapterError`, never successful negative tests. No SDK
   source files are changed.
-- TypeScript cases run sequentially because clock and physical-dial overrides
-  are process-wide. The adapter buffers the fixed fixture response bytes to
-  avoid a Node stream-bridge cancellation race; live streaming limits and replay
-  cleanup remain native SDK test obligations.
+- TypeScript verification cases run in separate processes because clock/dial
+  overrides are process-wide and stream rejection can crash the runtime. The
+  real raw response stream reaches the verifier without adapter buffering.
+  A child crash remains a per-case `AdapterError`, not a successful rejection;
+  other cases and SDKs still produce a report.
 
 `CAPABILITIES` in `harness/run.py` records optional directory-cache support. All
 current adapters use uncached discovery; `uncachedExpect` requires observed
