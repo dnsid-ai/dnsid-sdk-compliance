@@ -10,7 +10,8 @@ from unittest.mock import patch
 
 import yaml
 
-from run import compare, evaluate_result, render_report
+from run import ROOT, build_adapters, compare, evaluate_result, load_fixtures, render_report, resolve_expectation
+from semantic_vectors import load_semantic_suites
 from wba_vectors import VECTOR_PATH, load_wba_suite
 
 
@@ -175,6 +176,83 @@ class RunnerTests(unittest.TestCase):
 
     def test_missing_result_cannot_count_as_rejection(self):
         self.assertTrue(compare({"ok": False}, {}))
+
+    def test_rejections_need_a_specific_error_and_cannot_hide_adapter_failures(self):
+        self.assertTrue(compare({"ok": False}, {"ok": False, "error": "RuntimeError"}))
+        for error in ("AdapterError", "ShimError"):
+            case = {"op": "parse", "expect": {"ok": False, "error": error},
+                    "sdk": {"py": {"known_bug": "An existing SDK defect"}}}
+            actual = {"ok": False, "error": error, "message": "unexpected failure"}
+            self.assertEqual(evaluate_result(case, "py", actual)[0], "FAIL")
+
+    def test_all_negative_fixtures_name_native_errors(self):
+        suites = [*load_fixtures(ROOT / "fixtures", None), *load_semantic_suites(), load_wba_suite()]
+        for suite in suites:
+            for case in suite["cases"]:
+                for sdk in ("go", "ts", "py"):
+                    expected, _ = resolve_expectation(case, sdk)
+                    if expected["ok"] is False:
+                        with self.subTest(case=case["id"], sdk=sdk):
+                            self.assertTrue(expected.get("error"))
+
+    def test_python_checkout_must_match_the_imported_package(self):
+        with tempfile.TemporaryDirectory() as directory:
+            selected = Path(directory) / "selected"
+            for imported, matches in ((selected / "dnsid/__init__.py", True),
+                                      (Path(directory) / "old/dnsid/__init__.py", False)):
+                with (
+                    self.subTest(imported=imported),
+                    patch.dict(os.environ, {"DNSID_PY_DIR": str(selected)}),
+                    patch.dict("sys.modules", {"dnsid": SimpleNamespace(__file__=str(imported))}),
+                ):
+                    if matches:
+                        self.assertIn("py", build_adapters({"py"}))
+                    else:
+                        with self.assertRaisesRegex(RuntimeError, "not imported from"):
+                            build_adapters({"py"})
+
+    def test_setup_rebuilds_and_reinstalls_existing_artifacts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "shims/go").mkdir(parents=True)
+            for name in ("dnsid-shim", "main.go", "go.mod"):
+                (root / "shims/go" / name).touch()
+            (root / ".venv/bin").mkdir(parents=True)
+            (root / ".venv/bin/python").touch()
+            for checkout in ("first", "second"):
+                result = subprocess.run(
+                    ["make", "-n", "-f", str(ROOT / "Makefile"), "setup",
+                     f"DNSID_GO_DIR=/{checkout}/go", f"DNSID_PY_DIR=/{checkout}/py"],
+                    cwd=root, capture_output=True, text=True, check=True,
+                )
+                self.assertIn("go build -o dnsid-shim .", result.stdout)
+                self.assertIn(f'go work init . "/{checkout}/go"', result.stdout)
+                self.assertIn(f'uv pip install -p .venv pyyaml cryptography -e "/{checkout}/py"', result.stdout)
+
+    def test_ci_gate_rejects_new_failures_even_when_total_does_not_increase(self):
+        workflow = yaml.safe_load((ROOT / ".github/workflows/sdk-compliance.yaml").read_text())
+        script = next(s["run"] for s in workflow["jobs"]["compliance"]["steps"]
+                      if s.get("id") == "compliance_summary")
+        cases = [{"id": name, "op": "parse", "description": "test", "expect": {"ok": True}}
+                 for name in ("old-failure", "new-failure")]
+        suites = [{"suite": "test", "path": "test", "cases": cases}]
+
+        def report(failing):
+            rows = [("test", case, {"py": evaluate_result(
+                case, "py", {"ok": case["id"] not in failing})}) for case in cases]
+            return render_report(["py"], suites, rows, SimpleNamespace())
+
+        for head in ({"new-failure"}, set()):
+            with self.subTest(head=head), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / "report-head.md").write_text(report(head))
+                (root / "report-base.md").write_text(report({"old-failure"}))
+                subprocess.run(
+                    ["bash", "-c", script], cwd=root, check=True, capture_output=True, text=True,
+                    env={**os.environ, "SDK": "py", "GITHUB_STEP_SUMMARY": str(root / "summary"),
+                         "GITHUB_OUTPUT": str(root / "outputs")},
+                )
+                self.assertIn("regressed=" + str(bool(head)).lower(), (root / "outputs").read_text())
 
 
 if __name__ == "__main__":

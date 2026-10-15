@@ -428,7 +428,7 @@
         }
       ],
       "policy": "log log.example+3db4ee08+AcqTrBcFGHBx1nuDx/8O/oEI6OxFMFdddyaHkzPb2r58\nwitness primary witness.example+da76602f+BG56HN0psLeP0Tr0xVmP7/TvKpcWbjym8uT7/M2AUFvx\nquorum primary\n",
-      "checkpoint": "log.example\n1\n8QPAnGU1E8LcJqqQYznw2KI/c6bl3Lsjb1aLqasYWJY=\n\n\u2014 log.example PbTuCGxyZH/vlcINJ2oqA4AAfAJ7Ktu4SF79p5tRBCc7q91a0UQvh5w+SBPTvf0yPCePrvFdKNFSDPNupexd6Hv80Ac=\n\u2014 witness.example 2nZgLwAAAABqOdqQqc15p65YGONs4abMW6ltgPHtrWE/lmasp7Pak+qqcCjrYWgZIUNpKihRYR8KKxdYauc9jK4CIYkc65MM7QwqCQ==\n",
+      "checkpoint": "log.example\n1\n8QPAnGU1E8LcJqqQYznw2KI/c6bl3Lsjb1aLqasYWJY=\n\n\u2014 log.example PbTuCGxyZH/vlcINJ2oqA4AAfAJ7Ktu4SF79p5tRBCc7q91a0UQvh5w+SBPTvf0yPCePrvFdKNFSDPNupexd6Hv80AY=\n\u2014 witness.example 2nZgLwAAAABqOdqQqc15p65YGONs4abMW6ltgPHtrWE/lmasp7Pak+qqcCjrYWgZIUNpKihRYR8KKxdYauc9jK4CIYkc65MM7QwqCQ==\n",
       "checkpointAccepted": false,
       "completeThroughCheckpoint": true,
       "entityJwk": {

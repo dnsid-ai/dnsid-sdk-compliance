@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
 
 class FixtureKeyProvider:
     def __init__(self, fixture: dict):
@@ -52,6 +55,13 @@ class PyAdapter:
 
     name = "py"
 
+    def __init__(self):
+        import dnsid
+
+        expected = Path(os.environ.get("DNSID_PY_DIR", Path.home() / "dnsid-py")).resolve()
+        if not Path(dnsid.__file__).resolve().is_relative_to(expected):
+            raise RuntimeError(f"dnsid-py is not imported from {expected}; run make setup with DNSID_PY_DIR set")
+
     def run(self, requests: list[dict]) -> list[dict]:
         return [self._handle(r) for r in requests]
 
@@ -77,6 +87,7 @@ class PyAdapter:
         from dnsid import JWKS
         from dnsid._crypto import jwk_from_dict
         from dnsid._utils import normalize_fqdn
+        from dnsid.exceptions import DNSidError
         from dnsid.models import DnsIdTxtRecord
 
         try:
@@ -95,7 +106,7 @@ class PyAdapter:
                     )
                     params = SignatureParams.parse_dictionary(req["signature_input"])[req["label"]]
                     return {"ok": True, "value": _build_signature_base(message, params).decode()}
-                except Exception as exc:  # noqa: BLE001
+                except DNSidError as exc:
                     return {"ok": False, "error": "ConformanceError", "message": str(exc)}
             if op == "lifecycle_vector":
                 return self._lifecycle_vector(req)
@@ -135,7 +146,7 @@ class PyAdapter:
                 serialized = rec.serialize()
                 try:
                     rec2 = DnsIdTxtRecord.parse(serialized)
-                except Exception as e:  # noqa: BLE001
+                except DNSidError as e:
                     return {"ok": False, "error": "RoundTripError", "message": f"reparse failed: {e}"}
                 return {"ok": True, "record": self._record_json(rec2), "value": serialized}
             if op == "validate":
@@ -143,8 +154,10 @@ class PyAdapter:
                 rec.validate()
                 return {"ok": True, "record": self._record_json(rec)}
             return {"ok": False, "error": "ShimError", "message": f"unknown op: {op}"}
-        except Exception as e:  # noqa: BLE001
-            return {"ok": False, "error": type(e).__name__, "message": str(e)}
+        except DNSidError as exc:
+            return {"ok": False, "error": type(exc).__name__, "message": str(exc)}
+        except Exception as exc:  # noqa: BLE001
+            return {"ok": False, "error": "AdapterError", "message": f"{type(exc).__name__}: {exc}"}
 
     @staticmethod
     def _wba(req: dict) -> dict:
@@ -196,12 +209,13 @@ class PyAdapter:
 
     @staticmethod
     def _c2sp_managed_trust_select(req: dict) -> dict:
-        from dnsid.c2sp_tlog import create_dnsid_managed_verification_registry
+        from dnsid.c2sp_tlog import C2spTlogError, create_dnsid_managed_verification_registry
+        from dnsid.exceptions import DNSidError
 
         try:
             create_dnsid_managed_verification_registry().new_reader(req["lr"])
             return {"ok": True, "trustMode": "trust-profile"}
-        except Exception as exc:  # noqa: BLE001
+        except (C2spTlogError, DNSidError) as exc:
             return {"ok": False, "error": "ConformanceError", "message": str(exc)}
 
     @staticmethod
@@ -363,25 +377,49 @@ class PyAdapter:
         from dnsid._crypto import jwk_from_dict
         from dnsid.c2sp_tlog import (
             C2spEventContext,
+            C2spResourceFetchGuarantees,
             C2spTlogError,
+            C2spTlogReader,
+            C2spTlogReaderOptions,
             IndexedEntry,
             MigrationVerificationResult,
+            StreamEvidence,
             StreamVerifierOptions,
+            enforce_checkpoint_policy,
+            parse_checkpoint,
             parse_c2sp_policy_file,
             parse_c2sp_tlog_lr,
             verify_c2sp_tlog_proof,
             verify_stream_lifecycle,
         )
+        from dnsid.exceptions import DNSidError
         from dnsid.models import IssuanceEvent
 
-        if not req["checkpointAccepted"]:
-            return {"ok": False, "error": "LifecycleError", "errorCategory": "INVALID_EVIDENCE", "message": "accepted checkpoint failed"}
-        if not req["completeThroughCheckpoint"]:
-            return {"ok": False, "error": "LifecycleError", "errorCategory": "INCOMPLETE_STREAM", "message": "stream is incomplete"}
+        policy = parse_c2sp_policy_file(req["policy"])
+        parsed = parse_c2sp_tlog_lr(req["lr"])
+        try:
+            checkpoint = parse_checkpoint(req["checkpoint"])
+            enforce_checkpoint_policy(checkpoint, parsed.origin, policy, parsed.scope, req["checkpointIntegrationTimeMs"])
+            if not req["completeThroughCheckpoint"]:
+                class Source:
+                    # All evidence is local; this source cannot access the network.
+                    def security_guarantees(self):
+                        return C2spResourceFetchGuarantees(True, True, True, True, True)
+
+                    def load_stream(self, _reference, _domain):
+                        return StreamEvidence(
+                            checkpoint=checkpoint, complete=False,
+                            entries=[IndexedEntry(index=item["index"], data=base64.urlsafe_b64decode(item["entry"] + "==")) for item in req["entries"]],
+                        )
+
+                C2spTlogReader(req["lr"], C2spTlogReaderOptions(
+                    policy=policy, source=Source(), entity_key=jwk_from_dict(req["entityJwk"]),
+                )).rebuild_history(req["domain"])
+        except (C2spTlogError, DNSidError) as exc:
+            return {"ok": False, "error": "LifecycleError", "errorCategory": str(getattr(exc, "category", None) or "INVALID_EVIDENCE"), "message": str(exc)}
         entries = []
         effects = {}
         ignored = []
-        policy = parse_c2sp_policy_file(req["policy"])
         for item in req["entries"]:
             data = base64.urlsafe_b64decode(item["entry"] + "==")
             proof = base64.urlsafe_b64decode(item["proof"] + "==").decode()
@@ -390,8 +428,8 @@ class PyAdapter:
                     data,
                     proof,
                     policy,
-                    origin="log.example",
-                    scope="public",
+                    origin=parsed.origin,
+                    scope=parsed.scope,
                     now_ms=req["checkpointIntegrationTimeMs"],
                 )
             except C2spTlogError:
@@ -411,7 +449,6 @@ class PyAdapter:
                 raise ValueError("prior migration history unavailable")
             return MigrationVerificationResult(entity, operational, prior)
 
-        parsed = parse_c2sp_tlog_lr(req["lr"])
         options = StreamVerifierOptions(
             context=C2spEventContext(scope="public", log_origin="log.example", stream_id=parsed.stream_id, lr=req["lr"]),
             signer_key=entity,
@@ -429,7 +466,7 @@ class PyAdapter:
             if selected and str(selected[0].event.event_type) == "MIGRATION":
                 out["stitchedEffectIds"] = [*req["priorAppliedEffectIds"], *applied]
             return out
-        except Exception as exc:  # noqa: BLE001
+        except C2spTlogError as exc:
             category = getattr(exc, "category", None)
             index = getattr(exc, "failing_candidate_index", None)
             out = {"ok": False, "error": "LifecycleError", "message": str(exc), "errorCategory": str(category) if category else "INVALID_MIGRATION"}

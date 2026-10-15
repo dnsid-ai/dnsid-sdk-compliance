@@ -4,8 +4,8 @@ name: SDK Compliance (reusable)
 # and fixtures are the source of truth here in dnsid-sdk-compliance; the caller passes which
 # SDK it is and the head/base commits to compare.
 #
-# Gate: the check goes red only if the PR *raises* the failure count vs the base
-# branch (a regression). Pre-existing failures do not block — they show in the
+# Gate: the check goes red if the PR introduces a failing case vs the base
+# branch. Pre-existing failures do not block — they show in the
 # summary as the current compliance %. If base-ref is omitted, the gate is
 # simply "zero failures".
 #
@@ -160,9 +160,9 @@ jobs:
               echo "::error::dnsid-$SDK has known_bug markers for cases that now pass; remove the stale markers"
             fi
 
-            if [ "$head_fail" -gt "$base_fail" ]; then
+            if [ -n "$new" ]; then
               regressed=true
-              echo "::error::dnsid-$SDK compliance regressed: $base_fail → $head_fail failing"
+              echo "::error::dnsid-$SDK introduced new failing compliance cases"
             fi
           else
             if [ "$head_fail" -gt 0 ]; then

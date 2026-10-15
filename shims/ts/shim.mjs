@@ -57,9 +57,12 @@ function recordJSON(r) {
   };
 }
 
+const isNativeError = (error) =>
+  [sdk.ParseError, sdk.ValidationError, sdk.ArgumentError, sdk.VerificationError, c2sp?.C2spTlogError]
+    .some(type => typeof type === 'function' && error instanceof type);
 const errJSON = (e) => ({
   ok: false,
-  error: e?.name && e.name !== 'Error' ? e.name : 'Error',
+  error: isNativeError(e) ? e.name : 'AdapterError',
   message: String(e?.message ?? e),
 });
 
@@ -161,11 +164,12 @@ async function handle(req) {
           if (!params) throw new Error(`signature label ${req.label} not found`);
           return { ok: true, value: new TextDecoder().decode(httpSignatures.buildSignatureInput(message, params)) };
         } catch (error) {
+          if (!isNativeError(error)) throw error;
           return { ok: false, error: 'ConformanceError', message: String(error?.message ?? error) };
         }
       }
-      case 'lifecycle_vector': return lifecycleVector(req);
-      case 'c2sp_lifecycle_vector': return c2spLifecycleVector(req);
+      case 'lifecycle_vector': return await lifecycleVector(req);
+      case 'c2sp_lifecycle_vector': return await c2spLifecycleVector(req);
       case 'c2sp_managed_trust_select': {
         try {
           if (!c2sp) throw new Error('C2SP package is not built');
@@ -173,6 +177,7 @@ async function handle(req) {
           registry.newReader(req.lr);
           return { ok: true, trustMode: 'trust-profile' };
         } catch (error) {
+          if (!isNativeError(error)) throw error;
           return { ok: false, error: 'ConformanceError', message: String(error?.message ?? error) };
         }
       }
@@ -208,6 +213,7 @@ async function handle(req) {
         try {
           r2 = DnsIdTxtRecord.parse(serialized);
         } catch (e) {
+          if (!isNativeError(e)) throw e;
           return { ok: false, error: 'RoundTripError', message: `reparse failed: ${e.message}` };
         }
         return { ok: true, record: recordJSON(r2), value: serialized };
@@ -290,6 +296,7 @@ async function lifecycleVector(req) {
     const snapshot = new DomainLog(req.domain, events).snapshotAt(at);
     return { ok: true, identityState: snapshot.historicalState, activeOperationalThumbprint: reverse.get(snapshot.activeKeyThumbprint) ?? snapshot.activeKeyThumbprint, eventCount: snapshot.events.length, inheritedEventCount: 0, governanceId: snapshot.governanceId, keyBoundAt: Math.floor(snapshot.keyBoundAt.getTime() / 1000) };
   } catch (e) {
+    if (!isNativeError(e)) throw e;
     let failingEventIndex;
     for (let i = 0; i < events.length; i++) {
       try { new DomainLog(req.domain, events.slice(0, i + 1)).snapshotAt(at); }
@@ -301,13 +308,28 @@ async function lifecycleVector(req) {
 
 async function c2spLifecycleVector(req) {
   if (!c2sp) return { ok: false, error: 'ShimError', message: 'C2SP package is not built' };
-  if (!req.checkpointAccepted) return { ok: false, error: 'LifecycleError', message: 'accepted checkpoint failed', errorCategory: 'INVALID_EVIDENCE' };
-  if (!req.completeThroughCheckpoint) return { ok: false, error: 'LifecycleError', message: 'stream is incomplete', errorCategory: 'INCOMPLETE_STREAM' };
+  const policy = c2sp.parseC2spPolicyFile(req.policy);
+  const parsed = c2sp.parseC2spTlogLr(req.lr);
+  try {
+    const checkpoint = c2sp.parseCheckpoint(req.checkpoint);
+    c2sp.enforceCheckpointPolicy(checkpoint, parsed.origin, policy, parsed.scope, req.checkpointIntegrationTimeMs);
+    if (!req.completeThroughCheckpoint) {
+      const reader = new c2sp.C2spTlogReader(req.lr, {
+        policy, entityKey: req.entityJwk,
+        streamSource: { load: async () => ({
+          checkpoint, complete: false,
+          entries: req.entries.map(item => ({ index: item.index, bytes: Buffer.from(item.entry, 'base64url') })),
+        }) },
+      });
+      await reader.rebuildHistory(req.domain);
+    }
+  } catch (error) {
+    if (!isNativeError(error)) throw error;
+    return { ok: false, error: 'LifecycleError', message: error.message, errorCategory: error.errorCategory ?? 'INVALID_EVIDENCE' };
+  }
   const effects = new Map();
   const ignored = [];
   const entries = [];
-  const policy = c2sp.parseC2spPolicyFile(req.policy);
-  const parsed = c2sp.parseC2spTlogLr(req.lr);
   for (const item of req.entries) {
     const bytes = Buffer.from(item.entry, 'base64url');
     const proof = Buffer.from(item.proof, 'base64url').toString('utf8');
@@ -353,6 +375,7 @@ async function c2spLifecycleVector(req) {
     if (selected[0]?.event.type === 'MIGRATION') out.stitchedEffectIds = [...req.priorAppliedEffectIds, ...appliedEffectIds];
     return out;
   } catch (e) {
+    if (!isNativeError(e)) throw e;
     let failingCandidateIndex = e?.failingCandidateIndex;
     if (failingCandidateIndex === undefined) {
       for (let i = 0; i < entries.length; i++) {
