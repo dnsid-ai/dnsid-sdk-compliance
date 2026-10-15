@@ -154,9 +154,16 @@ def check_signed_output(
                 "directory media type",
             )
             backdate = min(5, ttl - 1)
-            cache_age = re.fullmatch(
-                r"max-age=([0-9]+)", message["headers"]["cache-control"]
+            directives = [
+                part.strip().lower()
+                for part in message["headers"]["cache-control"].split(",")
+            ]
+            require(
+                len(directives) == 2 and directives.count("must-revalidate") == 1,
+                "directory cache policy requires max-age and must-revalidate only",
             )
+            directives.remove("must-revalidate")
+            cache_age = re.fullmatch(r"max-age=([0-9]+)", directives[0])
             require(
                 cache_age is not None and int(cache_age[1]) <= ttl - backdate,
                 "directory cache policy exceeds remaining signature lifetime",

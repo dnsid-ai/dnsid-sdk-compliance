@@ -150,8 +150,11 @@ signature name, not JOSE `EdDSA`), and `kid` equal to its recomputed unpadded RF
 7638 thumbprint. Hash only the required public members: `crv`, `kty`, and `x` for
 Ed25519; exclude metadata, private material, and extensions.
 
-Set SHA-256 `Content-Digest` over exact JSON bytes and `Cache-Control: max-age=N`,
-with `N` no greater than remaining signature validity at response generation.
+Set SHA-256 `Content-Digest` over exact JSON bytes and
+`Cache-Control: max-age=N, must-revalidate`, with `N` no greater than remaining
+signature validity at response generation. Deployments MUST disable stale-serving
+for this endpoint, including CDN overrides, `stale-while-revalidate`, and
+`stale-if-error`.
 Emit one complete signature per usable key when able to sign with each. Each
 signature covers exact `"@authority";req`, `content-type`, `cache-control`, and
 `content-digest`, and includes the thumbprint `keyid`, `alg="ed25519"`, integer
@@ -187,8 +190,9 @@ is defined here.
 
 Request TTL does not bound rotation disruption or revoke a stolen key. DNS/HTTP
 caches, publication/log convergence, refresh limits, and availability can delay
-new-key acceptance. A cached directory missing the new key also delays verification
-until fresh discovery; mismatch refresh requires checkable signatures.
+new-key acceptance. A cached directory missing the new key permits a bounded
+[directory re-fetch](#directory-caching) before signature checking; DNSid mismatch
+refresh still requires verified signatures.
 
 ### Key-mismatch refresh
 
@@ -313,8 +317,9 @@ success or directory-only fallback.
    the approved host. Validate every connection; reject redirects, localhost,
    loopback, private, link-local, reserved, multicast, and IPv6 ULA destinations.
    Bound timeout, response size, key count, and JSON depth.
-8. Validate directory transport, structure, digest, signature, and time as below.
-   Select the candidate key matching request `keyid` and verify the canonical
+8. On a cached-directory key miss, apply the bounded re-fetch below. Validate
+   directory transport, structure, digest, signature, and time. Select the
+   candidate key matching request `keyid` and verify the canonical
    request signature. Defer DNSid binding until both signatures pass; a
    self-signed directory is not domain authority.
 9. Call `VerifyDomain(signerDomain, peerCert)` with configured acceptance. Bind
@@ -364,6 +369,17 @@ serve their acquiring invocation subject to signature/DNSid validity and final
 checks. Missing HTTP age metadata does not invalidate fresh acquisition or justify
 using signature `created` as acquisition time.
 
+If a cached directory lacks the syntactically valid request thumbprint, the
+verifier MUST attempt one re-fetch when admitted: bypass local caches and send an
+unconditional GET with `Cache-Control: no-cache`. Injected caches MUST revalidate;
+the response must satisfy normal HTTP 200, signature, DNSid, and freshness checks.
+This precedes request authentication, so allow at most one attempt per five seconds
+for each normalized URL and each signer domain within the verifier context.
+Apply the DNSid-refresh coalescing, failed-attempt accounting, bounded-state, and
+resource-budget rules to this separate limiter; varying keys, URL queries, or
+paths must not bypass the limits. Do not retry a freshly fetched directory that
+still lacks the key, or fall back after a suppressed or failed re-fetch.
+
 All reuse, including injected transport caches, MUST preserve RFC 9111 age using
 applicable `Date`/`Age` and original acquisition timing. Retain or expose enough
 metadata to establish the original deadline; do not restart freshness on access.
@@ -394,6 +410,9 @@ Native validation MUST cover:
 - Mismatch refresh success, unchanged/revoked/denied/unavailable outcomes,
   concurrent cooldowns across changed keys/URLs, failed-attempt accounting,
   invalid-signature/failure suppression, and evidence expiring during refresh.
+- Cached-directory key-miss re-fetch, upstream revalidation, cooldowns across key/
+  URL variants, fresh-miss suppression, and failure without fallback; signed
+  `must-revalidate` output and rejection of HTTP-stale or signature-expired evidence.
 - Cache deadline/age retention, including missing `Date`/`Age`, newer-key removal
   despite older time-valid proofs, failed refresh without stale success, and fresh
   `no-store`/`no-cache`/`max-age=0` responses.

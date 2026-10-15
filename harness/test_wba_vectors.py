@@ -47,7 +47,9 @@ class WbaVectorsTest(unittest.TestCase):
             case_input["webBotAuth"] = {"directorySignatureTTL": ttl}
             backdate = min(5, ttl - 1) if backdate is None else backdate
             cache_age = ttl - backdate if cache_age is None else cache_age
-            message["headers"]["cache-control"] = f"max-age={cache_age}"
+            message["headers"]["cache-control"] = (
+                f"max-age={cache_age}, must-revalidate"
+            )
             sign(
                 message,
                 request,
@@ -138,6 +140,27 @@ class WbaVectorsTest(unittest.TestCase):
                 result = check_signed_output(case, actual, NOW, NOW)
                 self.assertFalse(result["ok"])
                 self.assertEqual(result["message"], "backdated directory creation time")
+
+    def test_directory_cache_directives(self):
+        for policy, valid in (
+            ("max-age=295, must-revalidate", True),
+            ("Must-Revalidate, max-age=295", True),
+            ("max-age=0, must-revalidate", True),
+            ("max-age=295", False),
+            ("max-age=295, must-revalidate=0", False),
+            ("max-age=295, must-revalidate, stale-while-revalidate=60", False),
+            ("max-age=295, must-revalidate, stale-if-error=60", False),
+        ):
+            with self.subTest(policy=policy):
+                case, actual = self.signing_case(True)
+                message = actual["message"]
+                message["headers"]["cache-control"] = policy
+                _, components, params = signature_parts(message)
+                sign(message, case["request"], components, **params)
+                result = check_signed_output(case, actual, NOW, NOW)
+                self.assertEqual(result["ok"], valid)
+                if not valid:
+                    self.assertIn("directory cache policy", result["message"])
 
     def test_keyed_digest_fixture_is_signed_but_has_no_content(self):
         fixture = self.vectors["requests"]["keyed-digest-without-content"]
@@ -351,7 +374,9 @@ class WbaVectorsTest(unittest.TestCase):
                 actual["message"] = copy.deepcopy(
                     self.vectors["directories"][fixture]["message"]
                 )
-                actual["message"]["headers"]["cache-control"] = "max-age=295"
+                actual["message"]["headers"]["cache-control"] = (
+                    "max-age=295, must-revalidate"
+                )
                 sign(
                     actual["message"],
                     case["request"],
