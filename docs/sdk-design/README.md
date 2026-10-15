@@ -91,6 +91,22 @@ END
 `IdentityManager` satisfies `IdentityResolver`. Bindings may expose it as an
 interface, protocol, trait, or function.
 
+Profiles requiring an explicit evidence refresh use this additional capability:
+
+```
+INTERFACE RefreshingIdentityResolver EXTENDS IdentityResolver
+  RefreshDomain(domain: string, peerCert?: TLSCertificate) -> VerifiedDomain
+END
+```
+
+`IdentityManager` MUST implement `RefreshingIdentityResolver`.
+[`RefreshDomain`](01-core-identity-manager.md#refreshdomaindomain-string-peercert-tlscertificate---verifieddomain)
+performs full identity verification without reusing the manager's cached identity
+result. It preserves all trust, current-peer, acceptance, and freshness checks.
+Other profiles continue to depend only on `IdentityResolver`; WBA uses the
+refresh capability for its bounded key-mismatch retry. Profiles MUST NOT access
+an injected resolver's cache or compose eviction and verification themselves.
+
 JWS `kid` values and the DNSid HTTP Message Signature profile's `keyId`
 parameters use `{domain}#{kid}`. JWT headers do not; JWT signer domain comes
 from `iss`. `ParseKeyId` splits on the first `#`, requires both sides,

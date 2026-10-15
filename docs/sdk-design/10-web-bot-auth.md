@@ -25,8 +25,9 @@ WG revision `00`.
 
 This design requires request signing, directory serving, and DNSid WBA request
 verification, including verification of discovered directory responses. Bindings
-MUST expose the request verifier defined below. Request and directory verification
-are required implementation work, not an existing API claim.
+MUST expose the request verifier defined below. Verification, explicit identity
+refresh, and directory backdating are implementation requirements, not claims
+that existing SDK releases already provide them.
 
 Until verification is implemented, describe a binding as **DNSid WBA request
 signing and directory serving; verification not yet available** and record its
@@ -36,7 +37,9 @@ WBA requests. Shared RFC 9421 behavior comes from
 [02-rfc9421-http-message-signatures.md](02-rfc9421-http-message-signatures.md).
 
 For `dnsid-draft-01` and verification-only `DNSid1`, WBA uses the verified
-agent `ku` key. `ek` is not an application-signing key.
+agent `ku` key. `ek` is not an application-signing key. WBA onboarding MUST state
+that the current `ku` key must be Ed25519; an identity with an ES256 operational
+key cannot use this WBA profile. An ES256 `ek` key remains supported.
 
 ## WBA requirements and DNSid constraints
 
@@ -108,6 +111,15 @@ explicit zero skew means zero tolerance. Invalid settings raise `ArgumentError`
 before network work. Apply shared
 [profile configuration ownership](README.md#profile-configuration-ownership),
 including nested discovery settings.
+
+`{domain}` is the DNSid agent identity FQDN, not the accountable entity's `gi`
+or the destination receiving the signed request. A custom WBA directory is a
+separate resource from the live `ku` JWKS: it has WBA-specific JWK metadata and
+signed-response requirements. Signing configuration MUST reject a `jwks_uri`
+identifying the local identity's `ku` endpoint. Verifiers MUST reject the same
+misconfiguration against the authenticated signer's `ku`. Compare normalized WBA
+identifiers for both URLs, excluding query and fragment as specified below; do
+not infer endpoint roles from path names.
 
 ## Signature-Agent discovery
 
@@ -221,7 +233,8 @@ members.
 
 The DNSid directory helper sets:
 
-- `Cache-Control: max-age=300` or the lower configured TTL;
+- `Cache-Control: max-age=N`, where `N` is no greater than the remaining
+  signature lifetime at response generation;
 - a SHA-256 `Content-Digest` over the exact JSON bytes;
 - one complete signature per usable directory key when the binding can sign
   with each key.
@@ -240,6 +253,24 @@ and includes:
 - integer `created` and `expires` with a lifetime no greater than 300 seconds;
 - a random nonce;
 - `tag="http-message-signatures-directory"`.
+
+Directory signers MUST backdate `created` to tolerate a verifier clock running
+slightly behind the server; verifiers still MUST reject future directory
+`created` values. For integer configured lifetime `ttl` and generation time
+`now = floor(unixTime)`, use:
+
+```text
+backdate = min(5, ttl - 1)
+created = now - backdate
+expires = created + ttl
+```
+
+Backdating consumes the configured lifetime; it MUST NOT extend `expires` or
+increase the signed lifetime beyond 300 seconds. At the default TTL, the
+signature is backdated five seconds and `max-age` is at most 295 seconds.
+Lifetimes below six seconds provide less clock tolerance; a one-second lifetime
+cannot be backdated while preserving a positive remaining lifetime. Do not serve
+an already expired signature after slow response generation.
 
 The minimal DNSid implementation has exactly one current operational key and
 therefore emits one directory key and one signature. Multi-key implementations
@@ -265,16 +296,69 @@ produce fresh signatures accepted under cached key state.
 
 A separate WBA directory could overlap keys for generic WBA consumers without
 changing the live `ku` endpoint. That alone would not authorize the superseded
-key in this DNSid profile. No overlap grace period, dedicated WBA-key binding,
-or automatic refresh-on-key-mismatch mechanism is introduced by this revision.
+key in this DNSid profile. This revision adds bounded key-mismatch refresh,
+not an overlap grace period or dedicated WBA-key binding. Request TTL does not
+bound rotation disruption: recursive DNS caches, HTTP revalidation, publication
+and log convergence, refresh admission, and endpoint availability can still delay
+acceptance. A cached directory that lacks the new key can also delay verification
+until fresh discovery; key-mismatch refresh applies only after both signatures
+can be checked.
+
+### Key-mismatch refresh
+
+When the directory self-signature, request signature, coverage, and time checks
+succeed but the candidate thumbprint differs from the verified current `ku`
+thumbprint, the verifier MUST attempt one `RefreshDomain(signerDomain, peerCert)`
+if admitted by the following limits. A directory self-signature is only proof of
+possession until DNSid binding succeeds; it MUST NOT authorize the request.
+
+- Allow at most one refresh attempt per normalized signer domain per five
+  seconds within the verifier's immutable verification context. All concurrent
+  invocations of that verifier share admission state; changing the request key,
+  signature label, or discovery URL MUST NOT obtain another allowance.
+- Concurrent callers MAY join an already admitted in-flight refresh without
+  consuming another allowance; otherwise suppress retries during the cooldown.
+  Bound admission-state storage and overall network work under the shared
+  resource budget. If admission
+  state is full, refuse new refreshes rather than discard an active cooldown.
+- Count failed attempts toward the limit. Do not refresh for malformed input,
+  failed signatures, invalid discovery, DNSid verification failure, or acceptance
+  denial. Never loop until the keys match.
+- After refresh, repeat current-key binding for both directory and request, check
+  that discovery is not the authenticated `ku` endpoint, and repeat final evidence
+  validity and per-invocation policy checks. A missing refresh capability is a
+  construction error, not permission for an eviction workaround or fallback.
+
+A suppressed or failed refresh, or a still-mismatched key, MUST NOT authenticate
+the request. Preserve the normal error classification for evidence failures.
+Refresh cannot authorize a historical or auxiliary key, bypass revocation, or
+make stale evidence current.
+
+### Operational guidance
+
+WBA rotation tooling MUST use the shared
+[managed operational-key rotation and recovery contract](01-core-identity-manager.md#operational-key-rotation),
+including durable state and pausing request and directory signing. It MUST NOT
+introduce an independent WBA rotation transaction or publish overlapping live
+`ku` keys. After activation, probe newly signed requests through a verifier with
+the old cached key and verify bounded refresh and current-key acceptance. Test
+restart recovery without signing under the old key.
+
+If the operational key is unavailable or suspected compromised, use
+[revocation and reissuance](01-core-identity-manager.md#registry-status-change-eg-revocation),
+not routine rotation. Disable signing, publish non-active status promptly through
+the lifecycle coordinator, and invalidate verifier caches where possible. Neither
+short request TTLs nor key-mismatch refresh revokes an attacker who can still
+sign requests matching a verifier's cached current key.
 
 ## Public verifier contract
 
 `VerifyWebBotAuthSignedRequest(req, opts) -> VerifiedDomain` authenticates one
 DNSid WBA request. It returns the verified signer identity only after all request,
 directory, and DNSid identity checks succeed. It does not grant application
-permissions. Verification-only construction requires an `IdentityResolver` and
-SSRF-safe HTTPS discovery transport, not a local identity or signing key.
+permissions. Verification-only construction requires a
+[`RefreshingIdentityResolver`](README.md#identity-resolution) and SSRF-safe HTTPS
+discovery transport, not a local identity or signing key.
 
 Bindings MUST reuse the shared RFC 9421 parsing, component extraction,
 signature-base construction, and content-digest primitives. WBA keeps its own
@@ -287,6 +371,14 @@ certificate to `VerifyDomain`; a directory endpoint's certificate is not the
 application peer. Native cancellation/deadline support or equivalent options
 MUST cover the complete operation, including directory reads and DNSid
 verification, under the [shared resource budget](README.md#verification-resource-budgets).
+
+For outbound-only signers without `fl=mtls`, fetching `ku` over validated HTTPS
+at the agent FQDN supplies the agent-FQDN TLS connection described in DNSid
+section 9.1 step 4. The crawler process need not accept inbound connections;
+public identity resources still must be reachable. A WBA signature is additional
+proof of operational-key possession, not a replacement for that TLS validation.
+For `fl=mtls`, hosted resources or their certificates do not replace evidence
+from the current application peer.
 
 The verifier MUST authenticate directory evidence under the directory requirements
 below before accepting its key. Directory verification may be an internal helper;
@@ -381,17 +473,22 @@ The DNSid WBA verifier performs these checks:
    connection and reject redirects; reject localhost, loopback, private,
    link-local, reserved, multicast, and IPv6 ULA targets; and enforce timeout,
    response-size, key-count, and JSON-depth limits.
-8. Verify the discovered response under the directory verification requirements
-   below. Select an authenticated OKP/Ed25519 directory key whose recomputed
-   thumbprint equals `keyid` and whose `alg`, if present, is `ed25519`; then
-   verify the canonical request signature base.
+8. Validate the discovered response's transport, structure, digest, signature,
+   and time validity under the directory requirements below. Select a candidate
+   OKP/Ed25519 directory key whose recomputed thumbprint equals `keyid` and whose
+   `alg`, if present, is `ed25519`; then verify the canonical request signature
+   base. Defer DNSid key binding to step 9 so only cryptographically valid
+   request/directory pairs can trigger a key-mismatch refresh. The candidate
+   is not yet authorized to authenticate a DNSid request.
 9. Call `VerifyDomain(signerDomain, peerCert)`, including configured counterparty
    acceptance, and accept the WBA key only when the same public-key thumbprint
    equals that of the profile-selected current operational signing key in the
    verified runtime JWKS. Membership in that JWKS alone is insufficient; auxiliary
    or historical keys do not gain operational signing authority. Missing DNSid
    identity or acceptance denial rejects; directory-only verification is not a
-   fallback.
+   fallback. Reject discovery identifying the authenticated `ku` endpoint. A
+   key mismatch permits only the bounded refresh defined above; after refresh,
+   both directory and request must bind to the same refreshed current key.
 10. Recheck request and directory time validity and DNSid evidence freshness
     before returning, including when network work consumed the validity window.
     Apply core's [acquisition-operation freshness rules](01-core-identity-manager.md#verifydomaindomain-string-peercert-tlscertificate---verifieddomain):
@@ -438,7 +535,8 @@ For each candidate directory key, the verifier:
    acceptance, and binds the key to the profile-selected current operational
    signing key, including on directory cache hits. A single invocation may reuse
    the same verified DNSid result for request and directory binding; two separate
-   `VerifyDomain` calls are not required.
+   `VerifyDomain` calls are not required. A mismatch may use only the bounded
+   refresh above, after the request signature also verifies.
 
 A directory self-signature proves possession and protects the response bytes.
 It does not establish domain authority by itself.
@@ -501,6 +599,14 @@ Additional required validation covers:
 | Binding offers nested signing but cannot cover the inner `signature-input` and all inner components | Reject signing; an outer signature never substitutes for independent inner verification. |
 | Discovery returns a redirect, including to a public address on the same host | Reject without following it. |
 | Directory signature `created` is one second in the future with five seconds of configured skew | Reject. |
+| Directory serving at TTL 300, 5, and 1 seconds | Backdate by 5, 4, and 0 seconds respectively; preserve configured total lifetime and cap `max-age` at remaining validity. |
+| Default-TTL directory verified with a clock five seconds behind generation time | Accept if all other checks pass; backdating is not verifier future-time tolerance. |
+| `jwks_uri` identifies the signer's `ku`, including a query/fragment variant | Reject configuration when locally known; reject verification against authenticated DNSid evidence. |
+| Valid request and self-signed directory use a new key while DNSid evidence has the old key | One admitted refresh; accept only if refreshed current-key binding and all policy checks succeed. |
+| Refresh returns unchanged key, revoked status, acceptance denial, or unavailable evidence | Reject without stale-key or directory-only fallback. |
+| Concurrent mismatches or changing key IDs/discovery URLs within five seconds | At most one refresh attempt for that domain/context; failed attempts consume the allowance. |
+| Invalid request/directory signature, or DNSid verification/acceptance failure | No key-mismatch refresh. |
+| Request, directory, or DNSid evidence expires during refresh | Reject at final validity checks. |
 | Same key is known under a different discovery URL only | Do not attribute it to the asserted URL without that URL's authenticated association. |
 | Newer directory omits a cached key; older signed proof is still time-valid | Do not restore the removed key from the older proof. |
 | Directory refresh fails while evidence is cached | Retain existing evidence without extending freshness; never use expired evidence successfully. |
@@ -527,6 +633,20 @@ The WBA draft advises against reusing signing keys across purposes and
 protocols. DNSid intentionally defines `ku` as the current application/runtime
 identity key, so the first profile permits the same Ed25519 key for WBA and
 other DNSid runtime signatures. This is a deliberate profile deviation.
+
+The same `ku` key also authorizes `KEY_ROTATION`. Compromise of a WBA signing
+node with unrestricted access to that key can therefore authorize operational
+identity rotation, not merely forge crawler requests. Cross-protocol signature
+tags do not prevent an attacker from creating a fresh rotation authorization.
+This does not confer `ek` authority or prevent accountable-entity revocation.
+Deployment guidance MUST state this exposure; keeping `ek` off the fleet does not
+keep rotation authority off the fleet.
+
+Dedicated WBA-key delegation is deferred to a separate security design before
+broad multi-node fleet deployment. That design must specify signer identity,
+purpose, discovery attribution, lifetime and withdrawal rules, current-issuer
+binding, and behavior on `ku` rotation. Overlapping delegated WBA-key rotation
+would not by itself provide overlap across a change of the authorizing `ku`.
 
 Cross-protocol separation is mandatory:
 

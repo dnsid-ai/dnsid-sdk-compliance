@@ -11,7 +11,13 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import yaml
-from generate_wba_fixtures import NOW, build_vectors, tls_fixture_files
+from generate_wba_fixtures import (
+    NOW,
+    build_vectors,
+    corrupt_signature,
+    sign,
+    tls_fixture_files,
+)
 from run import SubprocessAdapter, compare, evaluate_result, render_report
 from wba_adapters import verify_go
 from wba_vectors import (
@@ -19,6 +25,7 @@ from wba_vectors import (
     check_golden_vectors,
     check_signed_output,
     load_wba_suite,
+    signature_parts,
 )
 
 
@@ -26,8 +33,9 @@ class WbaVectorsTest(unittest.TestCase):
     def setUp(self):
         self.vectors = json.loads(VECTOR_PATH.read_text())
 
-    def signing_case(self, directory=False):
+    def signing_case(self, directory=False, ttl=300, backdate=None, cache_age=None):
         fixture = self.vectors["directories" if directory else "requests"]["valid"]
+        message = copy.deepcopy(fixture["message"])
         request = self.vectors["directoryRequest"] if directory else fixture["message"]
         case_input = {
             "key": self.vectors["key"],
@@ -35,7 +43,20 @@ class WbaVectorsTest(unittest.TestCase):
             "request": request,
             "operation": "directory" if directory else "request",
         }
-        return case_input, {"ok": True, "message": copy.deepcopy(fixture["message"])}
+        if directory:
+            case_input["webBotAuth"] = {"directorySignatureTTL": ttl}
+            backdate = min(5, ttl - 1) if backdate is None else backdate
+            cache_age = ttl - backdate if cache_age is None else cache_age
+            message["headers"]["cache-control"] = f"max-age={cache_age}"
+            sign(
+                message,
+                request,
+                signature_parts(message)[1],
+                created=NOW - backdate,
+                expires=NOW - backdate + ttl,
+                tag="http-message-signatures-directory",
+            )
+        return case_input, {"ok": True, "message": message}
 
     def test_reproducible_golden_vectors(self):
         self.assertEqual(self.vectors, build_vectors())
@@ -82,13 +103,41 @@ class WbaVectorsTest(unittest.TestCase):
         for directory in (False, True):
             with self.subTest(directory=directory):
                 case, actual = self.signing_case(directory)
-                collection = "directories" if directory else "requests"
-                actual["message"] = self.vectors[collection]["future-within-skew"][
-                    "message"
-                ]
+                if directory:
+                    case, actual = self.signing_case(
+                        True, backdate=-1, cache_age=295
+                    )
+                else:
+                    actual["message"] = self.vectors["requests"]["future-within-skew"][
+                        "message"
+                    ]
                 self.assertEqual(
                     check_signed_output(case, actual, NOW, NOW)["ok"], not directory
                 )
+
+    def test_directory_backdating_and_remaining_cache_lifetime(self):
+        for ttl, backdate in ((300, 5), (60, 5), (5, 4), (1, 0)):
+            with self.subTest(ttl=ttl):
+                case, actual = self.signing_case(True, ttl=ttl)
+                params = signature_parts(actual["message"])[2]
+                self.assertEqual(params["created"], NOW - backdate)
+                self.assertEqual(params["expires"] - params["created"], ttl)
+                self.assertEqual(
+                    check_signed_output(case, actual, NOW, NOW), {"ok": True}
+                )
+                case, actual = self.signing_case(
+                    True, ttl=ttl, cache_age=ttl - backdate + 1
+                )
+                self.assertFalse(check_signed_output(case, actual, NOW, NOW)["ok"])
+
+        for backdate in (0, 4, 6):
+            with self.subTest(backdate=backdate):
+                case, actual = self.signing_case(
+                    True, backdate=backdate, cache_age=295
+                )
+                result = check_signed_output(case, actual, NOW, NOW)
+                self.assertFalse(result["ok"])
+                self.assertEqual(result["message"], "backdated directory creation time")
 
     def test_keyed_digest_fixture_is_signed_but_has_no_content(self):
         fixture = self.vectors["requests"]["keyed-digest-without-content"]
@@ -302,7 +351,29 @@ class WbaVectorsTest(unittest.TestCase):
                 actual["message"] = copy.deepcopy(
                     self.vectors["directories"][fixture]["message"]
                 )
-                self.assertFalse(check_signed_output(case, actual, NOW, NOW)["ok"])
+                actual["message"]["headers"]["cache-control"] = "max-age=295"
+                sign(
+                    actual["message"],
+                    case["request"],
+                    signature_parts(actual["message"])[1],
+                    created=NOW - 5,
+                    expires=NOW + 295,
+                    tag="http-message-signatures-directory",
+                )
+                if fixture == "bad-signature":
+                    actual["message"] = corrupt_signature(actual)["message"]
+                result = check_signed_output(case, actual, NOW, NOW)
+                self.assertFalse(result["ok"])
+                self.assertEqual(
+                    result["message"],
+                    {
+                        "bad-signature": "cryptographic signature",
+                        "tampered-body": "content digest",
+                        "wrong-jwk-kid": "directory public key",
+                        "private-jwk": "directory public key",
+                        "missing-coverage": "covered components",
+                    }[fixture],
+                )
 
     def test_stale_creation_time_is_rejected(self):
         case, actual = self.signing_case()

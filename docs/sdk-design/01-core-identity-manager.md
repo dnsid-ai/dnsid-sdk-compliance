@@ -855,6 +855,35 @@ be used to upgrade a missing, stale, or non-active `su` response.
 
 ---
 
+#### `RefreshDomain(domain: string, peerCert?: TLSCertificate) -> VerifiedDomain`
+
+Performs the same complete verification as a `VerifyDomain` cache miss, bypassing
+the manager's cached identity result and acquiring new key, status, and required
+lifecycle evidence. Normalize the domain and apply the same immutable verification
+context, current-peer checks, counterparty acceptance, final freshness checks,
+and cache-insertion rules. The refresh MUST NOT return a cached identity result
+or fall back to it after failure.
+
+SDK-managed HTTP caches MUST revalidate the key, status, and lifecycle resources
+needed by this refresh; cached DNS answers remain subject to their remaining TTL.
+This operation cannot guarantee authoritative DNS propagation or publication/log
+convergence. It does not relax any continuity or current-key rule.
+
+Concurrent refreshes for the same domain and verification context SHOULD share
+evidence acquisition, but MUST NOT join ordinary cache-hit work. Each caller
+still applies its own current-peer and acceptance checks. A failed refresh MUST
+NOT extend existing evidence freshness or restore superseded evidence. A
+previously started lookup MUST NOT overwrite a newer successful refresh with
+older key state. Implement this at the shared verification boundary, not as a
+public `EvictDomain` followed by `VerifyDomain` sequence with a cache race.
+
+Callers apply their profile's retry admission and resource budgets; this method
+does not retry until keys match. Required native tests cover cached-key replacement,
+revalidation through injected transports, failure without stale fallback,
+concurrent lookup/refresh ordering, and per-caller acceptance and peer checks.
+
+---
+
 #### `EvictDomain(domain: string)`
 
 Removes a domain from the `IdentityManager`'s cache. Call this when an out-of-band notification (e.g. a registry webhook, a revocation event from the log) indicates that the cached identity for a domain is no longer valid. The next `VerifyDomain` call for the domain will perform a full re-verification.
@@ -1314,10 +1343,13 @@ activation is durably complete.
 
 After activation, a counterparty still caching the previous `ku` may reject
 new-key application signatures until its identity evidence expires or is
-explicitly evicted. Operators SHOULD measure this cache-lifetime window and
-plan rotation accordingly. It does not justify publishing overlapping live
-keys, bypassing continuity checks, or accepting signatures under an unverified
-replacement key.
+explicitly evicted. Profiles may use bounded
+[`RefreshDomain`](#refreshdomaindomain-string-peercert-tlscertificate---verifieddomain)
+retries, as [WBA does](10-web-bot-auth.md#key-mismatch-refresh), to shorten this
+window. Operators SHOULD measure the remaining propagation and cache-lifetime
+window and plan rotation accordingly. It does not justify publishing overlapping
+live keys, bypassing continuity checks, or accepting signatures under an
+unverified replacement key.
 
 #### Managed Rotation Recovery Contract
 

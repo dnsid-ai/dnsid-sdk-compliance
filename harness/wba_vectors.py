@@ -153,9 +153,13 @@ def check_signed_output(
                 message["headers"]["content-type"] == DIRECTORY_TYPE,
                 "directory media type",
             )
+            backdate = min(5, ttl - 1)
+            cache_age = re.fullmatch(
+                r"max-age=([0-9]+)", message["headers"]["cache-control"]
+            )
             require(
-                message["headers"]["cache-control"] == f"max-age={ttl}",
-                "directory cache policy",
+                cache_age is not None and int(cache_age[1]) <= ttl - backdate,
+                "directory cache policy exceeds remaining signature lifetime",
             )
             keys = json.loads(body_bytes(message))["keys"]
             require(
@@ -207,10 +211,16 @@ def check_signed_output(
             "integer timestamps",
         )
         require(params["expires"] - params["created"] == ttl, "signature lifetime")
-        require(
-            started - 5 <= params["created"] <= finished + (0 if directory else 5),
-            "signature creation time",
-        )
+        if directory:
+            require(
+                started - backdate <= params["created"] <= finished - backdate,
+                "backdated directory creation time",
+            )
+        else:
+            require(
+                started - 5 <= params["created"] <= finished + 5,
+                "signature creation time",
+            )
         nonce = params["nonce"]
         require(re.fullmatch(r"[A-Za-z0-9_-]+", nonce) is not None, "nonce encoding")
         require(len(base64.urlsafe_b64decode(nonce + "==")) == 64, "64-byte nonce")

@@ -76,7 +76,12 @@ classification or observed discovery count, not infer it from the expectation.
 profile; an expired request must remain rejected under the original policy.
 Signing cases also mutate nested discovery URI settings; output must still
 match the original configuration. Signing always includes and covers
-`Signature-Agent`; no signing case permits its omission.
+`Signature-Agent`; no signing case permits its omission. Directory serving checks
+require backdating by `min(5, ttl - 1)` seconds without extending the total signed
+lifetime, and cap `max-age` at the remaining signature lifetime. Checker unit tests
+cover TTLs of 300, 60, 5, and 1 seconds. Fixed verification fixtures created at the
+verification clock remain valid verifier inputs; verifiers do not require a
+particular backdate from external signers.
 
 Directory caching is optional. Cache cases apply only when a binding reuses
 directory evidence; uncached bindings must instead test repeated fresh discovery
@@ -94,7 +99,13 @@ zero DNS TTL, all numeric configuration boundaries (including non-finite and
 Boolean inputs where representable), configuration accessor ownership, and repeated
 stream replay without retained buffers or lost cleanup. Native tests must also
 cover URL/key-pair cache isolation, newer-directory key removal, and retention
-without stale success after a failed refresh. Bindings supporting
+without stale success after a failed refresh. Native coverage must also test
+rejection of `ku` as WBA discovery, bounded key-mismatch refresh through
+`RefreshingIdentityResolver`, successful replacement of cached current-key state,
+unchanged/revoked/unavailable refresh outcomes, concurrent retry admission and
+cooldowns, invalid-signature refresh suppression, and expiry during refresh.
+These scenarios are not yet encoded in the shared corpus; existing corpus results
+do not establish support for the new refresh contract. Bindings supporting
 caching must also test original age/deadline retention, including missing
 `Date`/`Age`; uncached discovery does not prove cache-reuse correctness. The full
 matrix remains in [10: Directory verification requirements](../10-web-bot-auth.md#directory-verification-requirements).
