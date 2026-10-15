@@ -35,7 +35,7 @@ PUBLIC = {
 KEY = {**PUBLIC, "kid": "fixture-ku", "seed": b64url(SEED)}
 THUMB = thumbprint(PUBLIC)
 NONCE = b64url(bytes(range(64)))
-REF = "SDK design 10: request/directory verification; RFC 9421; RFC 9530; WBA drafts revision 00"
+REF = "SDK design 10: request/directory verification; RFC 9421; RFC 9530; draft-ietf-webbotauth-httpsig-protocol-00"
 
 
 def digest(body: bytes) -> str:
@@ -87,7 +87,13 @@ def sign(
 
 
 def request_fixture(
-    *, label="sig1", body=b'{"hello":"world"}', agent=True, components=None, **params
+    *,
+    label="sig1",
+    body=b'{"hello":"world"}',
+    agent=True,
+    agent_uri=f"https://{DOMAIN}",
+    components=None,
+    **params,
 ) -> dict:
     headers = {"authorization": "Bearer application-token"}
     covered = ['"@authority"']
@@ -101,7 +107,7 @@ def request_fixture(
         headers["content-digest"] = digest(body)
         covered.append('"content-digest"')
     if agent:
-        headers["signature-agent"] = f'{label}="https://{DOMAIN}";type=directory'
+        headers["signature-agent"] = f'{label}="{agent_uri}";type=directory'
         covered.append('"signature-agent";key="' + label + '"')
     return sign(
         message,
@@ -172,12 +178,24 @@ def build_vectors() -> dict:
         "wrong-thumbprint": request_fixture(keyid=b64url(bytes(32))),
         "expired": request_fixture(created=NOW - 100, expires=NOW - 40),
         "future": request_fixture(created=NOW + 60, expires=NOW + 120),
+        "future-within-skew": request_fixture(created=NOW + 1, expires=NOW + 61),
         "excessive-lifetime": request_fixture(expires=NOW + 301),
         "inverted-times": request_fixture(created=NOW + 1, expires=NOW),
         "empty-nonce": request_fixture(nonce=""),
         "missing-created": request_fixture(created=None),
         "missing-expires": request_fixture(expires=None),
     }
+    for name, uri in (
+        ("directory-path", f"https://{DOMAIN}/custom"),
+        ("directory-query", f"https://{DOMAIN}?keys=1"),
+        ("directory-fragment", f"https://{DOMAIN}#keys"),
+    ):
+        requests[name] = request_fixture(agent_uri=uri)
+    requests["relabeled"] = copy.deepcopy(requests["valid"])
+    headers = requests["relabeled"]["message"]["headers"]
+    for field in ("signature-input", "signature"):
+        headers[field] = headers[field].replace("sig1=", "bot7=", 1)
+    requests["relabeled"]["label"] = "bot7"
     message = request_fixture(body=None)["message"]
     message["headers"]["content-digest"] = "sha-256=:YWJj:"
     requests["keyed-digest-without-content"] = sign(
@@ -264,6 +282,7 @@ def build_vectors() -> dict:
             components=['"@authority";req', '"content-type"', '"content-digest"']
         ),
         "expired": directory_fixture(created=NOW - 400, expires=NOW - 100),
+        "future-within-skew": directory_fixture(created=NOW + 1, expires=NOW + 301),
         "short-cache": directory_fixture(
             cache_age=60, created=NOW - 61, expires=NOW + 239
         ),
@@ -380,11 +399,6 @@ def build_vectors() -> dict:
         )
 
     signing_case(
-        "configuration-snapshot-flag",
-        config={"includeSignatureAgent": False},
-        mutation={"includeSignatureAgent": True},
-    )
-    signing_case(
         "configuration-snapshot-discovery",
         config={"signatureAgent": {"uri": f"https://{DOMAIN}", "type": "directory"}},
         mutation={"signatureAgent": {"uri": "https://other.example"}},
@@ -401,7 +415,6 @@ def build_vectors() -> dict:
         "optional-operation-binding",
         options={"additionalComponents": ["@method", "@target-uri"]},
     )
-    signing_case("out-of-band-discovery", options={"signatureAgent": False})
     signing_case(
         "direct-jwks-uri",
         config={
@@ -432,6 +445,16 @@ def build_vectors() -> dict:
         accepted=False,
         config={"signatureAgent": {"uri": "http://agent.example", "type": "directory"}},
     )
+    for name, uri in (
+        ("path", f"https://{DOMAIN}/custom"),
+        ("query", f"https://{DOMAIN}?keys=1"),
+        ("fragment", f"https://{DOMAIN}#keys"),
+    ):
+        signing_case(
+            "reject-directory-" + name,
+            accepted=False,
+            config={"signatureAgent": {"uri": uri, "type": "directory"}},
+        )
     signing_case(
         "reject-discovery-type",
         accepted=False,
@@ -483,7 +506,13 @@ def build_vectors() -> dict:
     verify_case("valid", accepted=True)
     verify_case("non-default-label", req="non-default-label", accepted=True)
     verify_case("empty-supplied-body", req="empty-body", accepted=True)
-    verify_case("trusted-out-of-band-discovery", req="no-agent", accepted=True)
+    verify_case("relabeled", req="relabeled", accepted=True)
+    verify_case("future-within-skew", req="future-within-skew", accepted=True)
+    verify_case(
+        "missing-signature-agent",
+        req="no-agent",
+        reason="Trusted caller discovery does not make Signature-Agent optional.",
+    )
     verify_case("optional-operation-binding", req="operation-bound", accepted=True)
     verify_case(
         "authority-only-other-operation",
@@ -502,6 +531,9 @@ def build_vectors() -> dict:
         "tampered-body",
         "missing-authority",
         "uncovered-agent",
+        "directory-path",
+        "directory-query",
+        "directory-fragment",
         "uncovered-body",
         "wrong-tag",
         "wrong-algorithm",
@@ -575,6 +607,11 @@ def build_vectors() -> dict:
     verification[-1]["expect"]["discoveryRequests"] = 1
     for case in verification:
         if case["id"] in {
+            "wba-verify-missing-signature-agent",
+            "wba-verify-uncovered-agent",
+            "wba-verify-directory-path",
+            "wba-verify-directory-query",
+            "wba-verify-directory-fragment",
             "wba-verify-keyed-digest-without-content",
             "wba-verify-required-operation-coverage",
             "wba-verify-malformed-required-coverage",
@@ -639,6 +676,19 @@ def build_vectors() -> dict:
             ]
         },
     )
+    verify_case(
+        "same-host-public-redirect",
+        policy={
+            "timeoutMs": 500,
+            "redirects": [
+                {
+                    "url": f"https://{DOMAIN}/next",
+                    "resolvedAddresses": ["93.184.216.34"],
+                }
+            ],
+        },
+    )
+    verification[-1]["expect"]["discoveryRequests"] = 1
     verify_case("invalid-web-pki", policy={"directoryTlsValid": False}, transient=False)
     verify_case(
         "mtls-missing-current-peer",
@@ -654,10 +704,7 @@ def build_vectors() -> dict:
     verify_case("expires-during-discovery", policy={"finishedAt": NOW + 66})
     return {
         "schemaVersion": 1,
-        "drafts": [
-            "draft-meunier-webbotauth-httpsig-protocol-00",
-            "draft-meunier-webbotauth-httpsig-directory-00",
-        ],
+        "drafts": ["draft-ietf-webbotauth-httpsig-protocol-00"],
         "domain": DOMAIN,
         "key": KEY,
         "directoryRequest": directory_request,

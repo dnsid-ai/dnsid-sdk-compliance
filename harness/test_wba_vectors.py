@@ -47,6 +47,49 @@ class WbaVectorsTest(unittest.TestCase):
             + len(self.vectors["verificationCases"]),
         )
 
+    def test_wg_discovery_and_timestamp_cases(self):
+        self.assertEqual(
+            self.vectors["drafts"], ["draft-ietf-webbotauth-httpsig-protocol-00"]
+        )
+        cases = {case["id"]: case for case in self.vectors["verificationCases"]}
+        for name in (
+            "missing-signature-agent",
+            "uncovered-agent",
+            "directory-path",
+            "directory-query",
+            "directory-fragment",
+        ):
+            with self.subTest(name=name):
+                self.assertEqual(
+                    cases["wba-verify-" + name]["expect"],
+                    {"ok": False, "error": "ConformanceError", "discoveryRequests": 0},
+                )
+        redirect = cases["wba-verify-same-host-public-redirect"]
+        self.assertFalse(redirect["expect"]["ok"])
+        self.assertEqual(redirect["expect"]["discoveryRequests"], 1)
+        self.assertTrue(cases["wba-verify-relabeled"]["expect"]["ok"])
+        self.assertTrue(cases["wba-verify-future-within-skew"]["expect"]["ok"])
+        self.assertFalse(cases["wba-verify-directory-future-within-skew"]["expect"]["ok"])
+
+    def test_signing_checker_never_permits_discovery_omission(self):
+        case, actual = self.signing_case()
+        case["webBotAuth"] = {"includeSignatureAgent": False}
+        case["options"] = {"signatureAgent": False}
+        actual["message"] = self.vectors["requests"]["no-agent"]["message"]
+        self.assertFalse(check_signed_output(case, actual, NOW, NOW)["ok"])
+
+    def test_signing_checker_rejects_future_directory_but_allows_request_skew(self):
+        for directory in (False, True):
+            with self.subTest(directory=directory):
+                case, actual = self.signing_case(directory)
+                collection = "directories" if directory else "requests"
+                actual["message"] = self.vectors[collection]["future-within-skew"][
+                    "message"
+                ]
+                self.assertEqual(
+                    check_signed_output(case, actual, NOW, NOW)["ok"], not directory
+                )
+
     def test_keyed_digest_fixture_is_signed_but_has_no_content(self):
         fixture = self.vectors["requests"]["keyed-digest-without-content"]
         self.assertNotIn("bodyBase64", fixture["message"])
