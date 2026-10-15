@@ -45,6 +45,9 @@ def verify_python(req: dict) -> dict:
     public = {"kty": "OKP", "crv": "Ed25519", "x": req["key"]["x"]}
 
     class Resolver:
+        def refresh_domain(self, signer, peer_cert=None):
+            return self.verify_domain(signer, peer_cert)
+
         def verify_domain(self, signer, peer_cert=None):
             # Identity evidence is injected at the public resolver boundary.
             if not scenario["dnsidExists"]:
@@ -68,7 +71,7 @@ def verify_python(req: dict) -> dict:
             ]
             return VerifiedDomain(
                 domain=signer,
-                record=DnsIdTxtRecord(v="dnsid-draft-01"),
+                record=DnsIdTxtRecord(v="dnsid-draft-01", ku=scenario.get("ku", "")),
                 jwks=JWKS(keys=keys),
                 signing_key=jwk_from_dict(public),
                 tls_cert=TLSCertificate(),
@@ -96,7 +99,8 @@ def verify_python(req: dict) -> dict:
                 self.end_headers()
                 return
             message = req["directory"]
-            self.send_response(scenario.get("directoryStatus", message["status"]))
+            # Preserve fixture age metadata; send_response would add a second Date.
+            self.send_response_only(scenario.get("directoryStatus", message["status"]))
             for name, value in message["headers"].items():
                 self.send_header(name, value)
             self.end_headers()

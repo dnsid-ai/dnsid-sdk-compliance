@@ -82,6 +82,8 @@ type request struct {
 	WebBotAuth                                    wbaConfig          `json:"webBotAuth"`
 	ConfigMutation                                wbaConfig          `json:"configMutation"`
 	Options                                       wbaSigningOptions  `json:"options"`
+	LocalKu                                       string             `json:"localKu"`
+	SigningKeyChange                              *fixtureKey        `json:"signingKeyChange"`
 }
 
 type fixtureKeyProvider struct {
@@ -90,6 +92,7 @@ type fixtureKeyProvider struct {
 	private       ed25519.PrivateKey
 	signedPayload []byte
 	signCalls     int
+	next          *fixtureKeyProvider
 }
 
 func newFixtureKeyProvider(fixture fixtureKey) (*fixtureKeyProvider, error) {
@@ -118,6 +121,10 @@ func newFixtureKeyProvider(fixture fixtureKey) (*fixtureKeyProvider, error) {
 func (p *fixtureKeyProvider) JWK(...string) jwk.Key { return p.key }
 func (p *fixtureKeyProvider) ListKeyIds() []string  { return []string{p.kid} }
 func (p *fixtureKeyProvider) Sign(payload []byte) (*dnsid.KeySignature, error) {
+	if p.next != nil {
+		p.key, p.kid, p.private = p.next.key, p.next.kid, p.next.private
+		p.next = nil
+	}
 	p.signCalls++
 	p.signedPayload = append([]byte(nil), payload...)
 	return &dnsid.KeySignature{Kid: p.kid, Alg: dnsid.JoseAlgEdDSA, Signature: ed25519.Sign(p.private, payload)}, nil

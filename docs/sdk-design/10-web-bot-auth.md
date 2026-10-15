@@ -116,7 +116,7 @@ The WBA identifier is the resolved well-known URL for `directory`, or the suppli
 `jwks_uri` without query and fragment. Normalize per WBA section 5.5 (RFC 3986
 sections 6.2.2 and 6.2.3). Key lookup and cached attribution MUST use the normalized
 URL and thumbprint together within the verification policy context, not either
-alone or just the hostname.
+alone or just the hostname. Normalize an empty HTTPS path to `/`.
 
 ## Request signing
 
@@ -220,8 +220,9 @@ or stale keys, bypass revocation, or fall back to directory-only verification.
 
 WBA tooling MUST reuse the shared
 [managed rotation/recovery contract](01-core-identity-manager.md#operational-key-rotation),
-including durable state and pausing request/directory signing. No separate WBA
-rotation transaction or overlapping live `ku` keys. Test new-key acceptance through
+including durable state. Pause and drain request/directory signing before activation;
+do not introduce a separate WBA rotation transaction or overlapping live `ku` keys.
+Test new-key acceptance through
 a verifier caching the old key, bounded refresh, and restart recovery without
 old-key signing.
 
@@ -230,6 +231,11 @@ use [revocation/reissuance](01-core-identity-manager.md#registry-status-change-e
 not routine rotation. The lifecycle coordinator promptly publishes non-active
 status; invalidate verifier caches where possible. Short TTLs and mismatch
 refresh do not stop an attacker signing under a still-cached current key.
+
+Hosts MUST bound unauthenticated verification rate and concurrency. Retry limits
+do not bound initial directory fetches or per-invocation status checks. Before
+crawler-volume claims, measure throughput and upstream load with the deployed
+cache and status policies; uncached verification can require both reads per request.
 
 ## Public verifier contract
 
@@ -260,7 +266,16 @@ must be valid request components; `@status` and components with `req` are invali
 Before discovery, raise `ArgumentError` for malformed policy and reject missing
 coverage using section 02's exact component/parameter equality. `@method` and
 `@target-uri` remain optional unless required by the recipient; signer-selected
-extra coverage does not set recipient policy.
+extra coverage does not set recipient policy. For modifying operations, examples
+MUST enforce both method and target URI at the recipient:
+
+```text
+signed = CreateWebBotAuthSignedRequest(req, {additionalComponents: ["@method", "@target-uri"]})
+identity = VerifyWebBotAuthSignedRequest(signed, {
+  signerDomain: expectedDomain,
+  requiredComponents: ["@method", "@target-uri"]
+})
+```
 
 ## Signature selection
 
@@ -364,10 +379,18 @@ For each candidate key:
 
 ### Directory caching
 
-Caching is optional. Fresh `no-store`, `no-cache`, or zero-freshness responses MAY
-serve their acquiring invocation subject to signature/DNSid validity and final
-checks. Missing HTTP age metadata does not invalidate fresh acquisition or justify
-using signature `created` as acquisition time.
+Caching is optional. On network acquisition as well as reuse, SDKs MUST enforce
+any HTTP freshness deadline established by response metadata, using RFC 9111 age
+calculations, and recheck it before return. For example, `max-age=300` with
+`Age: 300` is stale even with a valid signature. Sending `Cache-Control: no-cache`
+does not prove freshness. Enforce this in the verifier or supplied transport,
+not only as an obligation on an external cache.
+
+Freshly acquired or revalidated `no-store`, `no-cache`, or zero-freshness responses
+MAY serve their acquiring invocation subject to signature/DNSid bounds. Zero
+freshness with positive upstream `Age` is stale. Missing age metadata does not
+invalidate fresh acquisition or justify using signature `created` as acquisition
+time; it still prevents reuse without enough original timing evidence.
 
 If a cached directory lacks the syntactically valid request thumbprint, the
 verifier MUST attempt one re-fetch when admitted: bypass local caches and send an
@@ -403,13 +426,15 @@ Native validation MUST cover:
   repeated fresh discovery with later denial and changed current keys.
 - Missing/uncovered/unsupported discovery and non-origin `directory` URLs before
   network work, even with trusted discovery; URL/key-pair isolation; `ku` discovery
-  including query/fragment variants; SSRF, invalid TLS, and same-host redirects.
+  including empty-path, query, and fragment variants; SSRF, invalid TLS, and
+  same-host redirects.
 - Future directory `created` by one second despite five-second skew; serving TTLs
   300/5/1 backdated 5/4/0 with bounded `max-age`; default-TTL verification with a
   clock five seconds behind generation.
 - Mismatch refresh success, unchanged/revoked/denied/unavailable outcomes,
   concurrent cooldowns across changed keys/URLs, failed-attempt accounting,
-  invalid-signature/failure suppression, and evidence expiring during refresh.
+  invalid-signature/failure suppression, evidence expiring during refresh, and
+  a real resolver retaining no cached `ACTIVE` success after learning revocation.
 - Cached-directory key-miss re-fetch, upstream revalidation, cooldowns across key/
   URL variants, fresh-miss suppression, and failure without fallback; signed
   `must-revalidate` output and rejection of HTTP-stale or signature-expired evidence.
@@ -424,7 +449,9 @@ Native validation MUST cover:
   encryption-only `key_ops`; coded responses; valid extra `@status` coverage;
   parameterized digest coverage without content; nonce replay/store failure.
 - Invalid numeric settings; configuration mutation including nested discovery;
-  repeated streamed-message cleanup; transient directory timeout/HTTP 503.
+  key activation during request/directory signing (valid matching-key output or
+  explicit rejection); repeated stream cleanup and real-network early rejection
+  without process crashes; transient directory timeout/HTTP 503.
 
 ## Key reuse decision
 

@@ -29,6 +29,7 @@ export async function verifyWba(req, sdk, wba, sdkDir) {
   }, (_request, response) => {
     discoveries++;
     clock = s.finishedAt;
+    response.sendDate = false;
     response.setHeader('Connection', 'close');
     if (s.directoryTimeout) return;
     if (s.redirects.length) {
@@ -61,6 +62,7 @@ export async function verifyWba(req, sdk, wba, sdkDir) {
     };
     syncBuiltinESMExports();
     const resolver = {
+      async refreshDomain(signer, peerCert) { return this.verifyDomain(signer, peerCert); },
       async verifyDomain(signer, peerCert) {
         // Identity evidence is injected at the public resolver boundary.
         if (!s.dnsidExists) throw new VerificationError('fixture DNSid record absent', { code: VerificationCode.RecordInvalid });
@@ -70,6 +72,7 @@ export async function verifyWba(req, sdk, wba, sdkDir) {
         const keys = (phase ? s.currentKu : [publicKey]).map(key => ({ alg: 'EdDSA', kid: 'fixture-ku', ...key }));
         const record = new DnsIdTxtRecord();
         record.v = 'dnsid-draft-01';
+        record.ku = s.ku ?? '';
         return new VerifiedDomain({
           domain: signer, record, jwks: new JWKS(keys), signingKey: publicKey,
           signingKeyThumbprint: await jwkThumbprint(publicKey),
@@ -83,12 +86,7 @@ export async function verifyWba(req, sdk, wba, sdkDir) {
     };
     const transport = createSsrfSafeFetch(s.directoryTlsValid ? { caBundlePath: new URL('wba-cert.pem', fixtures).pathname } : {}, { decompress: false });
     const config = { clockSkew: s.clockSkew };
-    // Buffer the fixed fixture bytes before exposing them to the verifier;
-    // Node's Readable.toWeb bridge can race cancellation on an early rejection.
-    const discoveryFetch = async request => {
-      const response = await transport(request);
-      return new Response(await response.arrayBuffer(), { status: response.status, headers: response.headers });
-    };
+    const discoveryFetch = request => transport(request);
     const verifier = new wba.WebBotAuthProfile({ identityResolver: resolver, discoveryFetch, webBotAuth: config });
     Object.assign(config, s.configMutation ?? {});
     const opts = {

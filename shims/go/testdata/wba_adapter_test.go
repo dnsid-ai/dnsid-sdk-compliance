@@ -118,7 +118,10 @@ func TestComplianceWBAAdapter(t *testing.T) {
 				f.dns.ttl = time.Duration(*s.DNSTTL) * time.Second
 			}
 			cfg := Config{}.WithClockSkew(time.Duration(s.ClockSkew) * time.Second)
-			f.checker = NewVerifier(f.manager, cfg)
+			f.checker, err = NewVerifier(f.manager, cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
 			var clock atomic.Int64
 			clock.Store(s.Now)
 			f.checker.now = func() time.Time { return time.Unix(clock.Load(), 0) }
@@ -143,6 +146,7 @@ func TestComplianceWBAAdapter(t *testing.T) {
 					w.WriteHeader(http.StatusFound)
 					return
 				}
+				w.Header()["Date"] = nil // Do not invent age metadata absent from the fixture.
 				for name, value := range req.Directory.Headers {
 					w.Header().Set(name, value)
 				}

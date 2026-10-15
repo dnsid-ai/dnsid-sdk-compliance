@@ -13,12 +13,13 @@ from unittest.mock import patch
 import yaml
 from generate_wba_fixtures import (
     NOW,
+    NEXT_KEY,
     build_vectors,
     corrupt_signature,
     sign,
     tls_fixture_files,
 )
-from run import SubprocessAdapter, compare, evaluate_result, render_report
+from run import FixtureKeyProvider, SubprocessAdapter, compare, evaluate_result, render_report
 from wba_adapters import verify_go
 from wba_vectors import (
     VECTOR_PATH,
@@ -162,6 +163,57 @@ class WbaVectorsTest(unittest.TestCase):
                 if not valid:
                     self.assertIn("directory cache policy", result["message"])
 
+    def test_query_form_encoding_vectors(self):
+        for name, value in (
+            ("query-form-encoding", "%7E*"), ("query-plus-space", "x%20y"),
+            ("query-percent-space", "x%20y"), ("query-empty", ""),
+        ):
+            with self.subTest(name=name):
+                self.assertIn(
+                    f'"@query-param";name="q": {value}',
+                    self.vectors["requests"][name]["signatureBase"].splitlines(),
+                )
+
+    def test_network_age_vectors_have_no_uncached_escape(self):
+        cases = {case["id"]: case for case in self.vectors["verificationCases"]}
+        for name, valid in (("http-age-stale", False), ("http-date-stale", False),
+                            ("http-zero-age-stale", False), ("http-age-fresh", True)):
+            case = cases["wba-verify-directory-" + name]
+            self.assertEqual(case["expect"]["ok"], valid)
+            self.assertNotIn("uncachedExpect", case)
+            self.assertTrue(self.vectors["directories"][name]["signatureValid"])
+
+    def test_fixture_key_activation_changes_metadata_and_signature(self):
+        try:
+            old = FixtureKeyProvider(self.vectors["key"])
+            next_key = FixtureKeyProvider(NEXT_KEY)
+        except ImportError:
+            self.skipTest("Python SDK is not installed")
+        selected = old.signing_key()
+        old.next_provider = next_key
+        payload = b"rotation race"
+        signature = old.sign(payload)
+        self.assertIs(old.signing_key(), next_key.public)
+        self.assertFalse(selected.verify(payload, signature))
+        self.assertTrue(next_key.public.verify(payload, signature))
+        self.assertEqual(old.sign_calls, 1)
+
+    def test_signing_key_change_requires_valid_bytes_or_native_rejection(self):
+        for directory in (False, True):
+            case, actual = self.signing_case(directory)
+            case["signingKeyChange"] = NEXT_KEY
+            self.assertEqual(check_signed_output(case, actual, NOW, NOW), {"ok": True})
+            actual["message"]["headers"]["signature"] = "sig1=:YWJj:"
+            self.assertFalse(check_signed_output(case, actual, NOW, NOW)["ok"])
+            for error in ("ArgumentError", "VerificationError", "SigningRejected"):
+                self.assertEqual(check_signed_output(
+                    case, {"ok": False, "error": error}, NOW, NOW,
+                ), {"ok": True})
+            for error in ("AdapterError", "TypeError", "CapabilityMissing", "NotImplementedError"):
+                self.assertFalse(check_signed_output(
+                    case, {"ok": False, "error": error}, NOW, NOW,
+                )["ok"])
+
     def test_keyed_digest_fixture_is_signed_but_has_no_content(self):
         fixture = self.vectors["requests"]["keyed-digest-without-content"]
         self.assertNotIn("bodyBase64", fixture["message"])
@@ -240,6 +292,49 @@ class WbaVectorsTest(unittest.TestCase):
                 ],
                 "PASS",
             )
+
+    def test_typescript_stream_crash_is_a_case_failure_not_a_rejection(self):
+        def execute(_cmd, **kwargs):
+            requests = json.loads(kwargs["input"])
+            if requests[0].get("crash"):
+                return SimpleNamespace(returncode=1, stdout="", stderr="Controller is already closed")
+            if requests[0].get("malformed"):
+                return SimpleNamespace(returncode=0, stdout="{}", stderr="")
+            return SimpleNamespace(returncode=0, stdout=json.dumps([
+                {"ok": True} for _ in requests
+            ]), stderr="")
+
+        with patch("run.subprocess.run", side_effect=execute):
+            results = SubprocessAdapter("ts", ["unused"]).run([
+                {"op": "parse"}, {"op": "wba_verify_request", "crash": True},
+                {"op": "wba_verify_request"},
+                {"op": "wba_verify_request", "malformed": True},
+            ])
+        self.assertEqual(results[0], {"ok": True})
+        self.assertEqual(results[2], {"ok": True})
+        self.assertEqual(results[3]["error"], "AdapterError")
+        self.assertEqual(results[1]["error"], "AdapterError")
+        self.assertIn("Controller is already closed", results[1]["message"])
+        case = {"op": "wba_verify_request", "expect": {"ok": False, "error": "ConformanceError"}}
+        self.assertEqual(evaluate_result(case, "ts", results[1])[0], "FAIL")
+
+    def test_go_refresh_does_not_reuse_known_revoked_evidence(self):
+        sdk = os.environ.get("DNSID_GO_DIR")
+        if not sdk:
+            self.skipTest("set DNSID_GO_DIR to run the native core refresh regression")
+        with tempfile.TemporaryDirectory() as directory:
+            overlay = Path(directory) / "overlay.json"
+            root = VECTOR_PATH.parents[3]
+            overlay.write_text(json.dumps({"Replace": {
+                str(Path(sdk).resolve() / "compliance_wba_refresh_test.go"):
+                    str(root / "shims/go/testdata/wba_refresh_test.go"),
+            }}))
+            proc = subprocess.run(
+                ["go", "test", f"-overlay={overlay}", ".", "-run",
+                 "^TestComplianceWBARefreshRevocation$", "-count=1"],
+                cwd=sdk, capture_output=True, text=True, timeout=60,
+            )
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
 
     def test_go_native_batch_dispatch_preserves_other_results(self):
         requests = [{"op": "parse"}, {"op": "wba_verify_request"}]
@@ -321,6 +416,30 @@ class WbaVectorsTest(unittest.TestCase):
                 verify_python(cases["wba-verify-valid"]["input"])["error"],
                 "AdapterError",
             )
+
+    def test_python_transport_preserves_fixture_date(self):
+        try:
+            from dnsid import WBAHttpVerifier  # noqa: F401
+        except ImportError:
+            self.skipTest("Python WBA SDK is not installed")
+        from http.server import BaseHTTPRequestHandler
+        from wba_adapters import verify_python
+
+        dates = []
+        original = BaseHTTPRequestHandler.send_header
+
+        def send_header(handler, name, value):
+            if name.lower() == "date":
+                dates.append(value)
+            return original(handler, name, value)
+
+        case = next(case for case in load_wba_suite()["cases"]
+                    if case["id"] == "wba-verify-directory-http-date-stale")
+        with patch("wba_adapters.BaseHTTPRequestHandler.send_header", new=send_header):
+            actual = verify_python(case["input"])
+        self.assertEqual(dates, [case["input"]["directory"]["headers"]["date"]])
+        self.assertFalse(actual["ok"])
+        self.assertEqual(actual["error"], "ConformanceError")
 
     def test_valid_signing_and_directory_bytes(self):
         for directory in (False, True):

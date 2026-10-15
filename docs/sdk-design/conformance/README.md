@@ -46,6 +46,9 @@ The corpus separates three kinds of expectation:
   directories, zero-TTL acquisition, valid-plus-invalid candidate ambiguity,
   distinct-key directory candidates, exact recipient coverage policy, directory
   JWK metadata, coded responses, response `@status`, HTTP 503, and timeouts.
+  Regressions include query form encoding (`~`, `*`, spaces, and empty values),
+  network `Age`/`Date` staleness even without local caching, and local `ku`
+  empty-path aliases.
   WG revision `00` cases require a covered `Signature-Agent` even with trusted
   caller discovery, reject non-origin `directory` values before discovery,
   reject same-host public redirects without following them, and reject future
@@ -82,6 +85,12 @@ lifetime, cap `max-age` at remaining validity, and require `must-revalidate`
 without stale-serving directives. Checker unit tests cover TTLs of 300, 60, 5,
 and 1 seconds and cache directives. Fixed verification fixtures remain valid
 inputs; external signers need not use the SDK helper's backdate or cache directives.
+`signingKeyChange` activates a second disposable key at the provider's first
+current-key sign call. A request or directory must either verify under its
+advertised original/new key or explicitly reject through the SDK signing API.
+Only recognized native rejection types pass this safety check; adapter/runtime
+errors and unsupported methods still fail. `localKu` supplies a known local
+operational endpoint through the native signing construction path.
 
 Directory caching is optional. Cache cases apply only when a binding reuses
 directory evidence; uncached bindings must instead test repeated fresh discovery
@@ -92,7 +101,20 @@ input. Repeated invocations must prove that the freshness window does not restar
 `uncachedExpect` supplies the alternative expectation for bindings that do not
 cache directories: successful repeated operations must perform two fresh
 network discoveries. A newly fetched non-cacheable response remains usable in
-its acquiring invocation.
+its acquiring invocation. Explicit HTTP age/deadline cases have no uncached
+alternative: fetching over the network does not authorize known HTTP-stale evidence.
+TypeScript receives real raw streams in isolated processes; process crashes fail
+that case rather than being hidden by buffering or aborting the complete matrix.
+
+The native Go cache regression uses an overlay of the SDK's core test fixtures:
+
+```sh
+DNSID_GO_DIR="$HOME/dnsid-go" .venv/bin/python -m unittest discover -s harness -p 'test_*.py'
+```
+
+Without `DNSID_GO_DIR` that one SDK-dependent test is skipped. It confirms that a
+full refresh learning revocation cannot leave an older cached `ACTIVE` result
+usable with a positive status-check interval. It is not part of wire-vector counts.
 
 Remaining required native coverage includes certificate and key-age expiry with
 zero DNS TTL, all numeric configuration boundaries (including non-finite and

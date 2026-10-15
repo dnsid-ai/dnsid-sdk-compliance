@@ -9,6 +9,7 @@ import copy
 import hashlib
 import json
 from datetime import datetime, timezone
+from email.utils import formatdate
 
 from cryptography import x509
 from cryptography.hazmat.primitives import serialization
@@ -33,6 +34,12 @@ PUBLIC = {
     "x": b64url(PRIVATE.public_key().public_bytes_raw()),
 }
 KEY = {**PUBLIC, "kid": "fixture-ku", "seed": b64url(SEED)}
+NEXT_SEED = bytes(reversed(range(32)))
+NEXT_PRIVATE = Ed25519PrivateKey.from_private_bytes(NEXT_SEED)
+NEXT_KEY = {
+    "kty": "OKP", "crv": "Ed25519", "kid": "fixture-next", "seed": b64url(NEXT_SEED),
+    "x": b64url(NEXT_PRIVATE.public_key().public_bytes_raw()),
+}
 THUMB = thumbprint(PUBLIC)
 NONCE = b64url(bytes(range(64)))
 REF = "SDK design 10: request/directory verification; RFC 9421; RFC 9530; draft-ietf-webbotauth-httpsig-protocol-00"
@@ -185,6 +192,18 @@ def build_vectors() -> dict:
         "missing-created": request_fixture(created=None),
         "missing-expires": request_fixture(expires=None),
     }
+    for name, query in (
+        ("query-form-encoding", "q=~*"),
+        ("query-plus-space", "q=x+y"),
+        ("query-percent-space", "q=x%20y"),
+        ("query-empty", "q="),
+    ):
+        message = copy.deepcopy(requests["valid"]["message"])
+        message["url"] = "https://api.example/v1/items?" + query
+        requests[name] = sign(message, message, [
+            '"@authority"', '"content-digest"', '"signature-agent";key="sig1"',
+            '"@query-param";name="q"',
+        ])
     for name, uri in (
         ("directory-path", f"https://{DOMAIN}/custom"),
         ("directory-query", f"https://{DOMAIN}?keys=1"),
@@ -274,6 +293,12 @@ def build_vectors() -> dict:
 
     directories = {
         "valid": directory_fixture(),
+        "http-age-stale": directory_fixture(headers={"age": "300"}),
+        "http-age-fresh": directory_fixture(headers={"age": "1"}),
+        "http-date-stale": directory_fixture(
+            cache_age=60, headers={"date": formatdate(NOW - 61, usegmt=True)}
+        ),
+        "http-zero-age-stale": directory_fixture(cache_age=0, headers={"age": "1"}),
         "wrong-jwk-kid": directory_fixture(
             keys=[{**directory_key, "kid": "incorrect"}]
         ),
@@ -379,6 +404,8 @@ def build_vectors() -> dict:
         config=None,
         options=None,
         mutation=None,
+        signing_key_change=None,
+        local_ku="",
     ):
         signing.append(
             {
@@ -391,6 +418,8 @@ def build_vectors() -> dict:
                     "webBotAuth": config or {},
                     "options": options or {},
                     **({"configMutation": mutation} if mutation else {}),
+                    **({"signingKeyChange": signing_key_change} if signing_key_change else {}),
+                    **({"localKu": local_ku} if local_ku else {}),
                 },
                 "expect": {"ok": True}
                 if accepted
@@ -423,6 +452,21 @@ def build_vectors() -> dict:
                 "type": "jwks_uri",
             }
         },
+    )
+    for operation, message in (("request", get), ("directory", directory_request)):
+        signing_case(
+            "key-change-during-" + operation, operation=operation, message=message,
+            signing_key_change=NEXT_KEY,
+        )
+    signing_case(
+        "reject-local-ku-empty-path", accepted=False,
+        config={"signatureAgent": {"uri": f"https://{DOMAIN}/", "type": "jwks_uri"}},
+        local_ku=f"https://{DOMAIN}",
+    )
+    signing_case(
+        "separate-local-ku",
+        config={"signatureAgent": {"uri": f"https://{DOMAIN}/directory", "type": "jwks_uri"}},
+        local_ku=f"https://{DOMAIN}/ku",
     )
     signing_case("directory", operation="directory", message=directory_request)
     signing_case(
@@ -514,6 +558,8 @@ def build_vectors() -> dict:
         reason="Trusted caller discovery does not make Signature-Agent optional.",
     )
     verify_case("optional-operation-binding", req="operation-bound", accepted=True)
+    for name in ("query-form-encoding", "query-plus-space", "query-percent-space", "query-empty"):
+        verify_case(name, req=name, accepted=True)
     verify_case(
         "authority-only-other-operation",
         req="authority-only-other-operation",
@@ -547,6 +593,7 @@ def build_vectors() -> dict:
     ):
         verify_case(name, req=name)
     accepted_directories = {
+        "http-age-fresh",
         "no-store",
         "no-cache",
         "zero-max-age",

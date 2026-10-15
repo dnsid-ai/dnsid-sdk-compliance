@@ -70,6 +70,7 @@ class FixtureKeyProvider:
         )
         self.signed_payload = b""
         self.sign_calls = 0
+        self.next_provider = None
 
     def signing_key(self):
         return self.public
@@ -81,6 +82,10 @@ class FixtureKeyProvider:
         return [self.fixture["kid"]]
 
     def sign(self, payload):
+        if self.next_provider is not None:
+            next_key = self.next_provider
+            self.fixture, self.private, self.public = next_key.fixture, next_key.private, next_key.public
+            self.next_provider = None
         self.sign_calls += 1
         self.signed_payload = payload
         return self.private.sign(payload)
@@ -98,6 +103,21 @@ class SubprocessAdapter:
         self.env = {**os.environ, **(env or {})}
 
     def run(self, requests: list[dict]) -> list[dict]:
+        # Keep stream crashes visible per case without losing the full report.
+        if self.name == "ts" and len(requests) > 1:
+            native = [i for i, req in enumerate(requests) if req["op"] == "wba_verify_request"]
+            if native:
+                ordinary = [i for i, req in enumerate(requests) if req["op"] != "wba_verify_request"]
+                results = [None] * len(requests)
+                if ordinary:
+                    for i, result in zip(ordinary, self.run([requests[i] for i in ordinary])):
+                        results[i] = result
+                for i in native:
+                    try:
+                        results[i] = self.run([requests[i]])[0]
+                    except (RuntimeError, ValueError, IndexError) as exc:
+                        results[i] = {"ok": False, "error": "AdapterError", "message": str(exc)}
+                return results
         proc = subprocess.run(
             self.cmd,
             input=json.dumps(requests),
@@ -108,6 +128,10 @@ class SubprocessAdapter:
         if proc.returncode != 0:
             raise RuntimeError(f"{self.name} shim failed (exit {proc.returncode}): {proc.stderr.strip()}")
         results = json.loads(proc.stdout)
+        if not isinstance(results, list) or len(results) != len(requests) or any(
+            not isinstance(result, dict) for result in results
+        ):
+            raise RuntimeError(f"{self.name} shim returned malformed results")
         if self.name == "go":
             from wba_adapters import verify_go
 
@@ -233,6 +257,8 @@ class PyAdapter:
                 return verify_python(req)
             return {"ok": False, "error": "CapabilityMissing", "capability": "wba_request_verification", "message": "SDK has signing/directory serving only"}
         key = FixtureKeyProvider(req["key"])
+        if req.get("signingKeyChange"):
+            key.next_provider = FixtureKeyProvider(req["signingKeyChange"])
         config = req.get("webBotAuth", {})
         agent = config.get("signatureAgent", {})
         cfg = wba.WebBotAuthConfig(
@@ -250,7 +276,7 @@ class PyAdapter:
             output = {"status": result.status, "headers": result.headers, "bodyBase64": base64.b64encode(result.body).decode()}
         else:
             opts = req.get("options", {})
-            signer = wba.WBAHttpSigner(key, req["domain"], config=cfg)
+            signer = wba.WBAHttpSigner(key, req["domain"], config=cfg, ku_url=req.get("localKu", ""))
             mutation = req.get("configMutation", {})
             if "includeSignatureAgent" in mutation:
                 cfg.include_signature_agent = mutation["includeSignatureAgent"]

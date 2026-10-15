@@ -862,7 +862,10 @@ the manager's cached identity result and acquiring new key, status, and required
 lifecycle evidence. Normalize the domain and apply the same immutable verification
 context, current-peer checks, counterparty acceptance, final freshness checks,
 and cache-insertion rules. The refresh MUST NOT return a cached identity result
-or fall back to it after failure.
+or fall back to it after failure. Confirmed non-active status MUST invalidate
+cached `ACTIVE` evidence immediately, even with a positive status-check interval;
+older concurrent workers MUST NOT restore it. Transient failures may retain
+unexpired evidence, but never authorize this failed refresh.
 
 SDK-managed HTTP caches MUST revalidate the key, status, and lifecycle resources
 needed by this refresh; cached DNS answers remain subject to their remaining TTL.
@@ -880,7 +883,8 @@ public `EvictDomain` followed by `VerifyDomain` sequence with a cache race.
 Callers apply their profile's retry admission and resource budgets; this method
 does not retry until keys match. Required native tests cover cached-key replacement,
 revalidation through injected transports, failure without stale fallback,
-concurrent lookup/refresh ordering, and per-caller acceptance and peer checks.
+concurrent lookup/refresh ordering, known revocation with a positive status-check
+interval, and per-caller acceptance and peer checks.
 
 ---
 
