@@ -1301,8 +1301,12 @@ substitutes for that signature. A log binding may require additional signatures;
 ```
 
 Explicit rotation may target another provider, including local-to-KMS, without
-key export/import. Validate target availability/settings before generation.
-Configuration changes alone do not rotate or replace the active signer.
+key export/import. Rotation MAY change the operational signing algorithm; it is
+not required to preserve the previous key's algorithm. Explicitly select a target
+algorithm when changing it, and validate target availability/settings and algorithm
+support before generation. Verify that the generated key uses the selected
+algorithm before preparing or submitting the event. Configuration changes alone
+do not rotate or replace the active signer.
 
 Publication of the new live key precedes the immutable `KEY_ROTATION` append,
 as required by draft 01. These are not an atomic distributed transaction, so
@@ -1344,10 +1348,21 @@ checked), idempotency key, latest structured submission result, whether local
 activation completed, and whether application signing is paused. The pending
 private key remains in the target `KeyProvider` and MUST be recoverable by its
 recorded reference. Recover both providers from saved references, not changed
-deployment settings.
+deployment settings. Resolvers MUST reopen the provider state identified by each
+saved reference; unrelated or newly created provider state is not recovery.
 
 Resume validates the durable record before taking action and fails closed on an
-entry-hash, log-reference, or key-binding mismatch. Its state handling is:
+entry-hash, log-reference, or key-binding mismatch. An absent previous key may be
+treated as completed supersession only after saved acceptance and validation that
+the exact saved target key is already active. For distinct providers, the previous
+provider MUST have no active signing key. When the previous key is still present,
+its binding MUST match the saved previous key. Any active source key MUST match
+that binding, except that, after saved acceptance, a shared source/target provider
+MAY have the exact saved target key active while retaining the previous key.
+An unrelated active key MUST cause recovery to fail closed. A saved previous key
+that is still listed but unavailable is not completed supersession; recovery MUST
+fail closed.
+Its state handling is:
 
 - prepared, submitting, or indeterminate: ensure signing is paused and retry the
   exact bytes with the same idempotency key;
@@ -1364,9 +1379,16 @@ In particular, unpausing before `activated=true` is durably stored is forbidden.
 Recovery tests MUST cover a crash after activation is persisted but before signer
 wiring changes: resume restores the saved new provider/key before unpausing,
 even when deployment settings still select the old provider.
+Recovery tests MUST also cover a same-provider crash between `Activate(newKid)`
+and `Supersede(previousKid)`: with saved acceptance, the exact saved target key
+active, and the previous key retained, resume completes supersession idempotently
+before durably recording activation and unpausing.
 
-If the previous private key is unavailable or suspected compromised, this flow
-MUST NOT be used: revoke and reissue the identity instead.
+If the previous private key is unavailable when starting a rotation or is
+suspected compromised, this flow MUST NOT be used: revoke and reissue the identity
+instead. Recovery after successful supersession may proceed without the removed
+previous key under the conditions above, using the exact saved completed bytes;
+it MUST NOT regenerate or re-sign the event.
 
 Accountable-entity (`ek`) key continuity, accountability transfer, and recovery
 are not defined by draft 01; changing `ek` or `gi` without a future profile's
