@@ -34,6 +34,14 @@ and shared suites cover cross-cutting regressions. Release, dependency, CI,
 packaging, generated-reference, and example changes were included. Historical
 scopes and resolved findings remain in Git history.
 
+## Post-baseline Design Update — WBA Verification
+
+The revised [WBA design](../10-web-bot-auth.md#public-verifier-contract) requires
+request and directory verification. The WBA verification row below is reclassified
+from `Not applicable` to `Missing` using the signing-only surface at the recorded
+SDK baseline. This is a design-requirement update, not a new full SDK review;
+analysis commits and historical validation results above remain unchanged.
+
 ## Coverage Checklist
 
 ### Document Set and Shared Contracts
@@ -179,7 +187,7 @@ scopes and resolved findings remain in Git history.
 | WBA request signing | [10: Request signing](../10-web-bot-auth.md#request-signing) | Implemented: request signing is at `packages/web-bot-auth/src/index.ts:153`; constrained components/content at `:160`; TTL validation at `:180`, `:287`. | Ed25519, thumbprint `keyid`, nonce, tag, supplied empty content, and bounded lifetime match the profile. |
 | `Signature-Agent` discovery | [10: Signature-Agent discovery](../10-web-bot-auth.md#signature-agent-discovery) | Implemented: selected member generation is at `packages/web-bot-auth/src/index.ts:165`; typed discovery validation at `:302`. | Emits an explicit `directory` origin or direct `jwks_uri` endpoint and rejects unsupported runtime type values. |
 | Directory response | [10: Directory serving](../10-web-bot-auth.md#directory-serving) | Implemented: serving and signing are at `packages/web-bot-auth/src/index.ts:206`. | Covers the required response components with bounded lifetime and canonical RFC 9421 metadata. |
-| WBA verification | [10: Request verification requirements](../10-web-bot-auth.md#request-verification-requirements), [10: Directory verification requirements](../10-web-bot-auth.md#directory-verification-requirements) | Not applicable | Future public verifier API. |
+| WBA verification | [10: Request verification requirements](../10-web-bot-auth.md#request-verification-requirements), [10: Directory verification requirements](../10-web-bot-auth.md#directory-verification-requirements) | Missing: `packages/web-bot-auth/src/index.ts:153`, `:206` expose signing and directory serving only; no WBA verifier API. | Required by the revised design; request and directory verification are not implemented. |
 
 ### Log Bindings
 

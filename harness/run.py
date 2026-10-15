@@ -15,12 +15,14 @@ import json
 import os
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
 import yaml
 
 from semantic_vectors import load_semantic_suites
+from wba_vectors import check_signed_output, load_wba_suite
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -29,17 +31,59 @@ ROOT = Path(__file__).resolve().parent.parent
 # unsupported version (status REJ). Unsupported versions must fail closed.
 CAPABILITIES = {
     "go": {
+        "directory_cache": False,
         "versions": {"dnsid-draft-01", "DNSid1"},
     },
     "ts": {
+        "directory_cache": False,
         "versions": {"dnsid-draft-01", "DNSid1"},
     },
     "py": {
+        "directory_cache": False,
         "versions": {"dnsid-draft-01", "DNSid1"},
     },
 }
 
 UNSUPPORTED_VERSION_EXPECT = {"ok": False, "error": "ParseError", "error_contains": "unsupported"}
+
+
+class FixtureKeyProvider:
+    def __init__(self, fixture: dict):
+        import base64
+
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+        from dnsid._crypto import jwk_from_dict
+
+        self.fixture = fixture
+        self.private = Ed25519PrivateKey.from_private_bytes(
+            base64.urlsafe_b64decode(fixture["seed"] + "==")
+        )
+        self.public = jwk_from_dict(
+            {
+                "kty": "OKP",
+                "crv": "Ed25519",
+                "alg": "EdDSA",
+                "use": "sig",
+                "kid": fixture["kid"],
+                "x": fixture["x"],
+            }
+        )
+        self.signed_payload = b""
+        self.sign_calls = 0
+
+    def signing_key(self):
+        return self.public
+
+    def jwk(self, _kid):
+        return self.public
+
+    def list_key_ids(self):
+        return [self.fixture["kid"]]
+
+    def sign(self, payload):
+        self.sign_calls += 1
+        self.signed_payload = payload
+        return self.private.sign(payload)
 
 
 # --- SDK adapters -----------------------------------------------------------
@@ -63,7 +107,16 @@ class SubprocessAdapter:
         )
         if proc.returncode != 0:
             raise RuntimeError(f"{self.name} shim failed (exit {proc.returncode}): {proc.stderr.strip()}")
-        return json.loads(proc.stdout)
+        results = json.loads(proc.stdout)
+        if self.name == "go":
+            from wba_adapters import verify_go
+
+            indices = [i for i, result in enumerate(results) if requests[i]["op"] == "wba_verify_request" and result.get("error") == "NativeAdapterRequired"]
+            if indices:
+                native = verify_go([requests[i] for i in indices])
+                for i, result in zip(indices, native):
+                    results[i] = result
+        return results
 
 
 class PyAdapter:
@@ -100,6 +153,8 @@ class PyAdapter:
 
         try:
             op = req["op"]
+            if op in {"wba_sign", "wba_verify_request"}:
+                return self._wba(req)
             if op == "http_signature_base":
                 try:
                     from dnsid.http_signatures import _build_signature_base
@@ -164,6 +219,52 @@ class PyAdapter:
             return {"ok": False, "error": type(e).__name__, "message": str(e)}
 
     @staticmethod
+    def _wba(req: dict) -> dict:
+        import base64
+
+        import dnsid
+        from dnsid import wba_signer as wba
+        from dnsid.models import HttpRequest
+
+        if req["op"] == "wba_verify_request":
+            if hasattr(dnsid, "WBAHttpVerifier"):
+                from wba_adapters import verify_python
+
+                return verify_python(req)
+            return {"ok": False, "error": "CapabilityMissing", "capability": "wba_request_verification", "message": "SDK has signing/directory serving only"}
+        key = FixtureKeyProvider(req["key"])
+        config = req.get("webBotAuth", {})
+        agent = config.get("signatureAgent", {})
+        cfg = wba.WebBotAuthConfig(
+            signature_agent_uri=agent.get("uri", ""),
+            signature_agent_type=agent.get("type", "directory"),
+            include_signature_agent=config.get("includeSignatureAgent", True),
+            signature_ttl=config.get("signatureTTL", 60),
+            directory_signature_ttl=config.get("directorySignatureTTL", 300),
+        )
+        raw = req["request"]
+        body = base64.b64decode(raw["bodyBase64"], validate=True) if raw.get("bodyBase64") is not None else None
+        message = HttpRequest(method=raw["method"], url=raw["url"], headers=dict(raw["headers"]), body=body)
+        if req["operation"] == "directory":
+            result = wba.serve_http_message_signatures_directory(message, key, cfg)
+            output = {"status": result.status, "headers": result.headers, "bodyBase64": base64.b64encode(result.body).decode()}
+        else:
+            opts = req.get("options", {})
+            signer = wba.WBAHttpSigner(key, req["domain"], config=cfg)
+            mutation = req.get("configMutation", {})
+            if "includeSignatureAgent" in mutation:
+                cfg.include_signature_agent = mutation["includeSignatureAgent"]
+            if "signatureAgent" in mutation:
+                cfg.signature_agent_uri = mutation["signatureAgent"]["uri"]
+            result = signer.sign(message, options=wba.WebBotAuthSigningOptions(
+                additional_components=opts.get("additionalComponents", []),
+                signature_agent=opts.get("signatureAgent"),
+                ttl=opts.get("ttl"),
+            ))
+            output = {"headers": {name.lower(): value for name, value in result.headers.items()}, "bodyBase64": base64.b64encode(result.body).decode() if result.body is not None else None}
+        return {"ok": True, "message": output}
+
+    @staticmethod
     def _c2sp_managed_trust_select(req: dict) -> dict:
         from dnsid.c2sp_tlog import create_dnsid_managed_verification_registry
 
@@ -199,46 +300,11 @@ class PyAdapter:
         import base64
 
         from cryptography.exceptions import InvalidSignature
-        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
         from dnsid import DnsidConfig, DnsIdTxtRecord, IdentityConfig, IdentityManager, IdentityManagerDependencies
-        from dnsid._crypto import jwk_from_dict
-
-        class KeyProvider:
-            def __init__(self, fixture: dict):
-                self.fixture = fixture
-                self.private = Ed25519PrivateKey.from_private_bytes(
-                    base64.urlsafe_b64decode(fixture["seed"] + "==")
-                )
-                self.public = jwk_from_dict(
-                    {
-                        "kty": "OKP",
-                        "crv": "Ed25519",
-                        "alg": "EdDSA",
-                        "use": "sig",
-                        "kid": fixture["kid"],
-                        "x": fixture["x"],
-                    }
-                )
-                self.signed_payload = b""
-                self.sign_calls = 0
-
-            def signing_key(self):
-                return self.public
-
-            def jwk(self, _kid):
-                return self.public
-
-            def list_key_ids(self):
-                return [self.fixture["kid"]]
-
-            def sign(self, payload):
-                self.sign_calls += 1
-                self.signed_payload = payload
-                return self.private.sign(payload)
 
         config = req["config"]
-        entity = KeyProvider(req["entityKey"]) if req.get("entityKey") else None
-        operational = KeyProvider(req["entityKey"] if req.get("sameKey") else req["operationalKey"])
+        entity = FixtureKeyProvider(req["entityKey"]) if req.get("entityKey") else None
+        operational = FixtureKeyProvider(req["entityKey"] if req.get("sameKey") else req["operationalKey"])
         identity_fields = dict(
             domain=config["domain"],
             governance_id=config["governanceId"],
@@ -491,6 +557,8 @@ def resolve_expectation(case: dict, sdk: str) -> tuple[dict, str | None]:
     if version is not None and version not in CAPABILITIES[sdk]["versions"]:
         return UNSUPPORTED_VERSION_EXPECT, "gated"
     expected = case["expect"]
+    if "uncachedExpect" in case and not CAPABILITIES[sdk]["directory_cache"]:
+        return case["uncachedExpect"], "uncached"
     override = (case.get("sdk") or {}).get(sdk)
     if override and "expect" in override:
         return deep_merge(expected, override["expect"]), "override"
@@ -502,6 +570,8 @@ def resolve_expectation(case: dict, sdk: str) -> tuple[dict, str | None]:
 
 def compare(expected: dict, actual: dict) -> list[str]:
     problems = []
+    if type(actual.get("ok")) is not bool:
+        return ["SDK result lacks an explicit boolean ok field"]
     if bool(expected.get("ok")) != bool(actual.get("ok")):
         got = actual.get("message") or actual.get("value") or json.dumps(actual.get("record", {}))
         problems.append(f"ok: expected {expected.get('ok')}, got {actual.get('ok')} ({got})")
@@ -540,6 +610,30 @@ def compare(expected: dict, actual: dict) -> list[str]:
     return problems
 
 
+def evaluate_result(case: dict, sdk: str, actual: dict) -> tuple:
+    expected, kind = resolve_expectation(case, sdk)
+    if case["op"] == "wba_verify_request" and actual == {
+        "ok": False, "error": "CapabilityMissing", "capability": "wba_request_verification",
+        "message": "SDK has signing/directory serving only",
+    }:
+        return ("MISSING", [], actual["message"], actual)
+    problems = compare(expected, actual)
+    sdk_entry = (case.get("sdk") or {}).get(sdk) or {}
+    known_bug = sdk_entry.get("known_bug") if kind != "gated" else None
+    if problems:
+        status = "XFAIL" if known_bug else "FAIL"
+    elif known_bug:
+        status = "XPASS"
+    elif kind == "gated":
+        status = "REJ"
+    else:
+        status = "PASS"
+    note = sdk_entry.get("note") if kind == "override" else known_bug
+    if kind == "uncached":
+        note = "Directory caching is not implemented; two fresh discoveries are required instead."
+    return (status, problems, note, actual)
+
+
 # --- Runner -------------------------------------------------------------------
 
 
@@ -557,7 +651,7 @@ def run(args) -> int:
     sdk_names = [s for s in ("go", "ts", "py") if s in args.sdks]
     adapters = build_adapters(set(sdk_names))
     suites = load_fixtures(Path(args.fixtures), args.filter)
-    semantic = load_semantic_suites()
+    semantic = [*load_semantic_suites(), load_wba_suite()]
     if args.filter:
         semantic = [
             {**suite, "cases": [case for case in suite["cases"] if args.filter in case["id"]]}
@@ -570,8 +664,13 @@ def run(args) -> int:
         print("no cases matched", file=sys.stderr)
         return 2
 
+    ids = [case["id"] for case in all_cases]
+    if len(ids) != len(set(ids)):
+        raise ValueError("duplicate case ids across fixture suites")
     requests = [{"op": c["op"], **(c.get("input") or {})} for c in all_cases]
+    started = int(time.time())
     results = {name: adapters[name].run(requests) for name in sdk_names}
+    finished = int(time.time())
     for name in sdk_names:
         if len(results[name]) != len(requests):
             raise RuntimeError(f"{name} shim returned {len(results[name])} results for {len(requests)} requests")
@@ -583,20 +682,10 @@ def run(args) -> int:
         for case in suite["cases"]:
             cells = {}
             for name in sdk_names:
-                expected, kind = resolve_expectation(case, name)
-                problems = compare(expected, results[name][idx])
-                sdk_entry = (case.get("sdk") or {}).get(name) or {}
-                known_bug = sdk_entry.get("known_bug") if kind != "gated" else None
-                if problems:
-                    status = "XFAIL" if known_bug else "FAIL"
-                elif known_bug:
-                    status = "XPASS"  # marked known_bug but now passes — drop the marker
-                elif kind == "gated":
-                    status = "REJ"
-                else:
-                    status = "PASS"
-                note = sdk_entry.get("note") if kind == "override" else known_bug
-                cells[name] = (status, problems, note, results[name][idx])
+                actual = results[name][idx]
+                if case["op"] == "wba_sign":
+                    actual = check_signed_output(case["input"], actual, started, finished)
+                cells[name] = evaluate_result(case, name, actual)
             rows.append((suite["suite"], case, cells))
             idx += 1
 
@@ -612,7 +701,7 @@ def run(args) -> int:
 
 
 def render_report(sdk_names, suites, rows, args) -> str:
-    counts = {n: {"PASS": 0, "REJ": 0, "FAIL": 0, "XFAIL": 0, "XPASS": 0} for n in sdk_names}
+    counts = {n: {"PASS": 0, "REJ": 0, "FAIL": 0, "XFAIL": 0, "XPASS": 0, "MISSING": 0} for n in sdk_names}
     for _, _, cells in rows:
         for n in sdk_names:
             counts[n][cells[n][0]] += 1
@@ -631,8 +720,8 @@ def render_report(sdk_names, suites, rows, args) -> str:
 
     lines.append("## Summary")
     lines.append("")
-    lines.append("| SDK | Pass | Rejected unsupported | Known bugs | Fail | Total | Compliance |")
-    lines.append("|-----|------|----------------------|------------|------|-------|------------|")
+    lines.append("| SDK | Pass | Rejected unsupported | Known bugs | Fail | Total | Compliance | Missing |")
+    lines.append("|-----|------|----------------------|------------|------|-------|------------|---------|")
     total = len(rows)
     for n in sdk_names:
         c = counts[n]
@@ -641,13 +730,14 @@ def render_report(sdk_names, suites, rows, args) -> str:
         pct = (compliant * 100 / total) if total else 0
         lines.append(
             f"| {n} | {passing} | {c['REJ']} | {c['XFAIL']} | {c['FAIL']} | {total} | "
-            f"{compliant}/{total} ({pct:.1f}%) |"
+            f"{compliant}/{total} ({pct:.1f}%) | {c['MISSING']} |"
         )
     lines.append("")
     lines.append("`PASS` = matched expected behavior. `REJ` = record version not supported by this SDK;")
     lines.append("the SDK correctly rejected it as unsupported (fail-closed). `XFAIL` = known bug, the")
     lines.append("fixture encodes the spec-correct behavior and the SDK is known not to meet it yet.")
-    lines.append("`FAIL` = unexpected mismatch, see details.")
+    lines.append("`FAIL` = unexpected mismatch, see details. `MISSING` = no integrated WBA verifier;")
+    lines.append("the case did not execute and is not compliant. Missing capabilities do not fail the run.")
     lines.append("")
 
     for suite in suites:
@@ -667,8 +757,9 @@ def render_report(sdk_names, suites, rows, args) -> str:
                     "FAIL": "**FAIL**",
                     "XFAIL": "XFAIL",
                     "XPASS": "**XPASS**",
+                    "MISSING": "MISSING",
                 }[status]
-                if cells[n][2]:  # divergence or known-bug note applied
+                if cells[n][2] and status != "MISSING":  # divergence or known-bug note applied
                     mark += " †"
                 marks.append(mark)
             lines.append(f"| `{case['id']}` | " + " | ".join(marks) + " |")
@@ -693,6 +784,11 @@ def render_report(sdk_names, suites, rows, args) -> str:
             for p in problems:
                 lines.append(f"- {p}")
             lines.append("")
+
+    if any(cells[n][0] == "MISSING" for _, _, cells in rows for n in sdk_names):
+        lines.extend(["## Missing capabilities", "", "WBA request/directory verification is not shipped in the tested signing-only bindings.",
+                      "Positive and negative verifier vectors remain unexecuted. Integrate native verifier adapters",
+                      "when each SDK ships verification; these results are not end-to-end WBA conformance.", ""])
 
     known_bugs = [
         (case, n, cells[n])
@@ -738,7 +834,7 @@ def render_report(sdk_names, suites, rows, args) -> str:
         total = len(suite_rows)
         cells_out = []
         for n in sdk_names:
-            c = {"PASS": 0, "REJ": 0, "FAIL": 0, "XFAIL": 0, "XPASS": 0}
+            c = {"PASS": 0, "REJ": 0, "FAIL": 0, "XFAIL": 0, "XPASS": 0, "MISSING": 0}
             for _, cells in suite_rows:
                 c[cells[n][0]] += 1
             compliant = c["PASS"] + c["XPASS"] + c["REJ"]
@@ -748,6 +844,8 @@ def render_report(sdk_names, suites, rows, args) -> str:
                 details.append(f"{c['FAIL']} fail")
             if c["XFAIL"]:
                 details.append(f"{c['XFAIL']} known")
+            if c["MISSING"]:
+                details.append(f"{c['MISSING']} missing")
             suffix = f"; {', '.join(details)}" if details else ""
             cells_out.append(f"{compliant}/{total} ({pct:.1f}%){suffix}")
         lines.append(f"| {suite['suite']} | " + " | ".join(cells_out) + " |")

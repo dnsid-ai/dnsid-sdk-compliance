@@ -23,6 +23,8 @@ ts-build:
 	uv pip install -p .venv pyyaml cryptography -e "$(DNSID_PY_DIR)"
 
 run: setup
+	.venv/bin/python harness/generate_wba_fixtures.py --check
+	.venv/bin/python -m unittest discover -s harness -p 'test_*.py'
 	.venv/bin/python harness/c2sp_event_identity_check.py
 	.venv/bin/python harness/run.py --out report.md
 

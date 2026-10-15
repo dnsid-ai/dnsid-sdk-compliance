@@ -37,6 +37,14 @@ and shared suites cover cross-cutting regressions. Release, dependency, CI,
 packaging, generated-reference, and example changes were included. Historical
 scopes and resolved findings remain in Git history.
 
+## Post-baseline Design Update — WBA Verification
+
+The revised [WBA design](../10-web-bot-auth.md#public-verifier-contract) requires
+request and directory verification. The WBA verification row below is reclassified
+from `Not applicable` to `Missing` using the signing-only surface at the recorded
+SDK baseline. This is a design-requirement update, not a new full SDK review;
+analysis commits and historical validation results above remain unchanged.
+
 ## Coverage Checklist
 
 ### Document Set and Shared Contracts
@@ -236,7 +244,7 @@ scopes and resolved findings remain in Git history.
 | WBA request signing | [10: Request signing](../10-web-bot-auth.md#request-signing) | Implemented: configuration bounds `dnsid/wba_signer.py:51`, `:71`; signing/content/component policy `:172`, `:211`, `:234`, `:243`. | Ed25519, thumbprint, nonce, tag, supplied empty content, and bounded lifetime match the profile. |
 | `Signature-Agent` discovery | [10: Signature-Agent discovery](../10-web-bot-auth.md#signature-agent-discovery) | Implemented: discovery validation `dnsid/wba_signer.py:71`, `:149`; member-preserving update `:220`, `:286`. | Emits explicit `directory` or `jwks_uri` semantics. |
 | Directory response | [10: Directory serving](../10-web-bot-auth.md#directory-serving) | Implemented: directory key conversion/serving `dnsid/wba_signer.py:314`, `:343`. | Covers required response components with bounded lifetime and canonical RFC 9421 metadata. |
-| WBA verification | [10: Request verification requirements](../10-web-bot-auth.md#request-verification-requirements), [10: Directory verification requirements](../10-web-bot-auth.md#directory-verification-requirements) | Not applicable | RFC 9421 WBA verifier remains a future API. The separate JWT bot-token verifier now requires a trusted `expected_audience` and rejects missing/mismatched JWT `aud` (`dnsid/web_bot_auth.py:370`, `:398`, `:449`; `tests/test_web_bot_auth.py`). |
+| WBA verification | [10: Request verification requirements](../10-web-bot-auth.md#request-verification-requirements), [10: Directory verification requirements](../10-web-bot-auth.md#directory-verification-requirements) | Missing: `dnsid/wba_signer.py:172`, `:343` expose signing and directory serving only; no RFC 9421 WBA verifier API. | Required by the revised design. The separate JWT bot-token verifier (`dnsid/web_bot_auth.py:370`) is not a WBA verifier. |
 
 ### Open Questions
 

@@ -353,6 +353,25 @@ DNSid protocol signature verification is governed by the protocol JWKS requireme
 
 The JWS helper produces and verifies compact serialization only. The protected header `kid` MUST use the application-layer compound form `{domain}#{kid}` and `typ` is `jose`. Payload semantics are opaque to the SDK. The SDK provides no replay protection for JWS payloads; applications that need freshness must include and enforce their own timestamp, nonce, audience, or challenge fields in the payload.
 
+## HTTP Bearer Transport
+
+`CreateJWT` and `VerifyJWT` do not select an HTTP transport. A caller may
+explicitly use the returned token as `Authorization: Bearer <jwt>` when that
+application protocol uses bearer authentication. Such transport helpers are
+JWT bearer helpers, not Web Bot Auth implementations.
+
+A helper that attaches a bearer token MUST reject a request containing any
+`Authorization` field with `ArgumentError`, before token creation or network
+work. Field-name matching is case-insensitive and includes empty values and
+repeated fields. Preserve the original request on rejection; do not replace,
+append to, or combine existing credentials. This rule applies to per-request
+helpers and automatic client transports, including credentials in client
+default headers.
+
+Bearer-token verification authenticates token claims, not the HTTP method,
+URI, or content. Use the separately selected HTTP Message Signatures profile
+when the application requires those request components to be authenticated.
+
 ## Required boundary checks
 
 SDK validation must cover these cases with otherwise-valid signatures and
@@ -368,6 +387,8 @@ identity evidence. These requirements are not assertions of current SDK coverage
 | Omitted expiry versus explicit zero/negative/non-finite expiry | Default only when omitted; reject the explicit invalid values. |
 | Verification-only JWT with no expected audience, or a mismatching one | Argument error for missing trusted context; verification failure for mismatch. |
 | Cached `fl=mtls` identity but missing/wrong current peer | Reject even when the JWT/JWS signature is valid. |
+| Explicit bearer transport with no `Authorization` field | Attach exactly one bearer field. |
+| Bearer transport with an existing `Authorization` field, including mixed-case names, empty/repeated fields, or client default headers | Argument error before token creation or network work; leave existing credentials and the original request unchanged. |
 
 ## Local Identity Client and Server Flows
 
@@ -378,7 +399,7 @@ verification.
 
 1. Identify the counterparty domain.
 2. Create a JWT with `CreateJWT({ audience: counterpartyDomain })`.
-3. Attach the JWT according to the application protocol, commonly as a bearer token.
+3. Attach the JWT according to the explicitly selected application protocol. For bearer transport, apply the [header-conflict rule](#http-bearer-transport).
 
 ### Local Identity as JWT/JWS Server
 

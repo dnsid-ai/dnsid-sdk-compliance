@@ -34,7 +34,7 @@ The documents are organized by SDK responsibility:
 | [07-protocol-data-types.md](07-protocol-data-types.md) | Shared DNSid data structures and wire profiles. |
 | [08-open-questions.md](08-open-questions.md) | Open design questions. |
 | [09-oidc-federation.md](09-oidc-federation.md) | OIDC federation profile for JWT Bearer assertions, token exchange, and token verification using DNSid identities. |
-| [10-web-bot-auth.md](10-web-bot-auth.md) | Web Bot Auth profile using RFC 9421 primitives and an HTTP Message Signatures Directory. |
+| [10-web-bot-auth.md](10-web-bot-auth.md) | Web Bot Auth request signing and verification, with signed-directory serving and verification, using RFC 9421 primitives and DNSid identity binding. |
 | [11-c2sp-tlog-binding.md](11-c2sp-tlog-binding.md) | C2SP transparency-log binding: references, envelopes, split signing, prepared submission, tiled-log verification, policy, witnesses, and completeness. |
 | [12-configuration-loading.md](12-configuration-loading.md) | Configuration sources: environment variable schema, deployment file, merge rule, and convenience constructors. Loaders parse; constructors default. |
 | [conformance/](conformance/) | Language-neutral RFC 9421 signature-base, lifecycle reducer, snapshot, and binding-selection vectors shared by SDK implementations. |
@@ -68,6 +68,17 @@ settled contract before their baselines or coverage claims are advanced; follow
 [the implementation review procedure](AGENTS.md#updating-sdk-implementation-coverage).
 
 ## Shared Profile Contracts
+
+### Profile configuration ownership
+
+Profile constructors MUST validate and independently snapshot configuration
+values, including nested settings, before network work. Later mutation of the
+caller-supplied configuration or a configuration accessor's result MUST NOT
+change an existing profile's signing or verification policy. Changing policy
+requires a new profile. Injected resolvers, key providers, and transports remain
+dependencies; this rule does not require copying them.
+
+### Identity resolution
 
 Profiles that only verify counterparties depend on this narrow core contract:
 
@@ -122,6 +133,34 @@ choose an explicit fallback path, but that path MUST NOT return, construct, or
 represent a successful `VerifiedDomain`. Assurance tiers may tighten status
 freshness, DNSSEC, or complete-log requirements, but MUST NOT omit mandatory
 identity binding or continuity checks while describing the result as verified.
+
+## Verification Dependencies
+
+A verifier can authenticate a signer without prior bilateral enrollment, using
+public DNS and authenticated HTTPS verification resources, subject to configured
+trust and freshness policy. This is not offline or DNS-only verification.
+`VerifyDomain` uses profile-required key, status, and lifecycle-log evidence;
+see [01: VerifyDomain](01-core-identity-manager.md#verifydomaindomain-string-peercert-tlscertificate---verifieddomain).
+The default `statusCheckInterval=0` requires a status fetch on every invocation.
+Cached evidence does not remove freshness, current-peer, or acceptance checks,
+and unavailable mandatory evidence must not produce successful verification.
+
+## Presentation Naming and Transport
+
+Reserve **Web Bot Auth** and **WBA** for the RFC 9421 profile in
+[10](10-web-bot-auth.md). JWT bearer authentication, including an Agent Identity
+Assertion (AIA) helper, is a separate application profile. Its public names,
+examples, and reference documentation MUST identify it as JWT bearer
+authentication, not Web Bot Auth. A name change does not make its claims or
+audience rules interchangeable with the [JOSE profile](03-jose-jwt-jws.md).
+
+HTTP message signatures can coexist with bearer authentication. Their signing
+helpers MUST preserve an existing `Authorization` field. JWT bearer transport
+uses that field only when explicitly selected by the caller and MUST reject an
+existing field instead of replacing it; see
+[03: HTTP Bearer Transport](03-jose-jwt-jws.md#http-bearer-transport).
+SDK documentation MUST NOT claim that every DNSid application profile avoids
+`Authorization` or that bearer tokens authenticate HTTP method, URI, or content.
 
 ## Verification Resource Budgets
 
@@ -204,9 +243,11 @@ DNSid core does not depend on any application authentication profile.
   -> transport helpers
 
 10 Web Bot Auth
+  -> core IdentityResolver
   -> RFC 9421 primitives
-  -> KeyProvider
+  -> KeyProvider (signing only)
   -> JWKS/JWK data types
+  -> SSRF-safe HTTPS discovery transport
 
 11 C2SP transparency log binding
   -> 06 shared log bindings
