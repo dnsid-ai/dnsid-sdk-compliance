@@ -179,24 +179,15 @@ def check_signed_output(
             )
             if request.get("bodyBase64") is not None:
                 expected_components.append('"content-digest"')
-            include_agent = options.get(
-                "signatureAgent", config.get("includeSignatureAgent", True)
+            expected_components.append('"signature-agent";key="sig1"')
+            agent = config.get("signatureAgent", {})
+            uri = agent.get("uri", "https://" + case_input["domain"])
+            kind = agent.get("type", "directory")
+            require(
+                message["headers"].get("signature-agent")
+                == f'sig1="{uri}";type={kind}',
+                "required discovery member",
             )
-            if include_agent:
-                expected_components.append('"signature-agent";key="sig1"')
-                agent = config.get("signatureAgent", {})
-                uri = agent.get("uri", "https://" + case_input["domain"])
-                kind = agent.get("type", "directory")
-                require(
-                    message["headers"]["signature-agent"]
-                    == f'sig1="{uri}";type={kind}',
-                    "discovery member",
-                )
-            else:
-                require(
-                    "signature-agent" not in message["headers"],
-                    "unexpected discovery member",
-                )
             expected_components.extend(
                 '"' + name + '"' for name in options.get("additionalComponents", [])
             )
@@ -217,7 +208,8 @@ def check_signed_output(
         )
         require(params["expires"] - params["created"] == ttl, "signature lifetime")
         require(
-            started - 5 <= params["created"] <= finished + 5, "signature creation time"
+            started - 5 <= params["created"] <= finished + (0 if directory else 5),
+            "signature creation time",
         )
         nonce = params["nonce"]
         require(re.fullmatch(r"[A-Za-z0-9_-]+", nonce) is not None, "nonce encoding")

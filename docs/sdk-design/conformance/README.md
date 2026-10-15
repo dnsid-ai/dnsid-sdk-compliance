@@ -25,8 +25,9 @@ semantics.
 ## Web Bot Auth
 
 [`web-bot-auth.json`](web-bot-auth.json) targets the DNSid WBA profile in
-[10](../10-web-bot-auth.md), with both WBA drafts at revision `00`. It contains
-fixed Ed25519 test keys, exact request/directory bytes, signature bases,
+[10](../10-web-bot-auth.md), targeting published
+`draft-ietf-webbotauth-httpsig-protocol-00`, including its directory requirements.
+It contains fixed Ed25519 test keys, exact request/directory bytes, signature bases,
 signatures, and SHA-256 content digests. All private material is disposable test
 data; the private-directory-key case intentionally tests prohibited disclosure.
 
@@ -45,6 +46,11 @@ The corpus separates three kinds of expectation:
   directories, zero-TTL acquisition, valid-plus-invalid candidate ambiguity,
   distinct-key directory candidates, exact recipient coverage policy, directory
   JWK metadata, coded responses, response `@status`, HTTP 503, and timeouts.
+  WG revision `00` cases require a covered `Signature-Agent` even with trusted
+  caller discovery, reject non-origin `directory` values before discovery,
+  reject same-host public redirects without following them, and reject future
+  directory `created` values even within configured request clock skew. A
+  relabeled signature retains its original covered discovery member.
 
 Message bodies are standard-base64 strings so empty supplied content remains
 distinct from absent content. `signatureBase` is authoritative UTF-8 text;
@@ -68,8 +74,9 @@ includes `transient` or `discoveryRequests`, adapters must report the native err
 classification or observed discovery count, not infer it from the expectation.
 `configMutation` changes the caller's configuration after constructing the
 profile; an expired request must remain rejected under the original policy.
-Signing cases also mutate discovery inclusion and nested URI settings; output
-must still match the original configuration.
+Signing cases also mutate nested discovery URI settings; output must still
+match the original configuration. Signing always includes and covers
+`Signature-Agent`; no signing case permits its omission.
 
 Directory caching is optional. Cache cases apply only when a binding reuses
 directory evidence; uncached bindings must instead test repeated fresh discovery
@@ -85,7 +92,9 @@ its acquiring invocation.
 Remaining required native coverage includes certificate and key-age expiry with
 zero DNS TTL, all numeric configuration boundaries (including non-finite and
 Boolean inputs where representable), configuration accessor ownership, and repeated
-stream replay without retained buffers or lost cleanup. Bindings supporting
+stream replay without retained buffers or lost cleanup. Native tests must also
+cover URL/key-pair cache isolation, newer-directory key removal, and retention
+without stale success after a failed refresh. Bindings supporting
 caching must also test original age/deadline retention, including missing
 `Date`/`Age`; uncached discovery does not prove cache-reuse correctness. The full
 matrix remains in [10: Directory verification requirements](../10-web-bot-auth.md#directory-verification-requirements).
