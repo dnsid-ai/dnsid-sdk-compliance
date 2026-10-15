@@ -19,9 +19,10 @@ else
   uv pip install -q -p "$venv" pyyaml cryptography
 fi
 
-if [ "$sdk" = go ]; then
-  export DNSID_GO_DIR="$dir"
-fi
+case "$sdk" in
+  go) export DNSID_GO_DIR="$dir" ;;
+  py) export DNSID_PY_DIR="$dir" ;;
+esac
 "$venv/bin/python" harness/generate_wba_fixtures.py --check
 "$venv/bin/python" -m unittest discover -s harness -p 'test_*.py'
 "$venv/bin/python" harness/generate_c2sp_fixtures.py --check

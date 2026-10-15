@@ -164,6 +164,10 @@ def compare(expected: dict, actual: dict) -> list[str]:
     problems = []
     if type(actual.get("ok")) is not bool:
         return ["SDK result lacks an explicit boolean ok field"]
+    if actual.get("error") in {"AdapterError", "ShimError"}:
+        return [f"adapter failure: {actual.get('message')}"]
+    if expected.get("ok") is False and not expected.get("error"):
+        return ["rejection expectation must name an error class"]
     if bool(expected.get("ok")) != bool(actual.get("ok")):
         got = actual.get("message") or actual.get("value") or json.dumps(actual.get("record", {}))
         problems.append(f"ok: expected {expected.get('ok')}, got {actual.get('ok')} ({got})")
@@ -219,7 +223,7 @@ def evaluate_result(case: dict, sdk: str, actual: dict) -> tuple:
     sdk_entry = (case.get("sdk") or {}).get(sdk) or {}
     known_bug = sdk_entry.get("known_bug") if kind != "gated" else None
     if problems:
-        status = "XFAIL" if known_bug else "FAIL"
+        status = "XFAIL" if known_bug and actual.get("error") not in {"AdapterError", "ShimError"} else "FAIL"
     elif known_bug:
         status = "XPASS"
     elif kind == "gated":

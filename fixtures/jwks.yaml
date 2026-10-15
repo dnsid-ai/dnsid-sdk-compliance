@@ -44,7 +44,11 @@ cases:
       jwks:
         keys:
           - {kty: OKP, crv: Ed25519, x: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE, alg: EdDSA}
-    expect: {ok: false}
+    expect: {ok: false, error: ValidationError}
+    sdk:
+      py:
+        note: "dnsid-py reports invalid JWK/JWKS data as VerificationError."
+        expect: {error: VerificationError}
 
   - id: jwks-reject-empty
     description: An empty JWKS has no usable signing key
@@ -53,7 +57,11 @@ cases:
     op: jwks_validate
     input:
       jwks: {keys: []}
-    expect: {ok: false}
+    expect: {ok: false, error: ValidationError}
+    sdk:
+      py:
+        note: "dnsid-py reports invalid JWK/JWKS data as VerificationError."
+        expect: {error: VerificationError}
 
   - id: jwks-reject-encryption-only
     description: A JWKS containing only use=enc keys has no signing key
@@ -64,7 +72,11 @@ cases:
       jwks:
         keys:
           - {kty: OKP, crv: Ed25519, x: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE, kid: enc-1, alg: EdDSA, use: enc}
-    expect: {ok: false}
+    expect: {ok: false, error: ValidationError}
+    sdk:
+      py:
+        note: "dnsid-py reports invalid JWK/JWKS data as VerificationError."
+        expect: {error: VerificationError}
 
   - id: jwks-reject-inconsistent-alg
     description: Ed25519 key material cannot declare alg=ES256
@@ -75,7 +87,11 @@ cases:
       jwks:
         keys:
           - {kty: OKP, crv: Ed25519, x: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE, kid: bad-alg, alg: ES256}
-    expect: {ok: false}
+    expect: {ok: false, error: ValidationError}
+    sdk:
+      py:
+        note: "dnsid-py reports invalid JWK/JWKS data as VerificationError."
+        expect: {error: VerificationError}
 
   - id: jwks-reject-unsupported-only
     description: An unsupported symmetric key does not make a usable DNSid signing set
@@ -86,7 +102,11 @@ cases:
       jwks:
         keys:
           - {kty: oct, k: c2VjcmV0, kid: sym-1}
-    expect: {ok: false}
+    expect: {ok: false, error: ValidationError}
+    sdk:
+      py:
+        note: "dnsid-py reports invalid JWK/JWKS data as VerificationError."
+        expect: {error: VerificationError}
 
   - id: jwks-ignore-unsupported-alongside-valid
     description: An unsupported key does not invalidate a separate valid signing key
@@ -110,7 +130,11 @@ cases:
         keys:
           - {kty: OKP, crv: Ed25519, x: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE, kid: duplicate, alg: EdDSA}
           - {kty: OKP, crv: Ed25519, x: AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI, kid: duplicate, alg: EdDSA}
-    expect: {ok: false}
+    expect: {ok: false, error: ValidationError}
+    sdk:
+      py:
+        note: "dnsid-py reports invalid JWK/JWKS data as VerificationError."
+        expect: {error: VerificationError}
 
   - id: jwks-signing-keys-filter-use
     description: SigningKeys includes absent and sig use but excludes enc
@@ -198,4 +222,8 @@ cases:
     op: jwk_signature_alg
     input:
       jwk: {kty: OKP, crv: Ed25519, x: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE, kid: key-1, alg: ES256}
-    expect: {ok: false}
+    expect: {ok: false, error: ValidationError}
+    sdk:
+      py:
+        note: "dnsid-py reports invalid JWK/JWKS data as VerificationError."
+        expect: {error: VerificationError}
