@@ -1356,8 +1356,10 @@ entry-hash, log-reference, or key-binding mismatch. An absent previous key may b
 treated as completed supersession only after saved acceptance and validation that
 the exact saved target key is already active. For distinct providers, the previous
 provider MUST have no active signing key. When the previous key is still present,
-any active source key MUST match its saved binding; retaining the old key alongside
-an unrelated active key does not satisfy recovery validation. A saved previous key
+its binding MUST match the saved previous key. Any active source key MUST match
+that binding, except that, after saved acceptance, a shared source/target provider
+MAY have the exact saved target key active while retaining the previous key.
+An unrelated active key MUST cause recovery to fail closed. A saved previous key
 that is still listed but unavailable is not completed supersession; recovery MUST
 fail closed.
 Its state handling is:
@@ -1377,6 +1379,10 @@ In particular, unpausing before `activated=true` is durably stored is forbidden.
 Recovery tests MUST cover a crash after activation is persisted but before signer
 wiring changes: resume restores the saved new provider/key before unpausing,
 even when deployment settings still select the old provider.
+Recovery tests MUST also cover a same-provider crash between `Activate(newKid)`
+and `Supersede(previousKid)`: with saved acceptance, the exact saved target key
+active, and the previous key retained, resume completes supersession idempotently
+before durably recording activation and unpausing.
 
 If the previous private key is unavailable when starting a rotation or is
 suspected compromised, this flow MUST NOT be used: revoke and reissue the identity
