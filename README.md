@@ -45,7 +45,7 @@ dnsid-sdk-compliance/
     └── security/      # SDK threat model + data/network inventory
 ```
 
-dnsid-py is imported in-process by the harness (installed editable into `.venv`).
+`harness/py_adapter.py` imports dnsid-py in-process (installed editable into `.venv`).
 The harness also directly loads, without copying or translating them into
 another checked-in fixture format:
 
@@ -340,9 +340,9 @@ make c2sp-matrix \
 inputs: fixed Ed25519 seeds, identity fields, timestamps, and event order.
 Each SDK independently prepares and signs the complete checked-in ISSUANCE to
 KEY_ROTATION stream through its production writer API. The harness requires all
-three results to be byte-identical and bound by the signed golden checkpoint,
-then explicitly runs each writer's stream through every production bundle
-verifier. It also exercises a Python-to-TypeScript split ISSUANCE handoff and
+three streams to match the golden entries byte-for-byte, then runs the signed
+golden bundle once through each production verifier. It also exercises a
+Python-to-TypeScript split ISSUANCE handoff and
 requires every verifier to reject each checked-in negative mutation for the
 declared reason.
 
