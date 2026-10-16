@@ -174,8 +174,3 @@ cases:
       ok: false
       error: ParseError
       error_contains: ek
-    sdk:
-      go:
-        note: "dnsid-go classifies a missing version-specific tag (ek) as ValidationError (dnsid-go#172); ts/py use ParseError"
-        expect:
-          error: ValidationError

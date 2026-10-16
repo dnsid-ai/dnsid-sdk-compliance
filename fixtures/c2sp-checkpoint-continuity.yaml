@@ -57,7 +57,6 @@ cases:
       treeSize: 1
       rootHash: TzqqbPIFvX4tEEoe-n5umoiSZgBZOdjC5WmelAlTv9g
       witnessTime: 1782345700
-  sdk: {}
 - id: checkpoint-same-checkpoint
   description: same checkpoint
   spec_ref: 'SDK design 11: Trusted Checkpoint Store Contract; Checkpoint Failure
@@ -92,7 +91,6 @@ cases:
       treeSize: 1
       rootHash: TzqqbPIFvX4tEEoe-n5umoiSZgBZOdjC5WmelAlTv9g
       witnessTime: 1782345700
-  sdk: {}
 - id: checkpoint-growth-proof
   description: growth proof
   spec_ref: 'SDK design 11: Trusted Checkpoint Store Contract; Checkpoint Failure
@@ -150,7 +148,6 @@ cases:
       rootHash: f-S2mQjw_nonrkvmD7cHBxnr3L9zSeyuhylafSLDnQo
       witnessTime: 1782345700
     proofRequested: true
-  sdk: {}
 - id: checkpoint-growth-scan
   description: growth scan
   spec_ref: 'SDK design 11: Trusted Checkpoint Store Contract; Checkpoint Failure
@@ -185,7 +182,6 @@ cases:
       treeSize: 2
       rootHash: f-S2mQjw_nonrkvmD7cHBxnr3L9zSeyuhylafSLDnQo
       witnessTime: 1782345700
-  sdk: {}
 - id: checkpoint-rollback
   description: rollback
   spec_ref: 'SDK design 11: Trusted Checkpoint Store Contract; Checkpoint Failure
@@ -229,9 +225,6 @@ cases:
       observedTreeSize: 1
       trustedRootHash: f-S2mQjw_nonrkvmD7cHBxnr3L9zSeyuhylafSLDnQo
       observedRootHash: TzqqbPIFvX4tEEoe-n5umoiSZgBZOdjC5WmelAlTv9g
-  sdk:
-    ts:
-      known_bug: 156d0e9 reports INVALID_EVIDENCE without typed continuity diagnostics.
 - id: checkpoint-root-conflict
   description: root conflict
   spec_ref: 'SDK design 11: Trusted Checkpoint Store Contract; Checkpoint Failure
@@ -292,9 +285,6 @@ cases:
       observedTreeSize: 1
       trustedRootHash: RR5Z8xYUmw26NVAZ7RYfL9E9zAvbkkYtXgNnDEm9jgw
       observedRootHash: TzqqbPIFvX4tEEoe-n5umoiSZgBZOdjC5WmelAlTv9g
-  sdk:
-    ts:
-      known_bug: 156d0e9 reports INVALID_EVIDENCE without typed continuity diagnostics.
 - id: checkpoint-invalid-proof
   description: invalid proof
   spec_ref: 'SDK design 11: Trusted Checkpoint Store Contract; Checkpoint Failure
@@ -340,9 +330,6 @@ cases:
       trustedRootHash: TzqqbPIFvX4tEEoe-n5umoiSZgBZOdjC5WmelAlTv9g
       observedRootHash: f-S2mQjw_nonrkvmD7cHBxnr3L9zSeyuhylafSLDnQo
     proofRequested: true
-  sdk:
-    ts:
-      known_bug: 156d0e9 reports INVALID_EVIDENCE without typed continuity diagnostics.
 - id: checkpoint-contradictory-prefix
   description: contradictory prefix
   spec_ref: 'SDK design 11: Trusted Checkpoint Store Contract; Checkpoint Failure
@@ -386,9 +373,6 @@ cases:
       observedTreeSize: 2
       trustedRootHash: RR5Z8xYUmw26NVAZ7RYfL9E9zAvbkkYtXgNnDEm9jgw
       observedRootHash: f-S2mQjw_nonrkvmD7cHBxnr3L9zSeyuhylafSLDnQo
-  sdk:
-    ts:
-      known_bug: 156d0e9 reports INVALID_EVIDENCE without typed continuity diagnostics.
 - id: checkpoint-scan-missing-leaf
   description: scan missing leaf
   spec_ref: 'SDK design 11: Trusted Checkpoint Store Contract; Checkpoint Failure
@@ -427,12 +411,6 @@ cases:
     error: CheckpointError
     transient: false
     errorCategory: INVALID_EVIDENCE
-  sdk:
-    go:
-      known_bug: 3529b74 classifies candidate-invalid scans as LOG_INCONSISTENT.
-    py:
-      known_bug: dc7f81b classifies a candidate scan missing a leaf as INCOMPLETE_STREAM,
-        not INVALID_EVIDENCE.
 - id: checkpoint-scan-wrong-root
   description: scan wrong root
   spec_ref: 'SDK design 11: Trusted Checkpoint Store Contract; Checkpoint Failure
@@ -476,9 +454,6 @@ cases:
     error: CheckpointError
     transient: false
     errorCategory: INVALID_EVIDENCE
-  sdk:
-    go:
-      known_bug: 3529b74 classifies candidate-root mismatches as LOG_INCONSISTENT.
 - id: checkpoint-missing-consistency
   description: missing consistency
   spec_ref: 'SDK design 11: Trusted Checkpoint Store Contract; Checkpoint Failure
@@ -516,7 +491,6 @@ cases:
     error: CheckpointError
     transient: false
     condition: consistency_unavailable
-  sdk: {}
 - id: checkpoint-proof-fetch-error
   description: proof fetch error
   spec_ref: 'SDK design 11: Trusted Checkpoint Store Contract; Checkpoint Failure
@@ -556,10 +530,6 @@ cases:
     transient: true
     causePreserved: true
     proofRequested: true
-  sdk:
-    go:
-      known_bug: 3529b74 wraps transient consistency fetch failures as non-transient
-        at RebuildHistory.
 - id: checkpoint-store-load-error
   description: store load error
   spec_ref: 'SDK design 11: Trusted Checkpoint Store Contract; Checkpoint Failure
@@ -599,12 +569,6 @@ cases:
     transient: false
     errorCategory: CHECKPOINT_STORE_ERROR
     causePreserved: true
-  sdk:
-    go:
-      known_bug: 3529b74 wraps store failures as INVALID_EVIDENCE, not CHECKPOINT_STORE_ERROR.
-    ts:
-      known_bug: 156d0e9 has no checkpoint-store error type or non-transient storage
-        classification.
 - id: checkpoint-store-write-error
   description: store write error
   spec_ref: 'SDK design 11: Trusted Checkpoint Store Contract; Checkpoint Failure
@@ -644,12 +608,6 @@ cases:
     transient: false
     errorCategory: CHECKPOINT_STORE_ERROR
     causePreserved: true
-  sdk:
-    go:
-      known_bug: 3529b74 wraps store failures as INVALID_EVIDENCE, not CHECKPOINT_STORE_ERROR.
-    ts:
-      known_bug: 156d0e9 has no checkpoint-store error type or non-transient storage
-        classification.
 - id: checkpoint-invalid-checkpoint-signature
   description: invalid checkpoint signature
   spec_ref: 'SDK design 11: Trusted Checkpoint Store Contract; Checkpoint Failure
@@ -707,7 +665,3 @@ cases:
     error: CheckpointError
     transient: false
     errorCategory: INVALID_EVIDENCE
-  sdk:
-    go:
-      known_bug: 3529b74 reports generic log_error after omitting candidates with
-        invalid checkpoint signatures.

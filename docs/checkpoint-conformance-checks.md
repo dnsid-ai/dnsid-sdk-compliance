@@ -4,9 +4,11 @@
 
 | SDK | Commit |
 |---|---|
-| Go | `3529b743767feeda5f07c39addee93b23d40894c` |
-| TypeScript | `156d0e945b256e3d4750f2d1d18f5d478069029e` |
-| Python | `dc7f81b3855bd96c8cc050b4a0b456b7e9ed4f64` |
+| Go | `501eff1271020603d5df44761ca64f10befa61b8` |
+| TypeScript | `7be8f79aa7d044fc5e21e5e18c240025336cf418` |
+| Python | `f7827000e720b665417e718276ebe21e75a63dbc` |
+
+Checks ran on 2026-10-16 against clean SDK checkouts on their checkpoint-fix branches.
 
 The expectations come from design 11's store contract and checkpoint diagnostic
 rules, including the clarified distinction between candidate-invalid evidence
@@ -24,20 +26,14 @@ arrays are mutated before reading state back when those diagnostics are exposed.
 
 | Checkpoint suite | Pass | Known failures | Unexpected failures |
 |---|---|---|---|
-| Go | 9/15 | 6 | 0 |
-| TypeScript | 9/15 | 6 | 0 |
-| Python | 14/15 | 1 | 0 |
+| Go | 15/15 | 0 | 0 |
+| TypeScript | 15/15 | 0 | 0 |
+| Python | 15/15 | 0 | 0 |
 
-Known failures remain XFAIL, not compliant passes:
-
-- Go misclassifies candidate-invalid scans and store errors, loses the transient
-  classification of consistency retrieval failures at the public reader
-  boundary, and reports a generic error for the invalid-checkpoint-signature case.
-- TypeScript lacks the new continuity categories/diagnostics and store-error
-  classification at this revision. Its missing-evidence condition is identifiable
-  by the native exception type, without matching message text.
-- Python reports `INCOMPLETE_STREAM` rather than `INVALID_EVIDENCE` for a complete
-  scan missing a required candidate leaf.
+All 13 prior known-failure entries were removed from the generator and regenerated
+fixture: six for Go, six for TypeScript, and one for Python. The base expectations
+and signed evidence are unchanged. TypeScript's missing-evidence condition now
+uses the exported native exception type rather than its constructor name.
 
 Every SDK rejected the negative candidates, preserved the trusted checkpoint,
 and retained injected dependency causes. Known-failure markers cannot hide a
@@ -46,16 +42,18 @@ failures. A fixed classification produces XPASS and requires removal of its mark
 
 ## Validation
 
-With the three SDK directory variables set and shims built:
+The Go shim and TypeScript packages were rebuilt from the recorded checkouts.
+The following commands passed, using the default sibling SDK directories:
 
 ```sh
-.venv/bin/python harness/generate_c2sp_fixtures.py --check
-.venv/bin/python harness/generate_wba_fixtures.py --check
-.venv/bin/python -m unittest discover -s harness -p 'test_*.py'
-.venv/bin/python harness/c2sp_event_identity_check.py
-.venv/bin/python harness/run.py --out /tmp/compliance-checkpoints.md
+make -W shims/go/checkpoint.go run c2sp-matrix
 (cd shims/go && go test ./... && go vet ./...)
+node --check shims/ts/checkpoint-verify.mjs
 ```
+
+The `-W` argument forces the Go shim to rebuild even if only its SDK dependency
+changed. `make run` checks both fixture generators, runs the harness unit suite
+and event-identity checks, and writes the full compliance report to `report.md`.
 
 The per-SDK CI entrypoint, `ci/run-one.sh`, was also run for Go, TypeScript,
 and Python. Each produced a report with zero unexpected failures. Its unit
@@ -64,10 +62,21 @@ installed and the target shim is not built yet. The selected SDK still executes
 all 15 shared checkpoint vectors after setup. All-SDK runs enable those
 self-checks through the existing three SDK directory variables.
 
-The all-SDK unit suite ran 40 tests without skips. The event-identity check ran 33 checks.
-The full compliance run executed 358 cases per SDK with zero unexpected failures:
-Go 341 PASS / 11 REJ / 6 XFAIL; TypeScript 341 PASS / 11 REJ / 6 XFAIL;
-Python 346 PASS / 11 REJ / 1 XFAIL. TypeScript was rebuilt from the recorded checkout.
+The all-SDK unit suite ran 40 tests without skips. Single-SDK unit runs had six
+skips for Go, seven for TypeScript, and four for Python; all selected SDK vectors
+still executed. The event-identity check ran 33 checks.
+
+The all-SDK and per-SDK reports each recorded 347 PASS and 11 correct unsupported
+version rejections per SDK: 358/358 compliant, with no FAIL, XFAIL, XPASS, or
+MISSING results. The inactive Go taxonomy override for a retired version selector
+was also removed; capability gating still requires that selector to be rejected.
+
+The C2SP matrix produced identical entries from all three writers, passed all nine
+writer/verifier paths and the Python-to-TypeScript split-signing handoff, and
+confirmed that all three verifiers reject all six bundle mutations.
+
+Cross-SDK CI checks SDK main branches, not these fix branches. Merge the SDK fixes
+before merging this exception cleanup; older SDK heads still fail these cases.
 
 ## Not covered
 

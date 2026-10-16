@@ -79,8 +79,7 @@ export async function verifyCheckpoint(caseData, c2sp, sdk) {
       causePreserved: chain.includes(sentinel),
     };
     for (const current of chain) {
-      // shortcut: subtype is module-private, use its exported type when the SDK exposes it.
-      if (current.constructor.name === 'MissingC2spConsistencyEvidenceError') {
+      if (c2sp.MissingC2spConsistencyEvidenceError && current instanceof c2sp.MissingC2spConsistencyEvidenceError) {
         result.condition = 'consistency_unavailable';
       }
       if (c2sp.C2spCheckpointConsistencyError && current instanceof c2sp.C2spCheckpointConsistencyError) {
