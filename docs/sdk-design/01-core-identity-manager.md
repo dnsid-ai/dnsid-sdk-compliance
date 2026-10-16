@@ -643,6 +643,9 @@ FUNCTION VerifyDomain(domain: string, peerCert?: TLSCertificate) -> VerifiedDoma
   IF config.verification.dnssecMode == "required" AND dnssecState != VALID THEN
     RAISE VerificationError{Code: DNSSECFailed, Transient: false}
   END
+  IF len(records) == 0 THEN
+    RAISE VerificationError{Code: RecordNotFound, Transient: false, Message: "no _dnsid TXT record found"}
+  END
   IF len(records) != 1 THEN
     RAISE VerificationError{Code: RecordInvalid, Transient: false, Message: "expected exactly one _dnsid TXT record"}
   END
@@ -933,7 +936,7 @@ Raised by `VerifyDomain` and all `Verify*` methods when a live verification step
 | Field        | Type               | Description |
 |--------------|--------------------|-------------|
 | `Code`       | `VerificationCode` | Identifies the failure category. |
-| `Transient`  | bool               | `true` if the failure may resolve on retry (network reachability). `false` for integrity failures and policy rejections. |
+| `Transient`  | bool               | `true` for temporary evidence-acquisition failures eligible for automatic retry. `false` for record absence, integrity failures, and policy rejections. |
 | `AgentState` | string             | Populated only when `Code` is `StatusNotActive`. One of: `PENDING`, `PROVISIONING`, `VERIFYING`, `RETIRED`, `REVOKED`. |
 | `Message`    | string             | Human-readable description; acceptance errors MUST NOT disclose configured allowlists or pins. |
 | `VerifiedGovernanceID` | string | For `CounterpartyNotAccepted`, the observed profile-selected verified governance ID; absent for other codes. |
@@ -941,9 +944,10 @@ Raised by `VerifyDomain` and all `Verify*` methods when a live verification step
 
 ```
 ENUM VerificationCode
-  DNSResolution    // DNS lookup failed (network error or NXDOMAIN). Transient.
-  DNSSECFailed     // DNSSEC validation attempted and failed; record MUST be rejected. Permanent.
-  RecordInvalid    // Wrong number of TXT records, or parse/validation failure raised inside
+  DNSResolution    // DNS lookup failed (timeout, network error, or ordinary SERVFAIL). Transient.
+  DNSSECFailed     // DNSSEC validation or configured DNSSEC policy failed; record MUST be rejected. Permanent.
+  RecordNotFound   // No _dnsid TXT record (NXDOMAIN or NOERROR/NODATA). Permanent.
+  RecordInvalid    // Multiple TXT records, or parse/validation failure raised inside
                    // VerifyDomain (e.g. missing required tag). Permanent.
   SignatureInvalid // The profile-selected record-signing key could not verify the sg tag. Permanent.
   TLSError         // TLS certificate error; non-HTTPS redirect on the profile-selected JWKS URI or su;
@@ -958,6 +962,30 @@ ENUM VerificationCode
   CounterpartyNotAccepted // Configured policy denied the verified counterparty. Permanent.
 END
 ```
+
+DNS lookup outcomes MUST be classified as follows. DNSSEC policy checks take
+precedence over record absence, including for empty answers.
+
+| Outcome | Code | Transient |
+|---|---|---|
+| NXDOMAIN (queried name does not exist), with DNSSEC policy satisfied | `RecordNotFound` | `false` |
+| NOERROR/NODATA (no TXT records at the name), with DNSSEC policy satisfied | `RecordNotFound` | `false` |
+| Multiple TXT records or a malformed record | `RecordInvalid` | `false` |
+| Timeout, network failure, or SERVFAIL without a known DNSSEC validation failure | `DNSResolution` | `true` |
+| Known DNSSEC validation failure, even with no records | `DNSSECFailed` | `false` |
+| `UNKNOWN` in `validated` mode, or any state other than `VALID` in `required` mode | `DNSSECFailed` | `false` |
+
+SDK tests MUST cover these outcomes across supported resolver transports and
+injected resolvers. An absence response MUST NOT become `DNSResolution` merely
+because the runtime represents NXDOMAIN or NODATA as an exception.
+
+“Permanent” means non-retryable by automatic transient-error retry helpers; it
+MUST NOT mean a permanent blacklist. A later verification may succeed after
+publication or repair. `RecordNotFound` MUST NOT enter the verified-identity
+cache; any separate DNS negative caching MUST have a finite expiry. A workflow
+that expects publication MAY explicitly poll with bounded backoff and a deadline.
+Neither retrying nor polling permits successful verification without all required
+evidence.
 
 For `LogError`, `Transient` is `true` when the log service is unreachable and
 `false` when a cryptographic proof fails or required evidence is absent.
@@ -1184,6 +1212,16 @@ INTERFACE DNSResolver
 
 END
 ```
+
+For every supported transport (system DNS, configured DNS, DoT, or DoH) and
+injected resolver, NXDOMAIN and NOERROR/NODATA MUST return an empty record set
+with the response's DNSSEC state, or `UNKNOWN` when that state is unavailable.
+Runtime not-found exceptions MUST be normalized to this result. Timeouts,
+network failures, and ordinary SERVFAIL MUST instead raise a resolution error;
+SERVFAIL alone MUST NOT be treated as proof of DNSSEC validation failure.
+Known DNSSEC validation failure MUST be reported as `FAILED`, not ordinary
+absence or a generic resolution error. `VerifyDomain` applies DNSSEC policy
+before classifying an empty record set as `RecordNotFound`.
 
 The default implementation used when no `DNSResolver` is supplied:
 - If `TransportConfig.dnsServer` is set and the language binding provides a default resolver, query that resolver for TXT records.
