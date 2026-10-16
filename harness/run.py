@@ -195,6 +195,10 @@ class PyAdapter:
                     return {"ok": False, "error": "ConformanceError", "message": str(exc)}
             if op == "lifecycle_vector":
                 return self._lifecycle_vector(req)
+            if op == "c2sp_checkpoint_vector":
+                from checkpoint_adapter import verify_python
+
+                return verify_python(req["checkpointCase"])
             if op == "c2sp_lifecycle_vector":
                 return self._c2sp_lifecycle_vector(req)
             if op == "c2sp_managed_trust_select":
@@ -644,6 +648,12 @@ def evaluate_result(case: dict, sdk: str, actual: dict) -> tuple:
     }:
         return ("MISSING", [], actual["message"], actual)
     problems = compare(expected, actual)
+    if case["op"] == "c2sp_checkpoint_vector":
+        # Taxonomy gaps must not hide acceptance, state changes, or lost injected causes.
+        invariants = {key: value for key, value in expected.items()
+                      if key in {"ok", "error", "stored", "causePreserved", "proofRequested"}}
+        if actual.get("error") in {"AdapterError", "ShimError"} or compare(invariants, actual):
+            return ("FAIL", problems or ["checkpoint adapter failed"], None, actual)
     sdk_entry = (case.get("sdk") or {}).get(sdk) or {}
     known_bug = sdk_entry.get("known_bug") if kind != "gated" else None
     if problems:

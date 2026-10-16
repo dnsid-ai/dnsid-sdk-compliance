@@ -12,6 +12,7 @@ import hashlib
 import json
 from pathlib import Path
 
+import yaml
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from c2sp_event_identity_check import (
     KEYS, PUBLIC, ORDER, b64, canonical, digest, event_id, flipped, leaf,
@@ -211,11 +212,131 @@ def generate_bundle():
     }
 
 
+def generate_checkpoints():
+    """Signed continuity cases; expectations come from design 11, not SDK output."""
+    vector = json.loads(generate_bundle()[ROOT / "fixtures/c2sp-stream-bundle-logical-v1.json"])
+    original = json.loads(vector["bundle"])
+    entries = [unb64(item["entry"]) for item in original["events"]]
+    alternate = json.loads(entries[0])
+    alternate["ts"] -= 1
+    for signature in alternate["sigs"].values():
+        signature["sig"] = b64(edsign(SEEDS[signature["kid"]], canonical(payload(alternate))))
+
+    def history(raw_entries):
+        packaged = package_case(
+            {"checkpoint": unb64(original["checkpoint"]).decode()},
+            [(entry, "unused", True) for entry in raw_entries],
+        )
+        leaves = [hashlib.sha256(b"\0" + entry).digest() for entry in raw_entries]
+        bundle = copy.deepcopy(original)
+        bundle["checkpoint"] = b64(packaged["checkpoint"].encode())
+        bundle["complete_through_size"] = len(raw_entries)
+        bundle["events"] = [dict(index=i, entry=b64(entry), proof=b64(b"".join(audit_path(leaves, i)))) for i, entry in enumerate(raw_entries)]
+        bundle["state"].update(event_count=len(raw_entries), last_event_type=json.loads(raw_entries[-1])["type"])
+        unsigned = {k: v for k, v in bundle.items() if k != "sig"}
+        bundle["sig"]["value"] = b64(edsign(6, canonical(unsigned)))
+        proven = [dict(index=item["index"], entry=item["entry"], proof=item["proof"]) for item in packaged["entries"]]
+        return dict(checkpoint=packaged["checkpoint"], entries=proven, bundle=canonical(bundle).decode())
+
+    first, grown, other = history(entries[:1]), history(entries), history([canonical(alternate)])
+    common = dict(policy=vector["policy"], entityJwk=vector["trust"]["entity_jwk"],
+                  bundleVerifierKey=vector["trust"]["bundle_verifier_key"], now=vector["trust"]["now"],
+                  lr=original["lr"], domain=original["fqdn"])
+
+    def state(evidence):
+        text, signatures = evidence["checkpoint"].split("\n\n")
+        origin, size, root = text.splitlines()
+        witness = base64.b64decode(signatures.strip().splitlines()[1].split()[-1])
+        return dict(origin=origin, treeSize=int(size), rootHash=b64(base64.b64decode(root)),
+                    witnessTime=int.from_bytes(witness[4:12], "big"))
+
+    cases = []
+
+    def add(name, trusted, candidate, *, mode="scan", category=None, fault=None, scan=None, proof=None):
+        request = dict(common, trusted=trusted, candidate=candidate, mode=mode,
+                       scanEntries=candidate["entries"] if scan is None else scan, proof=proof or [])
+        if fault:
+            request["fault"] = fault
+        rejected = bool(category or fault or mode == "missing")
+        retained = trusted if rejected else candidate
+        expected = dict(ok=not rejected, stored=state(retained) if retained is not None else None)
+        if rejected:
+            expected["error"] = "CheckpointError"
+            expected["transient"] = fault == "proof-fetch"
+        if category:
+            expected["errorCategory"] = category
+        if category in {"LOG_ROLLBACK", "LOG_FORK", "LOG_INCONSISTENT"}:
+            old, new = state(trusted), state(candidate)
+            expected["diagnostics"] = dict(origin=old["origin"], trustedTreeSize=old["treeSize"],
+                                           observedTreeSize=new["treeSize"], trustedRootHash=old["rootHash"],
+                                           observedRootHash=new["rootHash"])
+        if fault:
+            expected["causePreserved"] = True
+        if mode == "proof":
+            expected["proofRequested"] = True
+        if mode == "missing":
+            expected["condition"] = "consistency_unavailable"
+        cases.append(dict(id="checkpoint-" + name, description=name.replace("-", " "),
+                          spec_ref="SDK design 11: Trusted Checkpoint Store Contract; Checkpoint Failure Diagnostics",
+                          tags=["required", "security"], op="c2sp_checkpoint_vector",
+                          input={"checkpointCase": request}, expect=expected))
+
+    add("first-contact", None, first)
+    add("same-checkpoint", first, first)
+    add("growth-proof", first, grown, mode="proof", proof=[b64(hashlib.sha256(b"\0" + entries[1]).digest())])
+    add("growth-scan", first, grown)
+    add("rollback", grown, first, category="LOG_ROLLBACK")
+    add("root-conflict", other, first, category="LOG_FORK")
+    add("invalid-proof", first, grown, mode="proof", proof=[b64(bytes(32))], category="LOG_INCONSISTENT")
+    add("contradictory-prefix", other, grown, category="LOG_INCONSISTENT")
+    add("scan-missing-leaf", first, grown, scan=grown["entries"][:1], category="INVALID_EVIDENCE")
+    invalid_scan = copy.deepcopy(grown["entries"])
+    # Both roots disagree: invalid candidate evidence takes precedence over continuity.
+    invalid_scan[0]["entry"] = b64(b"different untrusted leaf")
+    add("scan-wrong-root", first, grown, scan=invalid_scan, category="INVALID_EVIDENCE")
+    add("missing-consistency", first, grown, mode="missing")
+    add("proof-fetch-error", first, grown, mode="proof", fault="proof-fetch")
+    add("store-load-error", first, grown, fault="load", category="CHECKPOINT_STORE_ERROR")
+    add("store-write-error", first, grown, fault="write", category="CHECKPOINT_STORE_ERROR")
+    forged = copy.deepcopy(grown)
+    lines = forged["checkpoint"].splitlines()
+    name, key, signature = lines[-2].split()
+    sig_bytes = bytearray(base64.b64decode(signature))
+    sig_bytes[-1] ^= 1
+    lines[-2] = f"{name} {key} {base64.b64encode(sig_bytes).decode()}"
+    forged["checkpoint"] = "\n".join(lines) + "\n"
+    # Keep the entry proof's signed checkpoint consistent with the supplied note.
+    for item in forged["entries"]:
+        item["proof"] = b64(unb64(item["proof"]).replace(grown["checkpoint"].encode(), forged["checkpoint"].encode()))
+    add("invalid-checkpoint-signature", first, forged, category="INVALID_EVIDENCE")
+    # Keep spec expectations intact; these are observed gaps in the tested SDK heads.
+    bugs = {}
+    for name in ("rollback", "root-conflict", "invalid-proof", "contradictory-prefix"):
+        bugs[name] = {"ts": "156d0e9 reports INVALID_EVIDENCE without typed continuity diagnostics."}
+    for name in ("store-load-error", "store-write-error"):
+        bugs[name] = {
+            "go": "3529b74 wraps store failures as INVALID_EVIDENCE, not CHECKPOINT_STORE_ERROR.",
+            "ts": "156d0e9 has no checkpoint-store error type or non-transient storage classification.",
+        }
+    bugs["scan-missing-leaf"] = {
+        "go": "3529b74 classifies candidate-invalid scans as LOG_INCONSISTENT.",
+        "py": "dc7f81b classifies a candidate scan missing a leaf as INCOMPLETE_STREAM, not INVALID_EVIDENCE.",
+    }
+    bugs["scan-wrong-root"] = {"go": "3529b74 classifies candidate-root mismatches as LOG_INCONSISTENT."}
+    bugs["proof-fetch-error"] = {"go": "3529b74 wraps transient consistency fetch failures as non-transient at RebuildHistory."}
+    bugs["invalid-checkpoint-signature"] = {"go": "3529b74 reports generic log_error after omitting candidates with invalid checkpoint signatures."}
+    for case in cases:
+        case["sdk"] = {sdk: {"known_bug": reason} for sdk, reason in bugs.get(case["id"].removeprefix("checkpoint-"), {}).items()}
+    return {ROOT / "fixtures/c2sp-checkpoint-continuity.yaml":
+            "# Generated by harness/generate_c2sp_fixtures.py; disposable test keys only.\n" +
+            yaml.safe_dump(dict(suite="c2sp-checkpoint-continuity", cases=cases), sort_keys=False, allow_unicode=True)}
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
-    outputs = {OUTPUT: generate_selection(), **generate_bundle()}
+    outputs = {OUTPUT: generate_selection(), **generate_bundle(), **generate_checkpoints()}
     for path, generated in outputs.items():
         if args.check:
             assert path.read_text() == generated, f"regenerate {path.name}"

@@ -309,10 +309,20 @@ replacement. A crash leaves an old or new complete record. A post-publication
 sync failure reports failure with an indeterminate outcome requiring
 reconciliation; it must not claim that the old state necessarily remains.
 
-These are test requirements, not a claim of harness coverage. The existing
-selection/event-identity fixtures do not exercise durable storage, cancellation,
-or lock recovery. Native test results and shared harness results MUST identify
-which cases actually ran; no fixture or SDK pass count is added by this text.
+The [shared signed checkpoint vectors](../../../fixtures/c2sp-checkpoint-continuity.yaml)
+exercise first contact, repeated checkpoints, valid proof/scan growth, rollback,
+equal-size conflicts, invalid consistency proofs, contradictory trusted prefixes,
+candidate-invalid scans, missing consistency evidence, injected fetch/store
+failures, and invalid checkpoint signatures. They verify native error mappings,
+diagnostics, retry classification, and actual stored state through real
+verification entrypoints, rather than using supplied acceptance flags.
+
+Those vectors use native memory stores and injected dependencies. They do not
+establish durable-storage, concurrency, cancellation, lock-recovery,
+administrative-recovery, network-fallback, or full identity-manager coverage.
+The selection/event-identity fixtures do not establish those guarantees either.
+Native test results and shared harness results MUST identify which cases
+actually ran; known classification gaps do not count as compliant passes.
 
 ## Stable error categories
 
