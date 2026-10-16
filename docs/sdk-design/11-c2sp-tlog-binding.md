@@ -724,6 +724,10 @@ OPTIONAL INTERFACE C2spConsistencyProofSource
 END
 ```
 
+The interface names above are pseudocode. A binding MAY instead expose a
+store operation that holds a lock or transaction across a verification callback
+and advancement, provided it gives the same atomicity and contention behavior.
+
 `C2spTlogSource` returns untrusted evidence. The binding, not the source,
 performs canonical entry, proof, checkpoint, policy, signature, chain, and
 completeness verification. A source MUST NOT be treated as complete merely
@@ -792,10 +796,15 @@ the store with `CompareAndSwap`; on a lost race it reloads and repeats the
 consistency check against the newer trusted checkpoint. A reader MUST NOT split
 verification and advancement into separate non-atomic writes.
 
-An in-memory store protects only the lifetime of one process. Deployments that
-require rollback resistance across restarts inject durable storage. A first
-checkpoint for an origin is trust-on-first-use unless the store was seeded out
-of band; this does not replace independent policy and key trust.
+An in-memory store protects only the lifetime of that store instance. Creating
+a new empty store loses remembered trust even without a process restart.
+Deployments that require rollback resistance across restarts inject durable
+storage. A first checkpoint for a genuinely unseen origin is trust-on-first-use
+unless the store was seeded out of band; this does not replace independent
+policy and key trust. Storage failure is not first contact. The
+[store contract](#trusted-checkpoint-store-contract) and
+[diagnostic rules](#checkpoint-failure-diagnostics) apply to both raw scans and
+bundle verification.
 
 The binding derives verifiable time from accepted timestamped quorum signatures.
 `eventTime` is the signed event `ts` used for lifecycle snapshots and key age.
@@ -806,6 +815,109 @@ checkpoint used as fresh complete evidence. `eventTime` MUST NOT be later than
 non-revocation evidence require `checkpointFreshnessTime` to satisfy local
 freshness policy. If no accepted `includedBy` can be established,
 timestamp-based checks fail closed.
+
+### Trusted Checkpoint Store Contract
+
+Verification MUST check continuity against the exact state that it replaces.
+An exact-state comparison includes origin, tree size, root hash, and witnessed
+time; an absent expected checkpoint matches only an unseen origin. A failed
+comparison MUST NOT write anything. The verifier reloads and checks continuity
+against the winning state before another attempt. A lock/transaction-based
+binding instead performs the check and advancement under the same lock or
+transaction. Two conflicting extensions MUST NOT both succeed against the same
+previous state.
+
+Store inputs and persisted records MUST have a nonempty matching origin, a
+nonnegative tree size exactly representable by the binding, a 32-byte SHA-256
+root, and a valid witnessed timestamp representing an unambiguous instant.
+Encoded fields MUST be validated without permissive decoding or numeric
+rounding. Invalid caller input is an argument error; invalid persisted state is
+`CHECKPOINT_STORE_ERROR`. Returned checkpoints and diagnostic roots MUST be
+immutable or defensively copied so callers cannot change stored trust.
+
+Cancellation and lock waiting share the invocation's remaining verification
+budget. An abort observed before the irreversible publication operation MUST
+prevent publication, including after waiting for a lock or flushing staged
+bytes. A store MUST NOT merely return cancellation while a queued write
+continues. Once publication has started, cancellation or an I/O error can leave
+an indeterminate outcome: report failure, reconcile stored state, and never
+assume the old checkpoint remains installed. A failed verification MUST NOT
+return success because storage failed.
+
+Locks MUST exclude competing writers for the entire protected operation.
+Elapsed lock age alone MUST NOT authorize stealing a lock from a live or paused
+writer. Recovery and release MUST NOT remove a successor's lock. Unexpected lock
+inspection or removal errors MUST surface as storage failures, not an unbounded
+retry loop.
+
+### Durable Checkpoint Storage
+
+Built-in durable adapters are optional. Any supplied durable adapter MUST meet
+the store contract across every thread and process sharing its namespace, and
+MUST acknowledge success only after a durable commit. A crash during replacement
+must leave either the previous complete checkpoint or the replacement, never a
+partial record. Bindings document supported storage/locking assumptions,
+contention bounds, initialization, backup, and recovery procedures; no common
+file format, database engine, or SDK dependency is required.
+
+Initializing a new trust namespace MUST be an explicit action, distinct from
+opening an existing store. Missing, unreadable, corrupt, or unsupported existing
+storage MUST fail closed as `CHECKPOINT_STORE_ERROR`; verification MUST NOT
+recreate it, discard records, or substitute an empty/in-memory store. A missing
+component of previously recorded trust is storage loss, not an unseen origin.
+An adapter MUST document how it distinguishes new origins from missing existing
+state. No adapter can protect against arbitrary replacement of its entire
+storage by a party that controls that storage; deployments MUST protect the
+namespace and retain independently controlled recovery evidence.
+
+Backups MUST NOT silently restore an older verifier baseline. Keep checkpoint
+trust and its evidence archive outside the rollback boundary of the service
+being verified. Opening or restoring storage does not authorize a break in
+continuity; a necessary trust replacement follows the procedure below.
+
+### Authorized Checkpoint Re-baselining
+
+A continuity failure describes an observation, not its cause. A stale replica,
+replay, authorized log restore, or attack can all produce rollback. An announced
+restore, valid log signatures, a retry, or a process restart MUST NOT reset trust.
+Re-baselining explicitly accepts a break in continuity; it does not prove the
+replacement extends the old history.
+
+Administrative replacement is separate from verification. Bindings MAY provide
+an explicit method, permit an administrative exact-state compare-and-swap, or
+require deployment-owned tooling. No reset method is added to the required
+store interface, and no binding is required to permit downgrades through its
+ordinary store update API. Recovery MUST:
+
+1. Stop and drain, or fence, verification and lifecycle writers for the affected
+   origin across all processes sharing the store.
+2. Preserve the old trusted tuple, observed signed checkpoints, witness evidence,
+   failed consistency evidence, and incident logs. A size/root/time tuple alone
+   is not a signed evidence archive.
+3. Obtain independently authenticated authorization from the deployment's
+   recovery authority for the exact origin, old checkpoint, replacement, and
+   trust policy. Retain the approver, incident/evidence reference, reason for the
+   continuity break, and authorization time. A claim from the failing log is
+   insufficient; an SDK audit-field argument does not authenticate an operator.
+4. Independently verify the replacement's origin, log signature, witness quorum,
+   and freshness under the authorized policy, and bind it to the exact approved
+   size/root/time tuple. Ordinary checkpoint acceptance alone does not authorize
+   rollback. Check recovered lifecycle state separately; replacing checkpoint
+   trust does not repair lost issuance, rotation, or revocation history.
+5. Replace only the exact reviewed old tuple. A stale expected value, storage
+   error, or uncertain commit stops recovery for reconciliation, not an automatic
+   reload/retry. Require durable acknowledgment when using a durable store, and
+   read back the replacement before resuming. If the store prohibits replacement,
+   explicitly initialize and seed a separate namespace and switch fenced consumers to it; do not erase
+   the old namespace to return to first-contact trust.
+6. Discard affected cached results and retained verified objects, rebuild readers
+   and registries as needed, and complete fresh identity/lifecycle verification
+   before resuming workflows.
+
+Retain an audit record linking both tuples, authorization/evidence references,
+and replacement time. It MAY be an external archive rather than an SDK-owned
+table, but authorization must be recorded before replacement and the outcome
+reconciled afterward. Preserve this evidence and monitor the new history.
 
 ## Stream Completeness and Logged State
 
@@ -1251,6 +1363,46 @@ timeouts, pending submissions, and unavailable checkpoints may be transient.
 An indeterminate append result is retried with the same idempotency key and exact
 entry bytes, never by regenerating timestamps or signatures.
 
+### Checkpoint Failure Diagnostics
+
+Bindings MUST expose machine-readable checkpoint failure classifications that
+map to the [stable categories](conformance/README.md#stable-error-categories).
+Class and field names are binding-idiomatic; typed kinds MAY provide the mapping
+instead of a literal category field. Message matching is not a supported API.
+
+| Category | Condition |
+|---|---|
+| `LOG_ROLLBACK` | The policy-accepted candidate has a smaller tree size than trusted state. |
+| `LOG_FORK` | The policy-accepted candidate has the same tree size but a different root. |
+| `LOG_INCONSISTENT` | A larger policy-accepted candidate has an invalid supplied consistency proof, or a verified complete scan reproduces its root but contradicts the trusted prefix root. |
+| `CHECKPOINT_STORE_ERROR` | Trusted storage is unavailable, malformed, lost, or refuses the operation. |
+
+Before using a complete scan as consistency evidence, verify that its required
+candidate prefix is contiguous and reproduces the candidate root. Missing leaves,
+invalid indexes, or failure to reproduce that root is `INVALID_EVIDENCE`, not
+`LOG_INCONSISTENT`. Only after that check can a contradiction with the trusted
+prefix establish `LOG_INCONSISTENT`. Invalid supplied consistency evidence MUST
+NOT be treated as missing evidence or trigger raw fallback.
+
+Continuity diagnostics MUST carry the origin, trusted and observed tree sizes,
+both root hashes, and an underlying cause when one exists. These values remain
+available through public verification wrappers. If a binding exposes a split-view
+flag, it is true only for the equal-size root conflict; false does not imply the
+failure is safe or that recovery is authorized. No classification establishes
+malice or legitimate recovery.
+
+Bindings MUST separately identify missing consistency capability/evidence without
+message matching. It MAY trigger only the already permitted
+[missing-consistency fallback](#verification-convenience-factory). If surfaced,
+it is a non-transient configuration/evidence failure, not a fork or an invalid
+proof; it does not require a new shared category. Fetch errors, cancellation,
+and storage failures MUST retain their causes and MUST NOT be relabeled
+`LOG_INCONSISTENT`. Retrieval failures retain their transport retry classification.
+The four categories above are non-transient and fail closed without replacing
+trusted state or substituting empty trust. A post-publication storage failure
+can have an indeterminate outcome as described in the store contract; earlier
+valid advances in a multi-checkpoint operation need not be rolled back.
+
 ## Conformance and Interoperability
 
 Each SDK implementation provides tests for:
@@ -1282,6 +1434,9 @@ Each SDK implementation provides tests for:
 - the fixed 256-entry bundle geometry and exact 16,777,472-byte default maximum;
 - one checkpoint store shared across readers and restart-ephemeral default-store
   behavior;
+- the [checkpoint continuity and storage scenarios](conformance/README.md#c2sp-checkpoint-continuity-and-storage),
+  including diagnostic fields through public wrappers, contention, cancellation,
+  and authorized replacement; durable-adapter cases apply when one is provided;
 - configured checkpoint freshness and clock skew, including fail-closed
   non-revocation when freshness is absent or stale;
 - factory-to-`IdentityManager` verification from raw standard C2SP resources;

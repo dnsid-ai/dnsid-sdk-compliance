@@ -271,7 +271,57 @@ loaded as an SDK trust catalog. Operational trust material remains the reviewed
 snapshot vendored by each SDK release. `reason` text documents the expected
 selection outcome but is not a normative error string.
 
+## C2SP checkpoint continuity and storage
+
+The normative behavior is defined by the binding's
+[store contract](../11-c2sp-tlog-binding.md#trusted-checkpoint-store-contract),
+[durable-storage requirements](../11-c2sp-tlog-binding.md#durable-checkpoint-storage),
+[re-baseline procedure](../11-c2sp-tlog-binding.md#authorized-checkpoint-re-baselining),
+and [diagnostic rules](../11-c2sp-tlog-binding.md#checkpoint-failure-diagnostics).
+SDK-native tests MUST cover applicable SDK behavior below, using valid signed
+checkpoints and evidence for verification-boundary cases. Store-level tests may
+use injected checkpoints and deterministic I/O/locking failures. For
+deployment-owned recovery steps, document the required operational checks;
+SDK tests do not establish operator authorization or audit-archive integrity.
+
+| Scenario | Required result |
+|---|---|
+| Smaller policy-accepted candidate | `LOG_ROLLBACK`; trusted state unchanged. |
+| Equal-size candidate with another root | `LOG_FORK`; trusted state unchanged. |
+| Larger candidate with invalid supplied consistency proof | `LOG_INCONSISTENT`; no scan fallback or trust change. |
+| Complete scan reproduces candidate root but not trusted prefix | `LOG_INCONSISTENT`; trusted state unchanged. |
+| Scan lacks the required candidate prefix, has invalid indexes, or cannot reproduce candidate root | `INVALID_EVIDENCE`, not `LOG_INCONSISTENT`; no trust change. |
+| No consistency source for an otherwise valid growing bundle | Distinct machine-readable missing-evidence condition; only permitted fallback may proceed, after verifying both roots. Required-bundle mode fails. |
+| Proof/scan fetch fails or is canceled | Preserve cause and retry classification; do not classify as inconsistent evidence or reset trust. |
+| Store load or pre-publication write fails | Non-transient `CHECKPOINT_STORE_ERROR`; no empty/in-memory substitution or trust change. |
+| Continuity error crosses a public verification boundary | Category mapping, origin, both sizes/roots, and available cause remain inspectable without message matching; roots cannot mutate trust. |
+| Two conflicting extensions race against the same old checkpoint | At most one succeeds; loser checks against the winner before accepting anything. A stale witnessed time also fails an exact-state comparison. |
+| Cancellation while queued, waiting for a lock, or flushing staged data before publication | No later publication; lock waits respect the shared budget. |
+| Paused live lock holder, or two simultaneous stale-lock reclaimers | No simultaneous owners and no deletion of a successor's lock. Unexpected lock inspection/removal errors fail closed. |
+| Administrative replacement uses stale expected state | No replacement; no automatic reload/retry authorizing a different old state. |
+| Authorized replacement succeeds | Exact reviewed state replaced, audit evidence retained, affected caches discarded, and fresh verification completed before workflows resume. |
+
+A built-in durable adapter is optional. Tests for each provided durable adapter
+MUST additionally cover restart persistence, competing threads/processes, crash
+before commit, invalid persisted roots/sizes/timestamps, missing or corrupt
+existing storage, explicit initialization, and read-back after authorized
+replacement. A crash leaves an old or new complete record. A post-publication
+sync failure reports failure with an indeterminate outcome requiring
+reconciliation; it must not claim that the old state necessarily remains.
+
+These are test requirements, not a claim of harness coverage. The existing
+selection/event-identity fixtures do not exercise durable storage, cancellation,
+or lock recovery. Native test results and shared harness results MUST identify
+which cases actually ran; no fixture or SDK pass count is added by this text.
+
 ## Stable error categories
+
+Bindings expose the checkpoint categories through idiomatic errors or typed
+kinds with a documented mapping. The observation does not establish its cause,
+and no category authorizes resetting trust. Continuity contradictions and
+checkpoint-store failures are non-transient; retrieval failures retain their
+underlying classification. Detailed precedence and fallback rules are owned by
+[Checkpoint Failure Diagnostics](../11-c2sp-tlog-binding.md#checkpoint-failure-diagnostics).
 
 | Category | Meaning |
 |---|---|
@@ -287,5 +337,9 @@ selection outcome but is not a normative error string.
 | `SNAPSHOT_NON_PREFIX` | The requested timestamp would select a non-prefix subsequence. |
 | `UNSUPPORTED_EVENT` | No supported base or companion profile defines reducer semantics for the event type. |
 | `CHAIN_CONTINUITY` | An authenticated C2SP event does not continue the signed stream chain, or accepted completeness evidence contradicts the applied chain. |
-| `INVALID_EVIDENCE` | An accepted checkpoint, policy, witness quorum, trusted bundle, or other completeness evidence fails. |
+| `INVALID_EVIDENCE` | A checkpoint, policy, witness quorum, trusted bundle, candidate scan prefix, or other completeness evidence fails, except for the more specific continuity/storage conditions below. |
 | `INCOMPLETE_STREAM` | The binding cannot establish complete logged-state history. |
+| `LOG_ROLLBACK` | A policy-accepted candidate checkpoint has a smaller tree than trusted state; retain trust and investigate with operations and security. |
+| `LOG_FORK` | A policy-accepted candidate has the trusted size but a different root; an equal-size conflict is an equivocation signal, not proof of malice. |
+| `LOG_INCONSISTENT` | A larger policy-accepted candidate has an invalid supplied consistency proof, or a scan reproduces the candidate root but contradicts the trusted prefix root. |
+| `CHECKPOINT_STORE_ERROR` | Trusted checkpoint storage is unavailable, malformed, lost, or refuses the operation; fail closed and never substitute empty trust. |

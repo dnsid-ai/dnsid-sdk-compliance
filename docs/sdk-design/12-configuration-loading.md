@@ -198,6 +198,10 @@ reject duplicate members where the platform parser makes that available.
 Profile settings (`jose`, `oidc`, `webBotAuth`, `httpMessageSignatures`) are
 not sections today; add them as siblings when a consumer needs them. Runtime
 objects such as checkpoint stores and injected fetchers stay code-only.
+Checkpoint-store paths, initialization flags, and recovery settings are not
+`LogTrust` members or SDK environment variables. A binding MUST NOT add local
+loader names for them. Unknown environment variables still follow the ignore
+rule above; unknown deployment-file members are rejected.
 
 ## Merge
 
@@ -271,6 +275,14 @@ Freshness, limits, and bundle requirements are not loadable; a deployment that
 needs different values constructs the registry with the generic factory and
 injects `deps.logRegistry`.
 
+For durable checkpoint trust, application code explicitly opens the store,
+constructs either the generic or managed registry with `trustedCheckpointStore`,
+and injects that registry as `deps.logRegistry`. Neither loader construction
+path initializes or resets checkpoint storage. Both factories use the same
+[checkpoint-store contract](11-c2sp-tlog-binding.md#trusted-checkpoint-store-contract);
+managed trust does not prevent durable-store injection. A loader MUST NOT accept
+and silently ignore a persistence setting for managed trust.
+
 `OperationalKeyProviderFrom` resolves the selected provider factory. The file
 factory uses `cliDirectory` when present, otherwise `keyStorePath`, and locates CLI
 key files under the effective identity domain as
@@ -335,6 +347,8 @@ verify` reads; there are no SDK-local aliases.
 | File `logTrust.managed`, environment `DNSID_LOG_POLICY_URL` | Result is `policyUrl` only. |
 | `DNSID_LOG_POLICY_FILE` and `DNSID_LOG_POLICY_URL` both set | Construction fails with `ArgumentError`; the loader does not pick one. |
 | `logTrust` loaded, `deps.logRegistry` supplied | Caller's registry used; loaded trust ignored. |
+| Caller injects a generic or managed registry with a durable checkpoint store | The same registry/store is used; loaders do not initialize, replace, or reset it. |
+| Deployment file adds a checkpoint-store path or recovery member to `logTrust` | Rejected as an unknown member; store setup remains code-only. |
 | `DNSID_LOG_POLICY_URL`, `DNSID_CA_BUNDLE`, `DNSID_PRIVATE_HOSTS=.test` set | Policy fetch uses the CA bundle and private-host allowance; verification of a `.test` draft 01 identity succeeds with no further wiring. |
 | `DNSID_LOG_TRUST_PROFILE_FILE` set, profile carries bundle verifier keys | Registry constructs with the 10-minute bundle lifetime default; no `ArgumentError`. |
 | `DNSID_CONFIG_DIR` and `DNSID_KEY_STORE` both set | Operational key from the CLI directory; key store unused. |
