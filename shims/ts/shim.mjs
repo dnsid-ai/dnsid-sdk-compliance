@@ -8,6 +8,7 @@ import { existsSync } from 'node:fs';
 import { createHash, createPrivateKey, createPublicKey, sign as signBytes, verify as verifyBytes } from 'node:crypto';
 import process from 'node:process';
 import { verifyWba } from './wba-verify.mjs';
+import { verifyCheckpoint } from './checkpoint-verify.mjs';
 
 const sdkDir = process.env.DNSID_TS_DIR;
 if (!sdkDir) {
@@ -165,6 +166,7 @@ async function handle(req) {
         }
       }
       case 'lifecycle_vector': return lifecycleVector(req);
+      case 'c2sp_checkpoint_vector': return verifyCheckpoint(req.checkpointCase, c2sp, sdk);
       case 'c2sp_lifecycle_vector': return c2spLifecycleVector(req);
       case 'c2sp_managed_trust_select': {
         try {
