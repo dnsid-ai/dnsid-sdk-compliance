@@ -83,13 +83,17 @@ stdin; shims reply with a JSON array of normalized results:
 {"op": "sdk_conformance"}                      {"ok": true, "publishProfile": "dnsid-draft-01", ...}
 {"op": "create_txt_record", "config": {...}, "entityKey": {...}, "operationalKey": {...}}
                                                 {"ok": true, "record": {...}, "signatureVerified": true}
+{"op": "c2sp_checkpoint_vector", "checkpointCase": {...}}
+                                                {"ok": false, "error": "CheckpointError", "errorCategory": "LOG_ROLLBACK", "stored": {...}, ...}
 // any error:                                {"ok": false, "error": "ParseError", "message": "..."}
 ```
 
 Normalized record shape: wire tag names (`v gi oi ek ku lr su sg fl ka cu`),
 absent/empty optionals as `null`, extension tags under `unknown`. `error` is the
-SDK's error class name (`ParseError`, `ValidationError`, ...), which is what
-cases assert on — messages are only matched via the optional, substring-based
+normalized error-class label (`ParseError`, `ValidationError`, ...), which is
+what cases assert on. Checkpoint cases use `CheckpointError` for recognized
+native verification or injected dependency failures; unexpected exceptions stay
+`AdapterError`. Messages are only matched via the optional, substring-based
 `error_contains`.
 
 ## Web Bot Auth adapters
@@ -262,8 +266,9 @@ canonical (signing) form, serialization round-trip, semantic validation, FQDN
 normalization, RFC 7638 JWK thumbprints, effective JWK signature algorithms,
 generic JWKS validation and selection helpers, RFC 9421 signature-base
 construction, protocol `AgentStatus` validation and ACTIVE acceptance,
-lifecycle state reduction, C2SP lifecycle candidate selection, and managed
-trust-catalog selection.
+lifecycle state reduction, C2SP lifecycle candidate selection, managed
+trust-catalog selection, and stateful checkpoint continuity with injected
+storage and consistency-source failures.
 
 The WBA suite additionally calls each SDK's real request signer and directory
 server. An independent, constrained fixture checker verifies emitted signatures,
@@ -313,6 +318,37 @@ for the others. The fixture records the SHA-256 digest of its authoritative
 semantic source, so changing those semantics without refreshing the evidence
 fails before any SDK runs. Every SDK verifies the embedded checkpoint policy
 and inclusion proofs rather than trusting a harness-supplied validity flag.
+
+`fixtures/c2sp-checkpoint-continuity.yaml` adds 15 signed, stateful sequences:
+first contact, repeated checkpoints, valid growth by proof/scan, rollback,
+equal-size conflict, invalid proof, contradictory trusted prefix, incomplete or
+candidate-invalid scans, missing consistency evidence, dependency failures, and
+invalid checkpoint signatures. The generator below uses no SDK to create these
+inputs. Each adapter first authenticates any seed through its native public
+reader, then verifies the candidate using the same native memory store.
+
+Go uses the public reader with optional proof/full-log sources. Python and
+TypeScript use their public readers for scans and portable-bundle verifiers for
+proof/missing-evidence cases. These are verifier-boundary tests, not full
+`IdentityManager`/`VerifyDomain` or network fallback orchestration tests.
+
+Results report the actual store tuple (`origin`, `treeSize`, base64url `rootHash`,
+and Unix-second `witnessTime`), native retry classification, typed diagnostics,
+observed proof requests, and injected-cause identity. Adapters map native error
+types/kinds, not message text. They do not receive expected verdicts. Mutable
+native diagnostic roots are also changed before reading stored state back.
+Known taxonomy gaps can be XFAIL, but acceptance, stored-state, dependency-cause,
+required proof-source invocation, and adapter failures always fail the run,
+even with a marker.
+SDK-native durable storage, concurrency, cancellation, lock recovery, and
+administrative recovery tests remain separate requirements.
+
+```sh
+.venv/bin/python harness/run.py --filter checkpoint- --out report-checkpoints.md
+```
+
+See [recorded checkpoint checks](docs/checkpoint-conformance-checks.md) for the
+tested SDK revisions and known gaps.
 
 `fixtures/c2sp-stream-bundle-logical-v1.json` is the corrected deterministic
 portable bundle used by the writer/verifier matrix. Its historical predecessor

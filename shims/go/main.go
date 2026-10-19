@@ -55,6 +55,7 @@ type fixtureKey struct {
 }
 
 type request struct {
+	CheckpointCase                                json.RawMessage `json:"checkpointCase"`
 	Op                                            string          `json:"op"`
 	Raw                                           string          `json:"raw"`
 	IdentityFQDN                                  string          `json:"identity_fqdn"`
@@ -307,6 +308,8 @@ func handle(req request) map[string]any {
 		return map[string]any{"ok": false, "error": "ConformanceError", "message": err.Error()}
 	case "lifecycle_vector":
 		return handleLifecycleVector(req)
+	case "c2sp_checkpoint_vector":
+		return handleCheckpointCase(req.CheckpointCase)
 	case "c2sp_lifecycle_vector":
 		return handleC2spLifecycleVector(req)
 	case "c2sp_managed_trust_select":
