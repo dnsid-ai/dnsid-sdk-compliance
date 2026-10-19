@@ -255,18 +255,6 @@ def _mutated_bundle(vector: dict, mutation: dict) -> bytes:
     return _canonical_json_bytes(value)
 
 
-def _vector_for_entries(vector: dict, entries: dict[str, str]) -> dict:
-    bundle = json.loads(vector["bundle"])
-    for index, name in enumerate(("issuance", "rotation")):
-        bundle["events"][index]["entry"] = entries[name]
-    bundle_bytes = _canonical_json_bytes(bundle)
-    if bundle_bytes != vector["bundle"].encode():
-        raise AssertionError(
-            "generated entries differ from the signed checkpoint or bundle signature"
-        )
-    return {**vector, "bundle": bundle_bytes.decode()}
-
-
 def _assert_expected_error(sdk: str, mutation: dict, output: str) -> None:
     declared = mutation["error"]
     expected = (declared[sdk] if isinstance(declared, dict) else declared).lower()
@@ -316,28 +304,19 @@ def _assert_rejected_by_all(vector: dict, golden_path: Path) -> None:
                 )
 
 
-def _verify_writer_matrix(
-    generated: dict[str, dict[str, str]], vector: dict, golden_path: Path
-) -> None:
-    for writer, entries in generated.items():
-        writer_vector = _vector_for_entries(vector, entries)
-        with tempfile.TemporaryDirectory(prefix="dnsid-c2sp-matrix-") as directory:
-            path = Path(directory) / f"{writer}-{golden_path.name}"
-            path.write_text(json.dumps(writer_vector))
-            results = {
-                "py": _verify_python(writer_vector),
-                "ts": _run_json(
-                    ["node", str(ROOT / "harness" / "c2sp_verify_ts.mjs"), str(path)]
-                ),
-                "go": _run_json(
-                    ["go", "run", "./c2spverify", str(path)],
-                    cwd=ROOT / "shims" / "go",
-                ),
-            }
-            for verifier, result in results.items():
-                _assert_verified(
-                    f"{writer}->{verifier}", result, vector["expected"]
-                )
+def _verify_golden_bundle(vector: dict, golden_path: Path) -> None:
+    results = {
+        "py": _verify_python(vector),
+        "ts": _run_json(
+            ["node", str(ROOT / "harness" / "c2sp_verify_ts.mjs"), str(golden_path)]
+        ),
+        "go": _run_json(
+            ["go", "run", "./c2spverify", str(golden_path)],
+            cwd=ROOT / "shims" / "go",
+        ),
+    }
+    for verifier, result in results.items():
+        _assert_verified(verifier, result, vector["expected"])
 
 
 def _assert_verified(name: str, actual: dict, expected: dict) -> None:
@@ -377,6 +356,8 @@ def main() -> None:
     golden_path = CORPUS.parent / corpus["golden_bundle"]
     vector = json.loads(golden_path.read_text())
     bundle = json.loads(vector["bundle"])
+    if _canonical_json_bytes(bundle) != vector["bundle"].encode():
+        raise AssertionError("golden bundle is not canonical JSON")
     bundle_entries = [item["entry"] for item in bundle["events"]]
 
     py_artifacts = _python_artifacts(corpus)
@@ -411,7 +392,7 @@ def main() -> None:
     if split["entry"] != expected_entries["issuance"]:
         raise AssertionError("Python-to-TypeScript split ISSUANCE differs")
 
-    _verify_writer_matrix(generated, vector, golden_path)
+    _verify_golden_bundle(vector, golden_path)
     _assert_rejected_by_all(vector, golden_path)
 
     print(
@@ -423,10 +404,9 @@ def main() -> None:
         f"{len(expected_entries)} canonical lifecycle entries"
     )
     print(
-        "Verification:  every verifier accepted each writer's signed "
+        "Verification:  all 3 verifiers accepted the signed golden "
         "ISSUANCE -> KEY_ROTATION stream"
     )
-    print("Matrix:        3 writers x 3 verifiers = 9 interoperable paths")
     print("Split signing: Python entity signature -> TypeScript countersignature matches")
     print(
         f"Rejections:    all 3 verifiers rejected all "

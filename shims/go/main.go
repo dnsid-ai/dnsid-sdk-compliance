@@ -173,7 +173,7 @@ func recordJSON(r *dnsid.TXTRecord) map[string]any {
 }
 
 func errJSON(err error) map[string]any {
-	kind := "Error"
+	kind := "AdapterError"
 	var pe *dnsid.ParseError
 	var ve *dnsid.ValidationError
 	var ae *dnsid.ArgumentError
@@ -575,6 +575,7 @@ func handleC2spLifecycleVector(req request) map[string]any {
 	if err != nil {
 		return lifecycleErrJSON(err)
 	}
+	policy.Now = func() time.Time { return time.UnixMilli(req.CheckpointIntegrationTimeMs) }
 	if !req.CompleteThroughCheckpoint {
 		policy.MaxCheckpointAge = 24 * time.Hour
 	}
@@ -597,13 +598,21 @@ func handleC2spLifecycleVector(req request) map[string]any {
 			}
 		}
 	}
-	source := vectorSource{entries: entries, checkpoint: []byte(req.Checkpoint), complete: req.CompleteThroughCheckpoint, global: req.CheckpointAccepted}
-	if !req.CheckpointAccepted {
-		source.global = false
-		if len(source.entries) > 0 {
-			source.entries[0].Proof = []byte("invalid")
-		}
+	if len(entries) == 0 {
+		return map[string]any{"ok": false, "error": "AdapterError", "message": "C2SP fixture has no checkpoint anchor"}
 	}
+	ref, err := c2sptlog.ParseReference(req.LR)
+	if err != nil {
+		return lifecycleErrJSON(err)
+	}
+	prefix, _, found := strings.Cut(string(entries[0].Proof), "\n\n")
+	if !found {
+		return map[string]any{"ok": false, "error": "AdapterError", "message": "C2SP fixture has no checkpoint anchor proof"}
+	}
+	if _, err := policy.VerifyProof(ref, entries[0].Entry, []byte(prefix+"\n\n"+req.Checkpoint)); err != nil {
+		return lifecycleErrJSON(dnsid.NewVerificationError(dnsid.VerificationCodeInvalidEvidence, false, "fixture checkpoint verification failed", err))
+	}
+	source := vectorSource{entries: entries, checkpoint: []byte(req.Checkpoint), complete: req.CompleteThroughCheckpoint, global: true}
 	options := []c2sptlog.Option{c2sptlog.WithSource(source), c2sptlog.WithPolicy(policy)}
 	migrationOption, err := migrationVerifierOption(req)
 	if err != nil {

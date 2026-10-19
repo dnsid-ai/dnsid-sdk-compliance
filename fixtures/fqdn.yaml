@@ -1,6 +1,6 @@
 # Agent FQDN normalization: IDNA A-label form, lowercase, exactly one trailing
 # dot stripped, 63-octet label limit, 246-octet total limit (DNSid agent limit).
-# Error classes differ across SDKs, so error cases assert only rejection.
+# Error cases require a native validation error, not an unexpected exception.
 suite: fqdn
 cases:
   - id: fqdn-passthrough
@@ -45,6 +45,7 @@ cases:
       name: example.com..
     expect:
       ok: false
+      error: ValidationError
 
   - id: fqdn-idn-unicode
     description: IDN U-labels convert to lowercase A-label (punycode) form
@@ -88,6 +89,7 @@ cases:
       name: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.test"
     expect:
       ok: false
+      error: ValidationError
 
   - id: fqdn-246-octets-exact
     description: A 246-octet agent FQDN is exactly at the DNSid limit and is accepted
@@ -109,6 +111,7 @@ cases:
       name: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     expect:
       ok: false
+      error: ValidationError
 
   - id: fqdn-leading-hyphen-label
     description: A label starting with a hyphen violates LDH rules (RFC 5890)
@@ -119,6 +122,7 @@ cases:
       name: "-foo.test"
     expect:
       ok: false
+      error: ValidationError
 
   - id: fqdn-empty
     description: Empty input is rejected
@@ -129,3 +133,4 @@ cases:
       name: ""
     expect:
       ok: false
+      error: ValidationError

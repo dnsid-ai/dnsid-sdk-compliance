@@ -6,7 +6,7 @@ DNSID_TS_DIR ?= $(HOME)/dnsid-ts
 DNSID_PY_DIR ?= $(HOME)/dnsid-py
 export DNSID_GO_DIR DNSID_TS_DIR DNSID_PY_DIR
 
-.PHONY: setup run c2sp-matrix clean ts-build
+.PHONY: setup run c2sp-matrix clean ts-build shims/go/dnsid-shim .venv
 
 setup: shims/go/dnsid-shim ts-build .venv
 
@@ -19,7 +19,7 @@ ts-build:
 	cd "$(DNSID_TS_DIR)" && npm ci --silent && npm run build --silent
 
 .venv:
-	uv venv .venv
+	test -x .venv/bin/python || uv venv .venv
 	uv pip install -p .venv pyyaml cryptography -e "$(DNSID_PY_DIR)"
 
 run: setup

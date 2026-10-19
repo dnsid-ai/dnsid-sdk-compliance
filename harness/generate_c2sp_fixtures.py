@@ -35,6 +35,8 @@ def edsign(seed, data):
 
 
 def tree(leaves):
+    if not leaves:
+        return hashlib.sha256(b"").digest()
     if len(leaves) == 1:
         return leaves[0]
     split = 1 << ((len(leaves) - 1).bit_length() - 1)
@@ -65,6 +67,12 @@ def package_case(template, entries):
     signed += ("— log.example " + base64.b64encode(log_signature[:4] + edsign(4, checkpoint)).decode() + "\n").encode()
     signed += ("— witness.example " + base64.b64encode(witness_signature[:4] + timestamp + edsign(5, cosignature)).decode() + "\n").encode()
     result["checkpoint"] = signed.decode()
+    if result.get("checkpointAccepted") is False:
+        signature = log_signature[:4] + edsign(4, checkpoint)
+        invalid = signature[:-1] + bytes([signature[-1] ^ 1])
+        result["checkpoint"] = result["checkpoint"].replace(
+            base64.b64encode(signature).decode(), base64.b64encode(invalid).decode()
+        )
     result["entries"] = []
     for index, (raw, effect, valid_proof) in enumerate(entries):
         proof = f"c2sp.org/tlog-proof@v1\nindex {index}\n".encode()
@@ -78,8 +86,11 @@ def package_case(template, entries):
 
 def generate_selection():
     old = json.loads(HISTORICAL.read_bytes())
-    historical_semantics = ROOT / "fixtures/historical/c2sp-lifecycle-selection.json"
-    assert hashlib.sha256(historical_semantics.read_bytes()).hexdigest() == old["semantic_source_sha256"]
+    historical_semantics = (ROOT / "fixtures/historical/c2sp-lifecycle-selection.json").read_bytes()
+    assert hashlib.sha256(historical_semantics).hexdigest() == old["semantic_source_sha256"]
+    historical_cases = {case["id"]: case for case in json.loads(historical_semantics)["cases"]}
+    semantics = SEMANTICS.read_bytes()
+    semantic_suite = json.loads(semantics)
     originals = {}
     for case in old["cases"].values():
         for entry in case["entries"]:
@@ -109,28 +120,26 @@ def generate_selection():
         corrected[raw] = canonical(dict(body, sigs=signatures))
         return corrected[raw]
 
-    cases = {}
+    templates = {}
+    recipes = {}
     for name, case in old["cases"].items():
+        candidate_ids = [name.replace("issuance-resigned", "issuance-signed-extension") for name in historical_cases[name]["candidates"]]
         if name == "resigned-event-is-not-byte-identical-deduplication":
             name = "signed-extension-is-a-distinct-genesis"
-        entries = []
-        for item in case["entries"]:
-            raw = correct(unb64(item["entry"]))
-            effect = item["effectId"]
-            if b'"dnsid_test_variant"' in raw:
-                effect = "issuance-extension"
-            entries.append((raw, effect, item["proofValid"]))
-        cases[name] = package_case(case, entries)
+        templates[name] = case
+        entries = [(correct(unb64(item["entry"])), item["proofValid"]) for item in case["entries"]]
+        recipes[name] = dict(zip(candidate_ids, entries, strict=True))
 
-    template = cases["byte-identical-complete-entry-is-applied-once"]
-    issuance = json.loads(unb64(template["entries"][0]["entry"]))
-    rotation = json.loads(unb64(template["entries"][2]["entry"]))
+    template = templates["byte-identical-complete-entry-is-applied-once"]
+    issuance = json.loads(recipes["byte-identical-complete-entry-is-applied-once"]["issuance"][0])
+    rotation = json.loads(recipes["byte-identical-complete-entry-is-applied-once"]["rotation"][0])
 
-    def add(name, items, *, es256=False):
+    def add(name, candidate_ids, items, *, es256=False):
         case = copy.deepcopy(template)
         if es256:
             case["entityJwk"], case["operationalJwk"] = PUBLIC[:2]
-        cases[name] = package_case(case, [(canonical(e), effect, True) for e, effect in items])
+        templates[name] = case
+        recipes[name] = dict(zip(candidate_ids, [(canonical(e), True) for e in items], strict=True))
 
     for kind in ("invalid", "missing"):
         partial = copy.deepcopy(rotation)
@@ -138,16 +147,16 @@ def generate_selection():
             partial["sigs"]["new_op"]["sig"] = "AA"
         else:
             del partial["sigs"]["new_op"]
-        add(f"{kind}-rotation-countersignature-is-ignored", [(issuance, "issuance-1"), (partial, "rotation-partial"), (rotation, "rotation-1")])
+        add(f"{kind}-rotation-countersignature-is-ignored", ["issuance", "partial-rotation", "rotation"], [issuance, partial, rotation])
     fork = copy.deepcopy(rotation)
     fork["ts"] += 1
     for signature in fork["sigs"].values():
         signature["sig"] = b64(edsign(SEEDS[signature["kid"]], canonical(payload(fork))))
-    add("fully-signed-historical-predecessor-fork-is-fatal", [(issuance, "issuance-1"), (rotation, "rotation-1"), (fork, "rotation-fork")])
+    add("fully-signed-historical-predecessor-fork-is-fatal", ["issuance", "rotation", "historical-fork"], [issuance, rotation, fork])
     fork["sigs"]["new_op"]["sig"] = "AA"
-    add("partial-historical-predecessor-fork-is-ignored", [(issuance, "issuance-1"), (rotation, "rotation-1"), (fork, "rotation-partial")])
+    add("partial-historical-predecessor-fork-is-ignored", ["issuance", "rotation", "partial-rotation"], [issuance, rotation, fork])
     legacy = old["cases"]["byte-identical-complete-entry-is-applied-once"]["entries"][2]
-    add("prohibited-index-chain-is-fatal", [(issuance, "issuance-1"), (json.loads(unb64(legacy["entry"])), "rotation-index-chain")])
+    add("prohibited-index-chain-is-fatal", ["issuance", "prohibited-index-chain"], [issuance, json.loads(unb64(legacy["entry"]))])
 
     def low_sign(body, roles):
         entry = sign(body, roles, deterministic=True)
@@ -168,16 +177,34 @@ def generate_selection():
     body = payload(rotation)
     body.update(prev_event_id=event_id(issuance), prev_state_hash=digest("state", state), prev_thumb=thumb(PUBLIC[1]), new_ku=PUBLIC[2], new_thumb=thumb(PUBLIC[2]))
     rotation = low_sign(body, {"prev_op": KEYS[1], "new_op": KEYS[2]})
-    add("es256-signature-only-copy-is-applied-once", [(issuance, "issuance-1"), (duplicate, "issuance-1"), (rotation, "rotation-1")], es256=True)
-    add("es256-high-s-first-copy-is-applied-once", [(duplicate, "issuance-1"), (issuance, "issuance-1"), (rotation, "rotation-1")], es256=True)
+    add("es256-signature-only-copy-is-applied-once", ["issuance", "issuance-signature-copy", "rotation"], [issuance, duplicate, rotation], es256=True)
+    add("es256-high-s-first-copy-is-applied-once", ["issuance-signature-copy", "issuance", "rotation"], [duplicate, issuance, rotation], es256=True)
     state["operational_thumb"] = thumb(PUBLIC[2])
     body = {k: issuance[k] for k in ("v", "kind", "method", "log_origin", "lr", "stream_id", "fqdn")}
     body.update(type="REVOCATION", ts=rotation["ts"]+1, seq=2, reason="keyCompromise", prev_event_id=event_id(rotation), prev_state_hash=digest("state", state))
     revocation = low_sign(body, {"ae": KEYS[0]})
-    add("es256-signature-only-replay-after-terminal-is-ignored", [(issuance, "issuance-1"), (rotation, "rotation-1"), (revocation, "revocation-1"), (flipped(rotation, "prev_op", "new_op"), "rotation-1")], es256=True)
+    add("es256-signature-only-replay-after-terminal-is-ignored", ["issuance", "rotation", "revocation", "rotation-signature-copy"], [issuance, rotation, revocation, flipped(rotation, "prev_op", "new_op")], es256=True)
 
-    semantics = SEMANTICS.read_bytes()
-    assert set(cases) == {case["id"] for case in json.loads(semantics)["cases"]}
+    assert set(templates) == {case["id"] for case in semantic_suite["cases"]}
+    cases = dict.fromkeys(templates)
+    for semantic_case in semantic_suite["cases"]:
+        name = semantic_case["id"]
+        template = copy.deepcopy(templates[name])
+        template["domain"] = semantic_suite["domain"]
+        for field, default in (("checkpointAccepted", True), ("completeThroughCheckpoint", True), ("priorHistoryVerified", None), ("priorAppliedEffectIds", [])):
+            template[field] = semantic_case.get(field, default)
+        entries = []
+        for candidate_id in semantic_case["candidates"]:
+            if candidate_id not in recipes[name]:
+                raise ValueError(f"{name}: no evidence recipe for {candidate_id}")
+            raw, valid_proof = recipes[name][candidate_id]
+            definition = semantic_suite["candidateFixtures"][candidate_id]
+            if "type" in definition:
+                event = json.loads(raw)
+                if event["type"] != definition["type"] or event["fqdn"] != definition["domain"]:
+                    raise ValueError(f"{name}: evidence does not match {candidate_id}")
+            entries.append((raw, definition["effectId"], valid_proof))
+        cases[name] = package_case(template, entries)
     return json.dumps(dict(format=old["format"], method_revision=REVISION,
                            generator="harness/generate_c2sp_fixtures.py; public disposable keys only",
                            semantic_source_sha256=hashlib.sha256(semantics).hexdigest(), cases=cases), indent=2) + "\n"
