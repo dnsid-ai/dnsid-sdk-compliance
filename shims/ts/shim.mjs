@@ -330,7 +330,6 @@ async function c2spLifecycleVector(req) {
     return { ok: false, error: 'LifecycleError', message: error.message, errorCategory: error.errorCategory ?? 'INVALID_EVIDENCE' };
   }
   const effects = new Map();
-  const ignored = [];
   const entries = [];
   for (const item of req.entries) {
     const bytes = Buffer.from(item.entry, 'base64url');
@@ -347,13 +346,9 @@ async function c2spLifecycleVector(req) {
       );
     } catch (error) {
       if (!(error instanceof c2sp.C2spTlogError)) throw error;
-      ignored.push(item.index);
       continue;
     }
-    if (verifiedProof.index !== item.index) {
-      ignored.push(item.index);
-      continue;
-    }
+    if (verifiedProof.index !== item.index) continue;
     entries.push({ index: item.index, bytes });
     effects.set(item.index, item.effectId);
   }
@@ -369,7 +364,7 @@ async function c2spLifecycleVector(req) {
     const selected = await c2sp.verifyStreamLifecycle(entries, req.domain, options);
     const appliedIndexes = selected.map((item) => item.index);
     const appliedEffectIds = appliedIndexes.map((index) => effects.get(index));
-    for (const item of req.entries) if (!appliedIndexes.includes(item.index) && !ignored.includes(item.index)) ignored.push(item.index);
+    const ignored = req.entries.filter(item => !appliedIndexes.includes(item.index)).map(item => item.index);
     const out = { ok: true, appliedEffectIds, ignoredCandidateIndexes: ignored.sort((a, b) => a - b) };
     const last = selected.at(-1)?.event.type;
     if (last === 'REVOCATION') out.identityState = 'REVOKED';

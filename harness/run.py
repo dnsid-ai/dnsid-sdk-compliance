@@ -16,6 +16,7 @@ import os
 import subprocess
 import sys
 import time
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -183,13 +184,6 @@ def compare(expected: dict, actual: dict) -> list[str]:
             got = (actual.get("record") or {}).get(key)
             if got != want:
                 problems.append(f"record.{key}: expected {want!r}, got {got!r}")
-        if "value" in expected and actual.get("value") != expected["value"]:
-            problems.append(f"value: expected {expected['value']!r}, got {actual.get('value')!r}")
-        for key, want in expected.items():
-            if key in {"ok", "record", "value"}:
-                continue
-            if actual.get(key) != want:
-                problems.append(f"{key}: expected {want!r}, got {actual.get(key)!r}")
     else:
         if expected.get("error") and actual.get("error") != expected["error"]:
             problems.append(
@@ -198,11 +192,10 @@ def compare(expected: dict, actual: dict) -> list[str]:
         contains = expected.get("error_contains")
         if contains and contains.lower() not in (actual.get("message") or "").lower():
             problems.append(f"error message missing {contains!r}: got {actual.get('message')!r}")
-        for key, want in expected.items():
-            if key in {"ok", "error", "error_contains"}:
-                continue
-            if actual.get(key) != want:
-                problems.append(f"{key}: expected {want!r}, got {actual.get(key)!r}")
+    special = {"ok", "record"} if expected.get("ok") else {"ok", "error", "error_contains"}
+    for key, want in expected.items():
+        if key not in special and actual.get(key) != want:
+            problems.append(f"{key}: expected {want!r}, got {actual.get(key)!r}")
     return problems
 
 
@@ -291,7 +284,7 @@ def run(args) -> int:
             rows.append((suite["suite"], case, cells))
             idx += 1
 
-    report = render_report(sdk_names, suites, rows, args)
+    report = render_report(sdk_names, suites, rows)
     print(report)
     if args.out:
         Path(args.out).write_text(report)
@@ -302,11 +295,12 @@ def run(args) -> int:
     return 1 if any(cells[n][0] in ("FAIL", "XPASS") for _, _, cells in rows for n in sdk_names) else 0
 
 
-def render_report(sdk_names, suites, rows, args) -> str:
-    counts = {n: {"PASS": 0, "REJ": 0, "FAIL": 0, "XFAIL": 0, "XPASS": 0, "MISSING": 0} for n in sdk_names}
-    for _, _, cells in rows:
-        for n in sdk_names:
-            counts[n][cells[n][0]] += 1
+def render_report(sdk_names, suites, rows) -> str:
+    suite_rows = {suite["suite"]: [] for suite in suites}
+    for suite, case, cells in rows:
+        suite_rows[suite].append((case, cells))
+    counts = {n: Counter(cells[n][0] for _, _, cells in rows) for n in sdk_names}
+    details = [(case, n, cells[n]) for _, case, cells in rows for n in sdk_names]
 
     sdk_dirs = {
         "go": os.environ.get("DNSID_GO_DIR", str(Path.home() / "dnsid-go")),
@@ -347,32 +341,18 @@ def render_report(sdk_names, suites, rows, args) -> str:
         lines.append("")
         lines.append("| Case | " + " | ".join(sdk_names) + " |")
         lines.append("|------|" + "|".join(["------"] * len(sdk_names)) + "|")
-        for s_name, case, cells in rows:
-            if s_name != suite["suite"]:
-                continue
+        for case, cells in suite_rows[suite["suite"]]:
             marks = []
             for n in sdk_names:
                 status = cells[n][0]
-                mark = {
-                    "PASS": "PASS",
-                    "REJ": "REJ",
-                    "FAIL": "**FAIL**",
-                    "XFAIL": "XFAIL",
-                    "XPASS": "**XPASS**",
-                    "MISSING": "MISSING",
-                }[status]
+                mark = f"**{status}**" if status in {"FAIL", "XPASS"} else status
                 if cells[n][2] and status != "MISSING":  # divergence or known-bug note applied
                     mark += " †"
                 marks.append(mark)
             lines.append(f"| `{case['id']}` | " + " | ".join(marks) + " |")
         lines.append("")
 
-    failures = [
-        (case, n, cells[n])
-        for _, case, cells in rows
-        for n in sdk_names
-        if cells[n][0] == "FAIL"
-    ]
+    failures = [(case, n, result) for case, n, result in details if result[0] == "FAIL"]
     if failures:
         lines.append("## Failures")
         lines.append("")
@@ -387,17 +367,12 @@ def render_report(sdk_names, suites, rows, args) -> str:
                 lines.append(f"- {p}")
             lines.append("")
 
-    if any(cells[n][0] == "MISSING" for _, _, cells in rows for n in sdk_names):
+    if any(c["MISSING"] for c in counts.values()):
         lines.extend(["## Missing capabilities", "", "WBA request/directory verification is not shipped in the tested signing-only bindings.",
                       "Positive and negative verifier vectors remain unexecuted. Integrate native verifier adapters",
                       "when each SDK ships verification; these results are not end-to-end WBA conformance.", ""])
 
-    known_bugs = [
-        (case, n, cells[n])
-        for _, case, cells in rows
-        for n in sdk_names
-        if cells[n][0] in ("XFAIL", "XPASS")
-    ]
+    known_bugs = [(case, n, result) for case, n, result in details if result[0] in {"XFAIL", "XPASS"}]
     if known_bugs:
         lines.append("## Known bugs (XFAIL)")
         lines.append("")
@@ -410,12 +385,8 @@ def render_report(sdk_names, suites, rows, args) -> str:
                 lines.append(f"  - {p}")
         lines.append("")
 
-    divergences = [
-        (case, n, cells[n][2])
-        for _, case, cells in rows
-        for n in sdk_names
-        if cells[n][2] and cells[n][0] in ("PASS", "FAIL")
-    ]
+    divergences = [(case, n, result[2]) for case, n, result in details
+                   if result[2] and result[0] in {"PASS", "FAIL"}]
     if divergences:
         lines.append("## Documented divergences (†)")
         lines.append("")
@@ -432,13 +403,11 @@ def render_report(sdk_names, suites, rows, args) -> str:
     lines.append("| Suite | " + " | ".join(sdk_names) + " |")
     lines.append("|-------|" + "|".join(["-------"] * len(sdk_names)) + "|")
     for suite in suites:
-        suite_rows = [(case, cells) for s_name, case, cells in rows if s_name == suite["suite"]]
-        total = len(suite_rows)
+        cases = suite_rows[suite["suite"]]
+        total = len(cases)
         cells_out = []
         for n in sdk_names:
-            c = {"PASS": 0, "REJ": 0, "FAIL": 0, "XFAIL": 0, "XPASS": 0, "MISSING": 0}
-            for _, cells in suite_rows:
-                c[cells[n][0]] += 1
+            c = Counter(cells[n][0] for _, cells in cases)
             compliant = c["PASS"] + c["XPASS"] + c["REJ"]
             pct = (compliant * 100 / total) if total else 0
             details = []

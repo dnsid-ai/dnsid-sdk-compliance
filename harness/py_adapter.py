@@ -67,19 +67,10 @@ class PyAdapter:
 
     @staticmethod
     def _record_json(rec) -> dict:
-        opt = lambda s: s or None
         return {
             "v": rec.v,
-            "gi": opt(rec.gi),
             "oi": None,  # dnsid-py has no draft-00 support
-            "ek": opt(rec.ek),
-            "ku": opt(rec.ku),
-            "lr": opt(rec.lr),
-            "su": opt(rec.su),
-            "sg": opt(rec.sg),
-            "fl": opt(rec.fl),
-            "ka": opt(rec.ka),
-            "cu": opt(rec.cu),
+            **{tag: getattr(rec, tag) or None for tag in ("gi", "ek", "ku", "lr", "su", "sg", "fl", "ka", "cu")},
             "unknown": dict(rec.unknown_tags),
         }
 
@@ -423,7 +414,6 @@ class PyAdapter:
             return {"ok": False, "error": "LifecycleError", "errorCategory": str(getattr(exc, "category", None) or "INVALID_EVIDENCE"), "message": str(exc)}
         entries = []
         effects = {}
-        ignored = []
         for item in req["entries"]:
             data = base64.urlsafe_b64decode(item["entry"] + "==")
             proof = base64.urlsafe_b64decode(item["proof"] + "==").decode()
@@ -437,10 +427,8 @@ class PyAdapter:
                     now_ms=req["checkpointIntegrationTimeMs"],
                 )
             except C2spTlogError:
-                ignored.append(item["index"])
                 continue
             if verified_proof.index != item["index"]:
-                ignored.append(item["index"])
                 continue
             entries.append(IndexedEntry(index=item["index"], data=data))
             effects[item["index"]] = item["effectId"]
@@ -462,9 +450,9 @@ class PyAdapter:
         try:
             selected = verify_stream_lifecycle(entries, req["domain"], options)
             applied_indexes = [item.index for item in selected]
-            ignored.extend(item["index"] for item in req["entries"] if item["index"] not in applied_indexes and item["index"] not in ignored)
             applied = [effects[index] for index in applied_indexes]
-            out = {"ok": True, "appliedEffectIds": applied, "ignoredCandidateIndexes": sorted(ignored)}
+            ignored = sorted(item["index"] for item in req["entries"] if item["index"] not in applied_indexes)
+            out = {"ok": True, "appliedEffectIds": applied, "ignoredCandidateIndexes": ignored}
             if selected and str(selected[-1].event.event_type) in {"REVOCATION", "RETIREMENT"}:
                 out["identityState"] = "REVOKED" if str(selected[-1].event.event_type) == "REVOCATION" else "RETIRED"
             if selected and str(selected[0].event.event_type) == "MIGRATION":
