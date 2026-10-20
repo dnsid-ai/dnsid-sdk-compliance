@@ -1,103 +1,75 @@
 # SDK Implementation Coverage
 
-This directory tracks coverage of the [SDK Design](../README.md) across the Go,
-TypeScript, and Python SDKs. Each tracker's `Analysis Details` table is the
-**authoritative review baseline**; use its full commits, not this summary.
-Historical review scopes and resolved findings remain available in Git history.
+This directory tracks the [SDK Design](../README.md) across Go, TypeScript, and
+Python. Each tracker's `Analysis Details` table is the authoritative baseline.
+Historical findings and review changes remain in Git.
 
-## Latest Review — 2026-10-19
+## Latest Review — 2026-10-20
 
 | SDK | Coverage File | Reviewed Branch | Reviewed Commit | Package Version | Open Findings |
 | --- | --- | --- | --- | --- | --- |
-| Go | [go.md](./go.md) | `main` | `92e15b0` | `v0.41.0` | Partial profile configuration ownership/validation, publication snapshot validation, signer binding, cross-provider recovery, onboarding validation, construction ordering, unavailable TTL, and conformance metadata |
-| TypeScript | [typescript.md](./typescript.md) | `main` | `0c62d08` | `0.28.0` | Partial profile configuration ownership, cross-provider recovery, onboarding validation, construction/provider validation ordering, and conformance metadata |
-| Python | [python.md](./python.md) | `main` | `f4440d9` | `0.27.0` | Partial profile configuration ownership, JWT bearer naming, signer binding, onboarding validation, provider validation ordering, managed log transport, missing DoH TTL, prepared-event metadata, OIDC response bounds, conformance metadata, and issuance-recovery evidence |
+| Go | [go.md](./go.md) | `main` | `8797e22` | `v0.42.0` | Profile configuration, publication snapshot validation, signer binding, rotation algorithm/recovery, onboarding, construction ordering, missing TTL, conformance metadata |
+| TypeScript | [typescript.md](./typescript.md) | `main` | `41f0df0` | `0.30.0` | Profile ownership, built-in cross-provider retirement, empty rotation targets, managed log transport, conformance metadata |
+| Python | [python.md](./python.md) | `main` | `26a5e80` | `0.29.0` | Profile ownership, JWT bearer naming, managed log transport, OIDC decoded allocation, conformance metadata, initial-issuance recovery evidence |
 
-Design baseline: `docs/sdk-coverage-2026-10-19` at
-`8d04d58c7e8d920b1f62100ce4f7436324e06c40`. Full SDK commits and review scope
-are recorded in each tracker. These versions identify source, not a claim about
-published release contents.
+Design baseline: `8c3731d1ed068399dc2ab4190b2b88e4ce37aeda` (`main`).
+Full reviewed/tested commits, release tags, native commands/results, and review
+scope are recorded per SDK. Python `v0.29.0` and TypeScript `v0.30.0` contain
+only release metadata changes after their tested commits; suites/package smoke
+were not rerun and published artifacts were not inspected.
 
-This follow-up advances the SDK baselines through the merged `RecordNotFound`
-fixes on `main`. All recorded baselines resolve and are ancestors of the reviewed
-heads; each merged SDK tree exactly matches its reviewed pre-merge branch.
-Design `e2f43a0`..`8d04d58` changes only implementation trackers. No normative
-design, fixtures, or numbered identity-record profiles changed. Other coverage
-retains its earlier review after checking both change sets for impact.
+## Review Scope
 
-All three SDKs now implement DNSid WBA request and signed-directory verification,
-targeting published `draft-ietf-webbotauth-httpsig-protocol-00`. They bind both
-signatures to the current verified operational key, enforce configured entity
-acceptance and current-peer policy, and support bounded key-mismatch refresh.
-They fetch directories on every invocation; optional directory-cache reuse is
-not claimed. This is the constrained DNSid profile, not a claim of general WBA
-or external partner interoperability.
+All recorded full SDK/design baselines resolved and were ancestors of the
+reviewed commits. All four worktrees were initially clean; no uncommitted
+normative or fixture changes were included.
 
-All three expose checkpoint continuity/storage diagnostics and atomic memory-store
-verification/advancement. Durable stores remain code-injected; no built-in durable
-adapter ships at these heads. Python removed its SQLite adapter. Recovery requires
-explicit deployment authorization; verification never resets trust automatically.
-The managed SDK catalogs now include the partner log alongside development and
-production. These vendored trust choices are not protocol authority.
-
-All three now implement the distinct non-transient `RecordNotFound` classification
-for NXDOMAIN and NOERROR/NODATA, including runtime not-found exceptions. DNSSEC
-policy takes precedence; multiple/malformed records remain `RecordInvalid`, and
-timeouts, network failures, and ordinary SERVFAIL remain transient `DNSResolution`.
-Native tests cover supported resolver transports and injected resolvers, verify
-that absence is not cached as verified identity, and permit later publication.
-
-Profile configuration ownership gaps outside WBA remain. Python retains a JWT
-bearer class named `WebBotAuthProfile`, contrary to the revised naming contract.
-Existing registration/provider gaps remain: Go and Python do not bind
-configuration-selected signers to verified publication; Go and TypeScript lack
-complete cross-provider recovery; all three lack onboarding-binding validation.
-See the trackers for evidence and the remaining findings.
-
-Python's checked-in `uv.lock` labels the editable package `0.26.0`, while
-`pyproject.toml` reports `0.27.0`; its dnspython minimum is now 2.8. Validation
-used existing installed environments without refreshing locks.
-
-## Native Validation
-
-Commands were rerun in each SDK checkout at the merged heads above.
-
-| SDK | Commands | Result |
-| --- | --- | --- |
-| Go | `go vet ./...`, `go test -count=1 ./...`, `go test -race ./...`, `(cd key/aws && go test ./...)`, `(cd examples/deployment-identity && go test ./...)`, `(cd examples/trust-policy && go test ./...)` | All passed on the first run; the prior OIDC boundary-test flake did not recur, but is not proven fixed |
-| TypeScript | `npm run typecheck`, `npm run build`, `npm test -- --run`, `npm run smoke:pack` | All passed; 1256 tests passed, 1 skipped |
-| Python | `.venv/bin/pytest -q`, `.venv/bin/ruff check dnsid tests`, `.venv/bin/mypy dnsid` | 1953 tests passed with 8 local-key warnings; lint/types clean, 47 source files checked |
+The design range
+`8d04d58c7e8d920b1f62100ce4f7436324e06c40`..`8c3731d1ed068399dc2ab4190b2b88e4ce37aeda`
+clarifies rotation algorithm selection/generated-key agreement and exact
+saved-provider recovery (`19cee11`, `32f1fa3`). Root fixture changes
+(`302c227`) correct rejection categories and invalid-checkpoint evidence.
+No numbered identity-record profile changed. Harness/adapter refactoring and
+fresh-source checks were also reviewed. Resolved [design questions](../08-open-questions.md)
+are covered in the relevant subject rows, not a separate implementation status.
 
 ## Shared Compliance Harness
 
-The 2026-10-19 merged-head rerun matched all 358 expectations per SDK:
-347 passes and 11 fail-closed rejections of retired selectors, including
-150 WBA and 15 signed checkpoint cases. There were no unexpected failures, known-bug allowances, or
-missing WBA capabilities. The rebuilt Go shim, rebuilt TypeScript packages and
-installed local Python package were used.
+This run used the **tested SDK commits** in each tracker's metadata, before the
+Python/TypeScript release-only commits. Existing environments/locks were not
+refreshed. The Python editable install was rebound to the reviewed checkout
+before the successful run; TypeScript packages and the Go shim were rebuilt.
 
-The C2SP matrix passed: all three writers produced identical canonical
-ISSUANCE → KEY_ROTATION entries; all nine writer/verifier paths succeeded;
-the Python-to-TypeScript split-signing handoff matched; every verifier rejected
-all six mutated bundles. All 40 harness tests passed without skips, including
-the native Go revocation/cache regression.
+All **358 expectations per SDK** matched: 347 passes and 11 fail-closed
+retired-selector rejections, including 150 WBA and 15 signed-checkpoint cases.
+No unexpected failures or known-bug allowances occurred. Typed Python JWKS
+errors and optional no-directory-cache behavior use declared expectations.
+All 60 harness unit tests, both fixture reproducibility checks, and 33 focused
+event-identity checks passed. Three writers produced identical canonical
+ISSUANCE/KEY_ROTATION entries; three verifiers accepted the signed golden stream
+and each rejected all six mutations. The Python-to-TypeScript split-signing
+handoff matched; the matrix no longer executes nine redundant paths.
 
-Commands ran from the compliance repository root:
+Commands ran from the compliance root:
 
 ```sh
+uv pip install -p .venv -e "$HOME/dnsid-py"
 (cd shims/go && go build -o dnsid-shim .)
-.venv/bin/python harness/run.py --out /tmp/dnsid-record-not-found-merged-review/harness.md
-DNSID_GO_DIR="$HOME/dnsid-go" DNSID_TS_DIR="$HOME/dnsid-ts" DNSID_PY_DIR="$HOME/dnsid-py" .venv/bin/python harness/c2sp_matrix.py
+.venv/bin/python harness/generate_c2sp_fixtures.py --check
+.venv/bin/python harness/generate_wba_fixtures.py --check
 DNSID_GO_DIR="$HOME/dnsid-go" DNSID_TS_DIR="$HOME/dnsid-ts" DNSID_PY_DIR="$HOME/dnsid-py" .venv/bin/python -m unittest discover -s harness -p 'test_*.py'
+.venv/bin/python harness/c2sp_event_identity_check.py
+DNSID_GO_DIR="$HOME/dnsid-go" DNSID_TS_DIR="$HOME/dnsid-ts" DNSID_PY_DIR="$HOME/dnsid-py" .venv/bin/python harness/run.py --out /tmp/dnsid-review-2026-10-20/harness.md
+DNSID_GO_DIR="$HOME/dnsid-go" DNSID_TS_DIR="$HOME/dnsid-ts" DNSID_PY_DIR="$HOME/dnsid-py" .venv/bin/python harness/c2sp_matrix.py
 ```
 
-Passing fixtures do not close the documented gaps. The signed-checkpoint cases
-use memory stores; they do not establish durable-storage, crash, multiprocess
-locking, or administrative-recovery guarantees. WBA directory-cache reuse was
-not established. No live registry integration, cloud authorization, persistent
-server replay/organization isolation, external WBA partner interoperability,
-deployment-owned recovery, or complete recursive-migration interoperability was
-tested. Registration/provider and recovery checks use local/mocked dependencies.
+Logs/reports and focused probes are under `/tmp/dnsid-review-2026-10-20/`.
+Passing suites do not close the findings. Checkpoint cases use memory stores,
+not built-in durable adapters. WBA directories are fetched on every invocation;
+optional directory caching is not claimed. No live registry/cloud authorization,
+external WBA partner, durable checkpoint crash/multiprocess behavior,
+deployment-owned recovery, throughput/load benchmark, or complete recursive
+migration interoperability was tested.
 
 ## Agent Update Instructions
 
@@ -110,8 +82,11 @@ refresh, validation, and full-review triggers.
   behavior, validation, errors, and defaults, not exported names alone.
 - Keep current findings distinct from evidence; preserve unaffected coverage only
   after checking both SDK and design deltas.
-- Update only the requested trackers. Update this summary when requested or when
-  the review scope includes shared run metadata; keep it consistent with them.
+- Update only the requested trackers. Keep shared run details here and native
+  commands/results in each SDK's metadata; update this summary when in scope.
+- Keep rows organized by subject, with short requirement names and design links.
+  Merge duplicate requirements; put release/test distinctions in metadata, not
+  dated appendices. Optional API limitations are not missing design requirements.
 
 ## Status Legend
 
