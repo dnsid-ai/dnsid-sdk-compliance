@@ -38,10 +38,14 @@ make entity-naming  # this repo and the four sibling checkouts
 The checker reads tracked files. Stage new authoritative files before running it
 locally. It checks first-party license/notice attribution, security and named
 legal policies, author metadata, Go SDK module documentation, copyright headers,
-and static CLI/about/version source text. It excludes dependencies, test
-fixtures, standard license examples, and dependency notices after their separator.
-It does not ban brand names from ordinary documentation or change third-party
-attribution. Runtime-composed CLI legal strings still need review when added.
+static Terms/Privacy pages and legal constants, and static CLI/about/version
+source text. It excludes dependencies, test fixtures, the standard Apache
+copyright example, and dependency notices after their separator. The rest of a
+LICENSE is still checked, including text after the standard license heading.
+In legal prose, brand names are rejected when used with attribution labels or
+company-policy statements, not in unrelated parent-brand or product explanations.
+Third-party attribution is unchanged. Runtime-composed CLI legal strings still
+need review when added.
 
 The cross-SDK CI workflow checks all five repositories on pull requests, pushes
 to main, manual dispatch, and its daily schedule. The reusable SDK workflow also

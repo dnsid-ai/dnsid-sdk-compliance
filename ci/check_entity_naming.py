@@ -14,6 +14,21 @@ WRONG_ENTITY = re.compile(
     r"|Known Systems(?! AI, Inc\.)",
     re.IGNORECASE,
 )
+WRONG_ATTRIBUTION = re.compile(
+    r"(?:\bcopyright\b\s*(?:\(c\)|©)?\s*(?:\d{4}(?:[-–]\d{4})?\s*)?"
+    r"|\b(?:licensor|(?:legal|contracting)[ _-]*entity|company(?:[ _-]*name)?"
+    r"|copyright[ _-]*(?:owner|holder|entity))\b\s*(?:(?:is|:|=)\s*)?[\"'`]?"
+    r"|\b(?:licensed|operated|provided|owned) by\s+"
+    r"|\bbetween\b[^\n]{0,80}\band\s+)"
+    rf"(?:{WRONG_ENTITY.pattern})"
+    rf"|(?:{WRONG_ENTITY.pattern})(?:\s+takes\b[^\n]{{0,80}}\bsecurity\b"
+    r"|\s+terms of (?:use|service)\b|['’]s?\s+commercial (?:products|services)\b)",
+    re.IGNORECASE,
+)
+STANDARD_LICENSE_EXAMPLE = re.compile(
+    r"(?im)^[ \t]*Copyright (?:\[yyyy\] \[name of copyright owner\]"
+    r"|\{yyyy\} \{name of copyright owner\})[ \t]*$",
+)
 PLACEHOLDER = re.compile(
     r"[<\[{]\s*(?:Known Systems AI, Inc\.[^\]>}\n]*"
     r"|(?:your\s+)?(?:entity|company|legal entity|entity name|company name|legal name)"
@@ -28,14 +43,15 @@ POLICIES = {"SECURITY.md", "CODE_OF_CONDUCT.md", "PRIVACY.md", "TERMS.md"}
 SOURCE_SUFFIXES = {".go", ".py", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".sh"}
 
 
-def naming_errors(text: str) -> list[str]:
-    """Ignore repository and URL references, not company names in legal prose."""
+def naming_errors(text: str, *, attribution: bool = True) -> list[str]:
+    """Check attribution, not unrelated parent-brand or product explanations."""
     prose = re.sub(
         r"https?://\S+|(?:Identity-Digital|dnsid-ai)/[\w./#-]+",
         "", text, flags=re.IGNORECASE,
     )
     errors = []
-    if WRONG_ENTITY.search(prose):
+    wrong_name = WRONG_ENTITY if attribution else WRONG_ATTRIBUTION
+    if wrong_name.search(prose):
         errors.append(f"use {ENTITY}, not a brand or abbreviated company name")
     if PLACEHOLDER.search(prose):
         errors.append("unresolved entity-name placeholder")
@@ -70,9 +86,12 @@ def check_repo(root: Path) -> list[str]:
             path.name.startswith(("LICENSE", "NOTICE"))
             or path.name == "CLI_BINARY_LICENSE"
         )
-        policy = path.name in POLICIES
-        metadata = path.name in {"package.json", "pyproject.toml"}
         source = path.suffix in SOURCE_SUFFIXES and not path.name.endswith("_test.go")
+        policy = path.name in POLICIES or (
+            path.stem.lower() in {"terms", "privacy", "legal"}
+            and path.suffix in SOURCE_SUFFIXES | {".md", ".txt", ".html"}
+        )
+        metadata = path.name in {"package.json", "pyproject.toml"}
         if not (legal or policy or metadata or source):
             continue
         text = (root / path).read_text(encoding="utf-8")
@@ -92,16 +111,16 @@ def check_repo(root: Path) -> list[str]:
                         for message in naming_errors(author.get("name", "")):
                             fail(path, message)
         elif legal or policy:
-            # Standard license examples and dependency notices are not our attribution.
             own_text = text
-            if legal:
-                own_text = re.split(
-                    r"Apache License|Attribution 4\.0 International|\n={10,}",
-                    text, maxsplit=1,
-                )[0]
+            if path.name.startswith("NOTICE"):
+                # Dependency attribution starts at the first notice separator.
+                own_text = re.split(r"\n={10,}", text, maxsplit=1)[0]
+            elif legal:
+                # Ignore the instructional example, not the rest of the license.
+                own_text = STANDARD_LICENSE_EXAMPLE.sub("", text)
             if (legal or path.name == "SECURITY.md") and ENTITY not in own_text:
                 fail(path, f"first-party attribution must name {ENTITY}")
-            for message in naming_errors(own_text):
+            for message in naming_errors(own_text, attribution=False):
                 fail(path, message)
         else:
             # shortcut: static CLI text only; review runtime-composed legal strings.

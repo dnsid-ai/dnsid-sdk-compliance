@@ -14,13 +14,26 @@ with tempfile.TemporaryDirectory() as directory:
         "LICENSE.txt": (
             f"Copyright 2026 {ENTITY}\n\nApache License\n"
             "Copyright [yyyy] [name of copyright owner]\n"
+            "Copyright {yyyy} {name of copyright owner}\n"
         ),
         "NOTICE.txt": (
             f"Copyright 2026 {ENTITY}\n\n====================\n"
             "Copyright Identity Digital\n"
         ),
         "CLI_BINARY_LICENSE": f"Copyright 2026 {ENTITY}\n\nApache License\n",
-        "SECURITY.md": f"{ENTITY} takes security seriously.\nhttps://github.com/Identity-Digital/dnsid\n",
+        "SECURITY.md": (
+            f"{ENTITY} takes security seriously.\n"
+            "https://github.com/Identity-Digital/dnsid\n"
+            "Identity Digital is the parent/lab brand.\n"
+            "Identity Digital Innovation Labs is the parent lab.\n"
+            "Identity Digital is the parent brand, not the legal entity.\n"
+            f"Legal entity: {ENTITY}, not Identity Digital.\n"
+        ),
+        "Terms.tsx": (
+            f'export default () => <p>{ENTITY} Terms of Use</p>;\n'
+            "// Identity Digital is the parent/lab brand.\n"
+        ),
+        "legal.ts": f'export const legalEntity = "{ENTITY}";\n',
         "package.json": json.dumps({"author": ENTITY}),
         "pyproject.toml": (
             f'[project]\nname = "example"\nauthors = [{{name = "{ENTITY}"}}]\n'
@@ -57,12 +70,24 @@ with tempfile.TemporaryDirectory() as directory:
     invalid = [
         ("CLI_BINARY_LICENSE", "Copyright 2026 <ENTITY>\n\nApache License\n"),
         ("LICENSE.txt", "Copyright 2026 Identity Digital\n\nApache License\n"),
+        ("LICENSE.txt", valid["LICENSE.txt"] + "Copyright 2026 Identity Digital\n"),
+        ("LICENSE.txt", valid["LICENSE.txt"] + "Licensed by <ENTITY>.\n"),
+        ("LICENSE.txt", valid["LICENSE.txt"] + (
+            "Copyright 2026 [Known Systems AI, Inc. (company name)]\n"
+        )),
+        ("Terms.tsx", (
+            "export default () => <p>[Known Systems AI, Inc. (company name)]</p>;\n"
+        )),
+        ("Terms.tsx", 'export default () => <h1>Identity Digital Terms of Use</h1>;\n'),
+        ("legal.ts", 'export const legalEntity = "Identity Digital";\n'),
         ("NOTICE.txt", "Copyright 2026 <ENTITY>\n"),
         ("NOTICE.txt", (
             f"Copyright 2026 {ENTITY}\n\n"
             "Provided by [Known Systems AI, Inc. (company name)].\n"
         )),
         ("SECURITY.md", f"{ENTITY}\nIdentity Digital takes security seriously.\n"),
+        ("SECURITY.md", f"{ENTITY}\nThis policy is provided by Identity Digital.\n"),
+        ("SECURITY.md", f"{ENTITY}\nLicensor:\nIdentity Digital\n"),
         ("SECURITY.md", f"{ENTITY}\nKnown Systems' commercial products.\n"),
         ("SECURITY.md", f"{ENTITY}\nContact [COMPANY NAME].\n"),
         ("package.json", "{}"),
@@ -74,7 +99,10 @@ with tempfile.TemporaryDirectory() as directory:
     ]
     for name, content in invalid:
         (root / name).write_text(content)
-        assert check_repo(root), (name, content)
+        errors = check_repo(root)
+        assert any(error.startswith(f"{root / name}:") for error in errors), (
+            name, content, errors,
+        )
         (root / name).write_text(valid[name])
 
     (cli / "main.go").write_text('package main\nvar about = "Identity Digital"\n')
