@@ -1,5 +1,7 @@
 # Contributing to dnsid-sdk-compliance
 
+Follow the shared [entity-naming rule](policy/ENTITY_NAMING.md) for legal text, copyright notices, and package author metadata.
+
 Thanks for contributing! This is the cross-SDK compliance test kit for the DNSid protocol.
 It runs one shared set of spec-derived test vectors against the Go, TypeScript, and Python
 SDKs and reports where they disagree.

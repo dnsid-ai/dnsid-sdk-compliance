@@ -33,6 +33,11 @@ cd "$dir"
 for f in LICENSE* NOTICE.txt CONTRIBUTING.md .github/CODEOWNERS .github/dependabot.yml; do
   if compgen -G "$f" >/dev/null; then ok "file: $f" "present"; else fail "file: $f" "missing (Legal §1/§12, OSS-018)"; fi
 done
+if naming=$(python3 "$root/ci/check_entity_naming.py" . 2>&1); then
+  ok "entity naming" "first-party attribution names Known Systems AI, Inc."
+else
+  fail "entity naming" "$(printf '%s' "$naming" | head -3 | tr '\n' ';')"
+fi
 # canonical policy files: byte-identical to policy/ in this repo
 if [ -f SECURITY.md ]; then
   if cmp -s SECURITY.md "$root/policy/SECURITY.md"; then ok "SECURITY.md" "matches policy/SECURITY.md"

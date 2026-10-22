@@ -30,6 +30,14 @@ SDK checkouts default to `~/dnsid-go`, `~/dnsid-ts`, `~/dnsid-py`
 Exit code is nonzero only on **unexpected** failures — documented known bugs
 (XFAIL) do not break the build.
 
+## Entity naming
+
+The shared [entity-naming rule](policy/ENTITY_NAMING.md) defines first-party legal
+attribution and permitted brand usage. Run `make entity-naming` to check this
+repository, the three SDKs, and cookbook without installing SDK dependencies.
+Override `DNSID_COOKBOOK_DIR` as needed, like the SDK directory variables above.
+CI checks all five main branches and gates SDK PR heads strictly on this rule.
+
 ## Layout
 
 ```
