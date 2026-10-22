@@ -207,7 +207,7 @@ FUNCTION VerifyJWT(jwt: string) -> VerifiedDomain
 
   signingKey = verifiedDomain.jwks.KeyById(header.kid)
   IF signingKey == nil THEN
-    RAISE VerificationError("JWT kid not found in issuer JWKS")
+    RAISE VerificationError(KeyNotFound, "JWT kid not found in issuer JWKS")
   END
 
   keyAlg = signingKey.SignatureAlg()  // key-compatible alg; header.alg remains authoritative
@@ -285,7 +285,7 @@ FUNCTION VerifyJWS(jws: string) -> (bytes, VerifiedDomain)
 
   signingKey = verifiedDomain.jwks.KeyById(kid)
   IF signingKey == nil THEN
-    RAISE VerificationError("JWS kid not found in signer JWKS")
+    RAISE VerificationError(KeyNotFound, "JWS kid not found in signer JWKS")
   END
 
   keyAlg = signingKey.SignatureAlg()  // key-compatible alg; header.alg remains authoritative

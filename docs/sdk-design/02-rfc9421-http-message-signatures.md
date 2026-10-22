@@ -254,8 +254,9 @@ A signing key `kid` containing `#` is invalid.
 2. Require exact unparameterized `@method`, `@authority`, and `@target-uri`.
 3. Parse the compound `keyid`, verify the domain with the current invocation's
    trusted application peer certificate when supplied, and select the verified
-   `ku` key by `kid`. Missing peer evidence fails if `fl=mtls`; cached identity
-   evidence cannot substitute for the current peer.
+   `ku` key by `kid`. A `kid` with no such key fails with `KeyNotFound`. Missing
+   peer evidence fails if `fl=mtls`; cached identity evidence cannot substitute
+   for the current peer.
 4. Require integer `created`; reject `created > now + clockSkew` and
    `now - created > maxAge`.
 5. When `expires` is present, require `created <= expires`, reject
