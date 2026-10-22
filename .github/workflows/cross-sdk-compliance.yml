@@ -48,6 +48,13 @@ jobs:
           persist-credentials: false
           path: sdks/dnsid-py
 
+      - name: Check out dnsid-cookbook
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: dnsid-ai/dnsid-cookbook
+          persist-credentials: false
+          path: sdks/dnsid-cookbook
+
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: "1.26.10"
@@ -61,6 +68,14 @@ jobs:
           python-version: "3.12"
 
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+
+      - name: Check entity naming across all five repositories
+        run: |
+          make entity-naming \
+            DNSID_GO_DIR="$GITHUB_WORKSPACE/sdks/dnsid-go" \
+            DNSID_TS_DIR="$GITHUB_WORKSPACE/sdks/dnsid-ts" \
+            DNSID_PY_DIR="$GITHUB_WORKSPACE/sdks/dnsid-py" \
+            DNSID_COOKBOOK_DIR="$GITHUB_WORKSPACE/sdks/dnsid-cookbook"
 
       - name: Run compliance suite and C2SP matrix
         run: |

@@ -4,9 +4,14 @@
 DNSID_GO_DIR ?= $(HOME)/dnsid-go
 DNSID_TS_DIR ?= $(HOME)/dnsid-ts
 DNSID_PY_DIR ?= $(HOME)/dnsid-py
+DNSID_COOKBOOK_DIR ?= $(HOME)/dnsid-cookbook
 export DNSID_GO_DIR DNSID_TS_DIR DNSID_PY_DIR
 
-.PHONY: setup run c2sp-matrix clean ts-build shims/go/dnsid-shim .venv
+.PHONY: entity-naming setup run c2sp-matrix clean ts-build shims/go/dnsid-shim .venv
+
+entity-naming:
+	python3 ci/test_entity_naming.py
+	python3 ci/check_entity_naming.py . "$(DNSID_GO_DIR)" "$(DNSID_TS_DIR)" "$(DNSID_PY_DIR)" "$(DNSID_COOKBOOK_DIR)"
 
 setup: shims/go/dnsid-shim ts-build .venv
 

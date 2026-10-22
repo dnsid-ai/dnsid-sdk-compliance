@@ -7,7 +7,7 @@ name: SDK Compliance (reusable)
 # Gate: the check goes red if the PR introduces a failing case vs the base
 # branch. Pre-existing failures do not block — they show in the
 # summary as the current compliance %. If base-ref is omitted, the gate is
-# simply "zero failures".
+# simply "zero failures". Entity naming is checked strictly on the head, not ratcheted.
 #
 # Caller (in dnsid-<sdk>/.github/workflows/compliance.yaml):
 #   jobs:
@@ -90,6 +90,9 @@ jobs:
         with:
           python-version: "3.12"
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v9.0.0 (no floating major tag published)
+
+      - name: Check SDK entity naming (strict)
+        run: python3 ci/check_entity_naming.py sdk-head
 
       - name: Run suite (head)
         run: ci/run-one.sh "${{ inputs.sdk }}" "$GITHUB_WORKSPACE/sdk-head" report-head.md
