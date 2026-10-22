@@ -950,6 +950,9 @@ ENUM VerificationCode
   RecordInvalid    // Multiple TXT records, or parse/validation failure raised inside
                    // VerifyDomain (e.g. missing required tag). Permanent.
   SignatureInvalid // The profile-selected record-signing key could not verify the sg tag. Permanent.
+  KeyNotFound      // An application signature's key ID has no eligible key in the signer's verified
+                   // operational JWKS, for example after the signer rotated that key. Permanent.
+                   // A key that is found but fails to verify the signature is SignatureInvalid.
   TLSError         // TLS certificate error; non-HTTPS redirect on the profile-selected JWKS URI or su;
                    // or host-changing redirect where the selected profile disallows it. Permanent.
                    // Host-changing HTTPS redirects are permitted for su unless local policy is stricter.
@@ -1363,6 +1366,10 @@ substitutes for that signature. A log binding may require additional signatures;
 15. After an accepted result is bound to the exact entry hash and new key, persist
     acceptance before local reconciliation. Verify the current signed TXT/ku
     publication and accepted rotation continuity before activating the new key.
+    This check confirms the local identity's own publication: the SDK performs
+    it itself with fresh identity evidence, bypassing cached evidence, and does
+    not apply counterparty acceptance policy. The local identity is not a
+    counterparty.
 16. newKeyProvider.Activate(newKid)
 17. keyProvider.Supersede(previousKid)
 18. Persist the active provider/key reference and `activated=true`, configure
@@ -1443,7 +1450,13 @@ Its state handling is:
 - accepted but not activated: do not create a new event; reconcile activation and
   supersession idempotently from the accepted record;
 - activated but still paused: restore application signing to the saved active
-  provider/key, validate its binding, then resume signing and persist completion;
+  provider/key, validate its binding, then resume signing and persist completion.
+  Publication was verified before activation was recorded, so this step makes no
+  network calls;
+- activated with signing resumed (completed): this state is terminal. Validate
+  the saved target key binding and restore the application signer. Do not pause
+  signing, submit, or verify publication again. Applications archive the
+  completed record; the next rotation starts a new record;
 - rejected: return a terminal typed submission error without resubmission.
 
 Failures after completed bytes have been fixed return a typed submission or
