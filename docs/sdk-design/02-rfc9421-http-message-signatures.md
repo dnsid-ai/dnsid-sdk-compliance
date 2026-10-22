@@ -11,7 +11,7 @@ DNSid protocol core.
 
 ## Standards and scope
 
-- RFC 9421: HTTP Message Signatures
+- RFC 9421: HTTP Message Signatures, including §5 signature requests
 - RFC 9530: Content-Digest and Repr-Digest
 - RFC 8941: Structured Field Values for HTTP
 - RFC 9110: HTTP Semantics
@@ -141,7 +141,9 @@ against the profile and accepts only when exactly one candidate verifies.
 Well-formed unrelated or verification-invalid coexisting signatures do not
 invalidate that candidate; zero valid candidates and multiple valid candidates
 are errors. A malformed Structured Field still makes the complete field
-unparseable. The WBA profile explicitly overrides this selection rule with
+unparseable. Negotiated response verification first selects the locally requested
+label, so unrelated complete signatures cannot satisfy or make that selection
+ambiguous. The WBA profile explicitly overrides this selection rule with
 exactly-one-complete-candidate selection for requests and per-key directory
 signatures; see [10: Signature selection](10-web-bot-auth.md#signature-selection).
 
@@ -213,6 +215,11 @@ component such as `content-digest;key="sha-256"`, verification:
 
 A covered digest is always checked. If content was not supplied to the verifier,
 a covered digest rejects; absent content is not a supplied empty byte sequence.
+For the [negotiated response profile](#dnsid-negotiated-response-profile), HTTP
+semantics can establish that a response has no content, such as a response to
+HEAD or a 204 or 304 response. Its digest is computed over the empty byte
+sequence, as specified by RFC 9530. This does not permit treating an unavailable
+ordinary response body as empty.
 Digest-validation detection is distinct from exact minimum-coverage checks:
 parameterized coverage does not substitute for required unparameterized
 `content-digest` coverage. A signed digest value alone does not prove that it
@@ -280,12 +287,229 @@ one-time requests store and reject repeated `(keyid, nonce)` values.
 Other algorithms are rejected. Draft 01 `ku` keys require their JWK algorithm
 binding to agree with the selected algorithm.
 
+## DNSid negotiated response profile
+
+### Scope and public surface
+
+Response authentication is opt-in. Signing a request alone does not authenticate
+the responder's DNSid identity. RFC 9421 §5 permits requesting a signed response
+with `Accept-Signature`, but permits a server to ignore requests outside its
+application policy. This SDK profile makes an enabled client's requirement
+mandatory locally: a missing or unacceptable response signature fails closed.
+It does not change DNSid core, the request-only defaults, or WBA directory rules.
+
+Bindings MUST expose these capabilities through idiomatic public APIs:
+
+```
+TYPE ResponseSignatureOptions
+  expectedDomain: string
+  additionalComponents?: []ComponentIdentifier
+END
+
+HttpSigningOptions.responseSignature?: ResponseSignatureOptions
+
+SignRequestedHttpResponse(request, response) -> HttpResponse
+VerifySignedHttpResponse(request, response, opts: ResponseSignatureOptions,
+                         peerCert?: TLSCertificate) -> VerifiedDomain
+```
+
+The methods belong to the HTTP-signature profile, not `IdentityManager`.
+`CreateSignedHttpRequest` prepares the negotiation when `responseSignature` is
+present. `CreateSignedHttpClient` (or a binding's signed-fetch equivalent) also
+verifies the response before returning it. With the option absent, both retain
+the existing request-only behavior. A standalone request helper does not send
+or verify a response; its caller uses `VerifySignedHttpResponse` afterward.
+
+`expectedDomain` is a required, locally configured DNSid agent FQDN, normalized
+with `NormalizeFQDN` before network work. It may differ from the HTTP endpoint
+host, for example behind a gateway. Never derive it from received signature
+metadata or redirects. It is not sent as a `keyid` constraint: the server selects
+its current operational key. Applications requiring accountable-entity approval
+also configure the resolver's `trustedEntities`; an expected agent domain does
+not replace that policy. As elsewhere, absent entity policy makes no entity
+acceptance decision.
+
+### Client request preparation
+
+When enabled, the helper MUST:
+
+1. Reject an existing `Accept-Signature` field with `ArgumentError`, rather than
+   replace or merge caller policy. Manual RFC 9421 negotiation remains possible
+   through ordinary headers and low-level primitives outside this convenience.
+2. Generate a fresh nonce from at least 32 cryptographically random bytes,
+   encoded as canonical unpadded base64url. It is a response challenge, separate
+   from the outgoing request signature's nonce.
+3. Set one `Accept-Signature` dictionary member, labeled `sig1`, starting with
+   these required components in this order:
+   - `"@status"`
+   - `"@method";req`
+   - `"@authority";req`
+   - `"@target-uri";req`
+   - `"accept-signature";req`
+   - `"content-digest"`
+   - `"cache-control"`
+   Append any `responseSignature.additionalComponents` in caller order, without
+   equivalent duplicates. Validate them against the supported response component
+   matrix before network work. Use this existing component model to request
+   signed application metadata such as `content-type`; a requested field must
+   be present on the response or signing fails.
+4. Add the request parameters `created` and `expires` as Boolean true flags,
+   and `nonce` as the generated string, in that order. RFC 9421 signature
+   requests differ from `Signature-Input`: these two time parameters request
+   timestamps; they are not timestamp values.
+5. Cover exact unparameterized `accept-signature` in the outgoing request
+   signature, in addition to the request profile's usual components.
+
+For example, with a disposable example nonce (production nonces MUST be random):
+
+```http
+Accept-Signature: sig1=("@status" "@method";req "@authority";req "@target-uri";req "accept-signature";req "content-digest" "cache-control");created;expires;nonce="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+```
+
+The signed client MUST retain an invocation-local snapshot of its expected
+domain, challenge, and actual outgoing request context. Verification uses this
+snapshot, not echoed request metadata, mutable caller options, or a later request.
+With standalone helpers, the caller must retain an unmodified prepared request
+and original policy snapshot for `VerifySignedHttpResponse`; bindings MUST
+document that responsibility. Starting a new attempt requires preparation from
+the original unsigned request, with a new challenge and signature. Enabled
+helpers MUST reject a non-HTTPS target before sending.
+
+### Server response signing
+
+`SignRequestedHttpResponse` is explicitly invoked by server code before headers
+or content are sent. If `Accept-Signature` is absent, it returns the response
+unchanged and does not require a signing key. Otherwise it MUST:
+
+1. Parse the complete field as an RFC 8941 Dictionary of Inner Lists. Reject
+   malformed syntax, duplicate labels or parameters, wrong parameter types,
+   and duplicate equivalent components before a parser can overwrite them.
+2. Require exactly one member, with any valid label, all exact required components
+   above, and only the required `created`, `expires`, and `nonce` parameters.
+   Additional components must satisfy the supported response component matrix.
+   Preserve the complete component list and order as requested; equivalent true
+   spellings of `req` and the two time flags are accepted. Require a canonical
+   unpadded base64url nonce decoding to at least 32 bytes. Unsupported component
+   syntax, parameters, constraints, and multi-member negotiation reject; they
+   MUST NOT be silently ignored or partially fulfilled.
+3. Use the actual final response status and the trusted originating request
+   context. Compute and set SHA-256 `Content-Digest` over the exact response
+   content, including an empty sequence for a known no-content response.
+   Add `Cache-Control: no-store` without dropping existing cache directives.
+4. Sign using the current local operational key, never the entity key. Use the
+   requested label and exact requested component list, the usual compound
+   `keyid` and mapped `alg`, integer `created` and `expires` with positive
+   lifetime at most the server's `maxAge`, and the exact requested nonce.
+   The requested flags become timestamp values in `Signature-Input`.
+5. Preserve signatures under other labels. Reject a collision with the requested
+   label in either existing signature dictionary instead of replacing it.
+   Publish the response changes only after successful validation and signing;
+   key changes or signing failures MUST NOT produce an unsigned fallback.
+
+The complete HTTP message must remain available within the resource bounds
+below. Apply the existing body replay and signing-key consistency requirements.
+Content coding and other covered fields MUST be finalized before signing, and
+middleware MUST NOT modify covered bytes afterward. The client needs those same
+content bytes before transparent content decoding; incompatible transports reject
+rather than verify altered bytes. Support ordinary final responses, including
+HTTP errors and redirects; informational responses and protocol/tunnel upgrades
+are outside this helper and MUST NOT be reported as authenticated responses.
+
+This helper does not authenticate the caller, authorize an operation, or prove
+that application processing succeeded. Server applications still verify signed
+requests and authorize actions before dispatch. An opted-in server SHOULD also
+apply signing to its application error responses. If it cannot fulfill a request,
+it returns a local error to its hosting application; the host may reject the HTTP
+request, but MUST NOT claim to have fulfilled response authentication. Malformed
+or unsupported peer negotiation is a non-transient verification error, not an
+invalid-local-options error. Missing local signing configuration is `ArgumentError`.
+
+### Client response verification
+
+`VerifySignedHttpResponse` MUST perform all of the following before success:
+
+1. Validate the saved request negotiation and local expected-domain policy,
+   including coverage of any locally required additional components. Parse
+   the complete response signature dictionaries using the existing rules.
+   Require a complete signature under the requested label; an unrelated label
+   cannot satisfy the negotiation.
+2. Require exactly the requested component list, including order and component
+   parameters, and a `nonce` equal to the saved challenge. Reject missing or
+   different challenges, even when the signature is otherwise valid. Compare
+   parsed identifiers rather than raw wire spellings.
+3. Require both integer timestamps and apply the request profile's freshness,
+   lifetime, and clock-skew checks, with `created < expires`. Require `alg` and
+   the compound `keyid`; its normalized domain MUST equal local `expectedDomain`
+   before any DNSid lookup based on received metadata.
+4. Call `VerifyDomain(expectedDomain, peerCert)` with the current application
+   connection's trusted server certificate when supplied. Enforce status,
+   lifecycle binding, freshness, and configured entity acceptance on every
+   invocation, including cache hits. Missing current-peer evidence fails when
+   `fl=mtls`; a discovery endpoint's certificate is not a substitute.
+5. Select the verified current `ku` key by `kid`, enforce algorithm agreement,
+   rebuild the signature base using the saved request and actual response, and
+   verify the signature. Other well-formed signatures may coexist but cannot
+   replace the requested signature.
+6. Require covered SHA-256 `Content-Digest`, recompute it over the exact response
+   content, and require the signed `Cache-Control` to contain `no-store`.
+   Apply the no-content rule above; an unavailable body is not empty content.
+   Restore content for the application only after verification succeeds.
+
+Missing signatures, malformed negotiation, unexpected identity, nonce mismatch,
+invalid content, and cryptographic failures are non-transient verification
+errors. DNSid evidence-acquisition errors retain their existing classification.
+Use the binding's existing error mapping; invalid local options are
+`ArgumentError`. Never return a successful `VerifiedDomain` or release response
+content as authenticated after a failure. Owned response resources MUST be
+released on rejection or cancellation.
+
+An enabled signed client MUST retain the native response until verification
+succeeds, including for non-2xx responses, and use the invocation's finite budget
+for sending, bounded content reads, and verification. It MUST disable automatic
+redirect following and request replay/retries in the underlying transport for
+this mode. A caller may explicitly start a new attempt, with a fresh challenge
+and independently selected expected domain; verification failure never authorizes
+an automatic resend of a potentially completed operation. Negotiated responses
+MUST NOT be cached or reused across requests. These rules avoid returning a cached
+or redirected response that belongs to another challenge or identity.
+
+Only covered fields are authenticated. `Content-Type`, `Content-Encoding`, and
+`Location`, for example, are not covered by default. Applications that rely on
+such metadata MUST request its coverage through `additionalComponents`, or
+supply their own trusted interpretation; they MUST NOT treat uncovered metadata
+as signed. Additional coverage does not relax exact requested-list matching.
+Response authentication proves possession of the responder's DNSid operational
+key when the signed response arrives. HTTPS remains required; this exchange does
+not establish entity authentication before sensitive request data is sent, or
+provide confidentiality independently of TLS.
+
+### Example flow
+
+```
+// Client: the wrapper requests and verifies a signed response before returning.
+client = callerProfile.CreateSignedHttpClient(httpsTransport, {
+  responseSignature: {expectedDomain: "service.example"}
+})
+response = client.Send(request)
+
+// Server: existing request verification and application authorization still apply.
+caller = serverProfile.VerifySignedHttpRequest(request, peerCert)
+response = HandleAuthorizedRequest(caller, request)
+response = serverProfile.SignRequestedHttpResponse(request, response)
+Send(response)
+```
+
+These are conceptual, language-neutral APIs, not claims of released SDK support.
+Native coverage requirements are listed in
+[conformance](conformance/README.md#negotiated-response-authentication).
+
 ## Resource limits
 
 The SDK or its documented hosting-layer preconditions MUST impose finite limits
-on signature header bytes, candidate labels, covered components, and buffered
-content. Enforce limits before expensive parsing/domain lookups or while reading
-content, not after unbounded allocation. Exceeding a limit rejects verification;
+on signature and `Accept-Signature` header bytes, candidate labels, covered
+components, nonce length, and buffered request and response content. Enforce
+limits before expensive parsing/domain lookups or while reading content, not
+after unbounded allocation. Exceeding a limit rejects verification;
 never inspect only the first N candidates and claim exactly one verifies.
 Document the enforcing layer and bounds; standalone helpers need safe limits
 when the host supplies none. Body replay MUST preserve the exact bytes within
