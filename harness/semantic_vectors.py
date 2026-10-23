@@ -93,6 +93,7 @@ def load_semantic_suites() -> list[dict]:
                     "op": "c2sp_lifecycle_vector",
                     "input": evidence[case["id"]],
                     "expect": _expect(case["expected"]),
+                    "sdk": {name: {"known_bug": reason} for name, reason in case.get("knownBugs", {}).items()},
                 }
                 for case in selection["cases"]
             ],

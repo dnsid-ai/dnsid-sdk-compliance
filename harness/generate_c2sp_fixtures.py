@@ -180,6 +180,10 @@ def generate_selection():
     for role, original in (("ae", "entity-1"), ("op", "operational-1")):
         shared["sigs"][role] = {"kid": "shared-kid", "sig": b64(edsign(SEEDS[original], canonical(payload(shared))))}
     add("shared-kid-label-does-not-select-keys", ["shared-kid-issuance"], [shared])
+    # C2SP section 7: entry bytes must be exactly JCS. A BOM before a validly signed event is encoding noise.
+    templates["bom-prefixed-entry-is-ignored"] = copy.deepcopy(template)
+    recipes["bom-prefixed-entry-is-ignored"] = {"issuance": (canonical(issuance), True),
+                                                "bom-prefixed-revocation": (b"\xef\xbb\xbf" + canonical(revocation), True)}
 
     def low_sign(body, roles):
         entry = sign(body, roles, deterministic=True)
