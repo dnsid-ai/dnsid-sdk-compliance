@@ -310,7 +310,8 @@ boundary.
 Before signing or verification, the binding validates that:
 
 - each key is a public signing JWK with a supported `alg` and non-empty `kid`;
-- each `kid` selects the key required for its role;
+- each signature's `kid` equals the `kid` of the key that the role and verified
+  history select. A `kid` never selects a key, and different keys may share one;
 - embedded key material and declared thumbprints agree;
 - current accountable-entity and operational keys are distinct by RFC 7638
   thumbprint; and

@@ -28,22 +28,52 @@ def unb64(value):
     return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
 
 
+def jcs_number(value):
+    """RFC 8785 / ECMAScript Number::toString for a finite float."""
+    assert value == value and value not in (float("inf"), float("-inf"))
+    if value == 0:
+        return "0"
+    if value < 0:
+        return "-" + jcs_number(-value)
+    mantissa, _, exponent = repr(value).partition("e")  # repr is the shortest round-trip form
+    whole, _, fraction = mantissa.partition(".")
+    raw = whole + fraction
+    digits = raw.lstrip("0")
+    point = len(whole) + int(exponent or 0) - (len(raw) - len(digits))
+    digits = digits.rstrip("0")
+    k = len(digits)
+    if k <= point <= 21:
+        return digits + "0" * (point - k)
+    if 0 < point <= 21:
+        return digits[:point] + "." + digits[point:]
+    if -6 < point <= 0:
+        return "0." + "0" * -point + digits
+    lead = digits[0] + ("." + digits[1:] if k > 1 else "")
+    return f"{lead}e{'+' if point > 0 else '-'}{abs(point - 1)}"
+
+
+for _number, _expected in ((0.5, "0.5"), (1e-7, "1e-7"), (1e21, "1e+21"), (1e20, "100000000000000000000"),
+                           (123.456, "123.456"), (1e-6, "0.000001"), (2.0**53, "9007199254740992"), (-1.5e300, "-1.5e+300")):
+    assert jcs_number(_number) == _expected, (_number, jcs_number(_number))
+
+
 def canonical(value):
-    # ponytail: printable-ASCII/safe-integer fixtures only; use RFC 8785 for general input.
-    def check(item):
+    # shortcut: printable-ASCII strings/keys only (plain sort == UTF-16 order); use full RFC 8785 for general input.
+    def encode(item):
         if isinstance(item, dict):
-            for key, child in item.items():
-                check(key)
-                check(child)
-        elif isinstance(item, list):
-            for child in item:
-                check(child)
-        elif isinstance(item, str):
+            return "{" + ",".join(encode(key) + ":" + encode(item[key]) for key in sorted(item)) + "}"
+        if isinstance(item, list):
+            return "[" + ",".join(encode(child) for child in item) + "]"
+        if isinstance(item, str):
             assert all(32 <= ord(c) < 127 for c in item)
-        else:
-            assert type(item) is int and 0 <= item <= 9007199254740991
-    check(value)
-    return json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+            return json.dumps(item)
+        if isinstance(item, bool) or item is None:
+            return json.dumps(item)
+        if isinstance(item, float):
+            return jcs_number(item)
+        assert type(item) is int and 0 <= item <= 9007199254740991
+        return str(item)
+    return encode(value).encode()
 
 
 def digest(domain, value):

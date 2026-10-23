@@ -18,7 +18,12 @@
     "partial-rotation": {"effectId": "rotation-partial", "type": "KEY_ROTATION", "domain": "agent.example", "valid": false, "authenticated": false, "failureScope": "candidate-signature"},
     "historical-fork": {"effectId": "rotation-fork", "type": "KEY_ROTATION", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "authenticated-chain"},
     "prohibited-index-chain": {"effectId": "rotation-index-chain", "type": "KEY_ROTATION", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "authenticated-chain"},
-    "inbound-migration": {"effectId": "migration-in-1", "type": "MIGRATION", "domain": "agent.example", "valid": true, "direction": "inbound"}
+    "inbound-migration": {"effectId": "migration-in-1", "type": "MIGRATION", "domain": "agent.example", "valid": true, "direction": "inbound"},
+    "revocation-fractional-number": {"effectId": "revocation-fractional-number", "type": "REVOCATION", "domain": "agent.example", "valid": true},
+    "revocation-small-exponent-number": {"effectId": "revocation-small-exponent-number", "type": "REVOCATION", "domain": "agent.example", "valid": true},
+    "revocation-large-exponent-number": {"effectId": "revocation-large-exponent-number", "type": "REVOCATION", "domain": "agent.example", "valid": true},
+    "bad-signature-migration": {"effectId": "migration-bad-signature", "type": "MIGRATION", "domain": "agent.example", "valid": false, "authenticated": false, "failureScope": "candidate-signature", "direction": "inbound"},
+    "shared-kid-issuance": {"effectId": "issuance-shared-kid", "type": "ISSUANCE", "domain": "agent.example", "valid": true}
   },
   "cases": [
     {
@@ -130,6 +135,33 @@
       "candidates": ["inbound-migration"],
       "priorHistoryVerified": false,
       "expected": {"valid": false, "failingCandidateIndex": 0, "errorCategory": "INVALID_MIGRATION"}
+    },
+    {
+      "id": "revocation-with-fractional-number-extension-is-applied",
+      "candidates": ["issuance", "revocation-fractional-number"],
+      "expected": {"valid": true, "appliedEffectIds": ["issuance-1", "revocation-fractional-number"], "ignoredCandidateIndexes": [], "identityState": "REVOKED"}
+    },
+    {
+      "id": "revocation-with-small-exponent-number-extension-is-applied",
+      "candidates": ["issuance", "revocation-small-exponent-number"],
+      "expected": {"valid": true, "appliedEffectIds": ["issuance-1", "revocation-small-exponent-number"], "ignoredCandidateIndexes": [], "identityState": "REVOKED"}
+    },
+    {
+      "id": "revocation-with-large-exponent-number-extension-is-applied",
+      "candidates": ["issuance", "revocation-large-exponent-number"],
+      "expected": {"valid": true, "appliedEffectIds": ["issuance-1", "revocation-large-exponent-number"], "ignoredCandidateIndexes": [], "identityState": "REVOKED"}
+    },
+    {
+      "id": "unauthenticated-migration-before-genesis-is-ignored",
+      "candidates": ["bad-signature-migration", "issuance"],
+      "priorHistoryVerified": true,
+      "priorAppliedEffectIds": ["issuance-prior"],
+      "expected": {"valid": true, "appliedEffectIds": ["issuance-1"], "ignoredCandidateIndexes": [0]}
+    },
+    {
+      "id": "shared-kid-label-does-not-select-keys",
+      "candidates": ["shared-kid-issuance"],
+      "expected": {"valid": true, "appliedEffectIds": ["issuance-shared-kid"], "ignoredCandidateIndexes": []}
     }
   ]
 }

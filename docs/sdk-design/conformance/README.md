@@ -197,6 +197,13 @@ actual high-S/low-S signature-only copies, including high-S first and replay
 after revocation. Other cases cover invalid/missing countersignatures,
 historical-predecessor forks, and rejection of prohibited index/leaf chains.
 
+Three cases put a fractional, small-exponent, or large-exponent JCS number in
+an unknown signed extension of a valid REVOCATION. Only `ts` and `seq` are
+integer-restricted, so the revocation must apply. An inbound MIGRATION with an
+invalid entity signature before a valid ISSUANCE must be ignored, not abort the
+stream. A genesis whose distinct `ek` and `ku` share one non-thumbprint `kid`
+is valid: method section 9 makes `kid` a label, and roles select keys.
+
 The corrected contract deduplicates exact canonical signed payloads, excluding
 signatures. New payloads require all role signatures under verified predecessor
 authority; genuinely different authenticated post-terminal events still cause
@@ -216,8 +223,8 @@ Regenerate/check the selection and portable bundle artifacts without SDK imports
 ```
 
 This requires `cryptography >= 43` for deterministic ES256 signing. All keys are
-public disposable fixture keys. The generator only accepts the ASCII/integer JCS
-subset used by these fixtures. CI checks reproducibility before running SDKs.
+public disposable fixture keys. The generator only accepts printable-ASCII
+strings; numbers use RFC 8785 serialization. CI checks reproducibility before running SDKs.
 Run `harness/run.py` for SDK selection checks and `make c2sp-matrix` for the
 corrected three-writer/three-verifier portable-bundle matrix. No old-format
 fallback is permitted.
@@ -247,7 +254,7 @@ different genesis, and post-terminal contradictions.
 
 Its small reducer assumes complete, included, context-bound fixture entries and
 supports only the event types exercised. Its JSON encoder deliberately supports
-only the printable-ASCII/safe-integer fixture subset of JCS. This is not a general
+printable-ASCII strings, safe integers, and finite JCS numbers. This is not a general
 parser or production reference verifier. It does **not** verify C2SP inclusion or
 consistency proofs, bundles, migration, networking, or SDK method dispatch.
 Those integration requirements remain in the method and SDK design. The focused check
