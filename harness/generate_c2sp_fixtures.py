@@ -2,7 +2,7 @@
 """Generate corrected, disposable C2SP selection and bundle evidence, without SDK imports.
 
 Requires cryptography >= 43. Historical signed inputs stay byte-for-byte intact.
-This deliberately handles only these ASCII/integer fixtures, not arbitrary logs.
+This deliberately handles only these ASCII fixtures (JCS numbers included), not arbitrary logs.
 Run with --check to verify deterministic regeneration of the committed output.
 """
 import argparse
@@ -157,6 +157,29 @@ def generate_selection():
     add("partial-historical-predecessor-fork-is-ignored", ["issuance", "rotation", "partial-rotation"], [issuance, rotation, fork])
     legacy = old["cases"]["byte-identical-complete-entry-is-applied-once"]["entries"][2]
     add("prohibited-index-chain-is-fatal", ["issuance", "prohibited-index-chain"], [issuance, json.loads(unb64(legacy["entry"]))])
+
+    def resign(entry, seeds=SEEDS):
+        for signature in entry["sigs"].values():
+            if signature["sig"] != "AA":
+                signature["sig"] = b64(edsign(seeds[signature["kid"]], canonical(payload(entry))))
+        return entry
+
+    # Only ts/seq are integer-restricted; unknown signed extensions may use any JCS number.
+    revocation = json.loads(recipes["authenticated-post-terminal-candidate-is-fatal"]["revocation"][0])
+    for label, number in (("fractional", 0.5), ("small-exponent", 1e-7), ("large-exponent", 1e21)):
+        extended = resign(dict(copy.deepcopy(revocation), dnsid_test_number=number))
+        add(f"revocation-with-{label}-number-extension-is-applied", ["issuance", f"revocation-{label}-number"], [issuance, extended])
+    # An unauthenticated MIGRATION must not block a later valid genesis.
+    forged = json.loads(recipes["verified-inbound-migration-stitches-prior-history"]["inbound-migration"][0])
+    forged["sigs"]["ae"]["sig"] = "AA"
+    add("unauthenticated-migration-before-genesis-is-ignored", ["bad-signature-migration", "issuance"], [forged, issuance])
+    # Two distinct keys under one non-thumbprint kid. Method section 9: kid is a label and
+    # roles select keys, so this genesis is valid.
+    shared = copy.deepcopy(issuance)
+    shared["ek"]["kid"] = shared["ku"]["kid"] = "shared-kid"
+    for role, original in (("ae", "entity-1"), ("op", "operational-1")):
+        shared["sigs"][role] = {"kid": "shared-kid", "sig": b64(edsign(SEEDS[original], canonical(payload(shared))))}
+    add("shared-kid-label-does-not-select-keys", ["shared-kid-issuance"], [shared])
 
     def low_sign(body, roles):
         entry = sign(body, roles, deterministic=True)
