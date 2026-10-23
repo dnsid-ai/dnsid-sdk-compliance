@@ -134,3 +134,17 @@ cases:
     expect:
       ok: false
       error: ValidationError
+
+  - id: fqdn-uppercase-final-sigma
+    description: UTS 46 maps U+03A3 to U+03C3 in every position; a final-sigma lowercase step gives a different A-label
+    spec_ref: "SDK design 07 NormalizeFQDN (IDNA.ToASCII before lowercasing); UTS 46 mapping table"
+    tags: [idn, edge-case]
+    op: normalize_fqdn
+    input:
+      name: "ΒΌΛΟΣ.com"
+    expect:
+      ok: true
+      value: xn--nxasmq6b.com
+    sdk:
+      py:
+        known_bug: "normalize_fqdn applies str.lower() before UTS 46 (dnsid-py fix/txt-canonical-order-and-strict-syntax)"

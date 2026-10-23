@@ -197,3 +197,53 @@ cases:
       ok: false
       error: ValidationError
       error_contains: malformed
+
+  - id: validate-gi-ipv4-literal-rejected
+    description: An IPv4 literal is not a registrant domain name
+    spec_ref: "draft-ihsanullah-dnsid-01 §GI Tag (gi MUST be a domain name); RFC 1123 §2.1"
+    tags: [required, edge-case]
+    version: dnsid-draft-01
+    op: validate
+    input:
+      raw: "v=dnsid-draft-01;gi=127.0.0.1;ek=https://127.0.0.1/entity-keys.json;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=AAAA"
+      identity_fqdn: agent.test
+    expect:
+      ok: false
+      error: ValidationError
+    sdk:
+      go:
+        known_bug: "isDomainName accepts an all-numeric top label (dnsid-go fix/reject-ipv4-gi)"
+      py:
+        known_bug: "is_domain_name accepts an all-numeric top label (dnsid-py fix/txt-canonical-order-and-strict-syntax)"
+
+  - id: validate-ku-userinfo-rejected
+    description: userinfo in an https URI is treated as an error
+    spec_ref: "RFC 9110 §4.2.4; draft-ihsanullah-dnsid-01 §Tag Definitions (ku is an HTTPS URL)"
+    tags: [security, edge-case]
+    version: dnsid-draft-01
+    op: validate
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://user@agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=AAAA"
+      identity_fqdn: agent.test
+    expect:
+      ok: false
+      error: ValidationError
+    sdk:
+      ts:
+        known_bug: "validateHttpsUrl relies on WHATWG URL, which accepts userinfo (dnsid-ts fix/c2sp-bom-and-strict-https-uri)"
+
+  - id: validate-ku-without-authority-rejected
+    description: "https:host/path has no authority; WHATWG URL recovers a host, RFC 3986 and RFC 9110 do not"
+    spec_ref: "RFC 9110 §4.2.2 (empty host is invalid); RFC 3986 §3"
+    tags: [security, edge-case]
+    version: dnsid-draft-01
+    op: validate
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https:agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=AAAA"
+      identity_fqdn: agent.test
+    expect:
+      ok: false
+      error: ValidationError
+    sdk:
+      ts:
+        known_bug: "validateHttpsUrl relies on WHATWG URL, which repairs a missing authority (dnsid-ts fix/c2sp-bom-and-strict-https-uri)"
