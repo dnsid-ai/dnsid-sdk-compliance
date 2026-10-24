@@ -1138,7 +1138,7 @@ rule instead:
    `ENTITY_KEY_ROTATION` events that reaches the record `ek`.
 3. A candidate that is not eligible is noise, together with its successors,
    exactly as a mismatched genesis entity key is when no rotation exists. It
-   never aborts verification of another history.
+   never aborts verification of another history, except as rule 5 requires.
 4. The first eligible candidate decides; later genesis candidates are never
    tried as alternatives. Its history is verified under the rules above,
    including fatal contradictions and duplicate genesis. If that history ends
@@ -1146,15 +1146,21 @@ rule instead:
    current-entity-key mismatch described under
    [Entity-Key Rotation](#entity-key-rotation).
 5. A malformed ISSUANCE authenticated by any entity key of the eligible chain
-   is invalid authenticated genesis evidence and fails verification; it is not
-   skipped. Those keys are the root key (the ISSUANCE entity key, or the key
+   is invalid authenticated genesis evidence and fails verification wherever
+   it appears, including ahead of the real genesis; it is not skipped. Those keys are the root key (the ISSUANCE entity key, or the key
    that signed a MIGRATION genesis), every key installed by an
    `ENTITY_KEY_ROTATION` in the chain, and the record `ek` itself: keys the
    identity holds or has held. A malformed ISSUANCE authenticated only by an
    unrelated key is noise. A reader that does not anchor may reject every
    self-authenticated malformed genesis; the shared vectors do not assert the
    unrelated-key case.
-6. If no candidate is eligible, verification fails with the "no valid
+6. A well-formed ISSUANCE after the stream has started is a fatal duplicate
+   genesis when the entity key current at that point of the chain signs it.
+   When a superseded chain key signs it (an intermediate key, or the ISSUANCE
+   key after a rotation), current authority does not authorize it, so it is
+   noise and is skipped. It cannot revive anything: the first eligible genesis
+   still decides, and a terminal stream stays terminal.
+7. If no candidate is eligible, verification fails with the "no valid
    lifecycle events" failure.
 
 Without `ENTITY_KEY_ROTATION`, this selects exactly the candidates that a

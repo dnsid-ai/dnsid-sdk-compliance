@@ -63,7 +63,10 @@
     "revived-issuance-under-original-key": {"effectId": "revived-original-issuance", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "genesis-anchor"},
     "malformed-issuance-by-root-key": {"effectId": "malformed-issuance-by-root-key", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "authenticated-payload"},
     "malformed-issuance-by-intermediate-key": {"effectId": "malformed-issuance-by-intermediate-key", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "authenticated-payload"},
-    "malformed-issuance-by-migration-signer": {"effectId": "malformed-issuance-by-migration-signer", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "authenticated-payload"}
+    "malformed-issuance-by-migration-signer": {"effectId": "malformed-issuance-by-migration-signer", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "authenticated-payload"},
+    "malformed-issuance-by-root-key-ahead": {"effectId": "malformed-issuance-by-root-key-ahead", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "authenticated-payload"},
+    "later-issuance-by-current-entity-key": {"effectId": "later-issuance-current-key", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "authenticated-transition"},
+    "later-issuance-by-superseded-entity-key": {"effectId": "later-issuance-superseded-key", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": false, "failureScope": "candidate-signature"}
   },
   "cases": [
     {
@@ -447,6 +450,25 @@
       "priorAppliedEffectIds": ["issuance-prior"],
       "recordEk": "entity-1",
       "expected": {"valid": false, "failingCandidateIndex": 1}
+    },
+    {
+      "id": "malformed-genesis-by-root-key-ahead-of-real-genesis-is-fatal",
+      "anchoredReader": true,
+      "candidates": ["malformed-issuance-by-root-key-ahead", "issuance", "entity-rotation", "entity-rotation-second"],
+      "recordEk": "entity-3",
+      "expected": {"valid": false, "failingCandidateIndex": 0}
+    },
+    {
+      "id": "later-issuance-by-current-entity-key-is-duplicate-genesis",
+      "candidates": ["issuance", "entity-rotation", "later-issuance-by-current-entity-key"],
+      "recordEk": "entity-2",
+      "expected": {"valid": false, "failingCandidateIndex": 2, "errorCategory": "DUPLICATE_ISSUANCE"}
+    },
+    {
+      "id": "later-issuance-by-superseded-entity-key-is-ignored",
+      "candidates": ["issuance", "entity-rotation", "later-issuance-by-superseded-entity-key"],
+      "recordEk": "entity-2",
+      "expected": {"valid": true, "appliedEffectIds": ["issuance-1", "entity-rotation-1"], "ignoredCandidateIndexes": [2], "bilateralBinding": {"initialEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4", "currentEntityThumbprint": "r4thRn8KdhhgGDrzOwmSwySqMcXeIdd9SG333J-ZNtU"}}
     }
   ]
 }
