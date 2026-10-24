@@ -95,7 +95,7 @@ class EntityKeyRotationEvidenceTests(unittest.TestCase):
             return False
         active = self.entity_key(predecessor)
         new_key, signatures = entry["new_ek"], entry["sigs"]
-        if {"d", "p", "q", "dp", "dq", "qi", "k"} & set(new_key) or set(signatures) != {"prev_ae", "new_ae"}:
+        if {"d", "p", "q", "dp", "dq", "qi", "k", "oth"} & set(new_key) or set(signatures) != {"prev_ae", "new_ae"}:
             return False
         if signatures["prev_ae"]["kid"] != active["kid"]:
             return False

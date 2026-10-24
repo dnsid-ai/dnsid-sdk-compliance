@@ -365,15 +365,15 @@ Parsing and encoding reject the envelope unless:
 
 - `prev_ek_thumb`, `new_ek_thumb`, and `new_ek` are all present;
 - `new_ek` passes the same signing-JWK validation as `ek` and `new_ku`: a public
-  key only, with no private member (`d`, `p`, `q`, `dp`, `dq`, `qi`, or `k`)
-  whatever its key type, `use` absent or `sig`, a non-empty `kid`, a supported
+  key only, with no private member (`d`, `p`, `q`, `dp`, `dq`, `qi`, `k`, or
+  `oth`) whatever its key type, `use` absent or `sig`, a non-empty `kid`, a supported
   `alg`, and a supported key type and curve (EdDSA/Ed25519 or ES256/P-256);
 - the thumbprint of `new_ek` equals `new_ek_thumb`;
 - `new_ek_thumb` differs from `prev_ek_thumb`; and
 - `sigs.new_ae.kid` equals the `kid` of `new_ek`.
 
-A `new_ek` carrying any private member (`d`, `p`, `q`, `dp`, `dq`, `qi`, or
-`k`) is never used as a verification key, so such a candidate cannot
+A `new_ek` carrying any private member (`d`, `p`, `q`, `dp`, `dq`, `qi`, `k`,
+or `oth`) is never used as a verification key, so such a candidate cannot
 authenticate and is skipped during a global-log scan. The key type and curve
 of `new_ek` select the algorithm that verifies `sigs.new_ae` (EdDSA for
 Ed25519, ES256 for P-256); a key with an unsupported key type or curve cannot
@@ -1096,53 +1096,6 @@ reducer, it applies the method's candidate rules:
    rules. Signed forks, distinct duplicate genesis, and new post-terminal
    transitions are fatal, not omitted to recover earlier ACTIVE state.
 
-### Genesis Selection Anchored on the Record `ek`
-
-A reader MAY use the authenticated record's `ek` key to discard
-self-authenticated spam genesis candidates. Shared vectors that depend on this
-choice are marked `anchoredReader` and encode anchored selection. Such a reader MUST NOT compare `ek`
-with each genesis candidate's own entity key, because after an
-`ENTITY_KEY_ROTATION` the record carries a later key. It applies this rule
-instead:
-
-1. Take the authenticated genesis candidates in log order: ISSUANCE, and
-   inbound MIGRATION whose prior history verifies.
-2. Replay each candidate's history: the candidate and the later candidates
-   that chain from it under the rules above.
-3. A candidate whose replay ends with an entity key other than the record `ek`
-   is noise, exactly as a mismatched genesis entity key is when no rotation
-   exists. Its successors cannot be applied. In particular, a genesis whose
-   entity key differs from the record `ek` and that has no authenticated
-   `ENTITY_KEY_ROTATION` successor is noise together with all its successors,
-   including authenticated contradictions among them; it never aborts
-   verification of another history.
-4. The remaining genesis candidates continue through the rules above, so the
-   first starts the stream and a later distinct one is a duplicate genesis.
-5. If no candidate remains, verification fails with the "no valid lifecycle
-   events" failure, or, where a single authenticated genesis exists, with the
-   current-entity-key mismatch described under
-   [Entity-Key Rotation](#entity-key-rotation).
-
-Without `ENTITY_KEY_ROTATION`, this selects exactly the candidates that a
-genesis entity-key comparison selects. It is safe because a spam genesis can
-end at the record key only through an `ENTITY_KEY_ROTATION` carrying a valid
-`new_ae` signature by that key over chain-bound bytes, which requires that
-key's private key.
-
-The same rule applies to inbound MIGRATION. Before fetching more evidence, the
-reader requires the MIGRATION to be authorized by the end-of-history entity key
-of its verified prior history, and prior-log recursion compares that prior
-history's end-of-history entity key with the key that signs the MIGRATION
-`sigs.ae`, not with the prior ISSUANCE `ek`. Prior-log fetches stay inside the
-existing migration and scan budgets. Stream-bundle verification that takes an
-entity key as its signer key uses the same rule.
-
-A reader that does not anchor selection on `ek` verifies the bilateral binding
-after rebuilding the history. Both reach the same verdict for every stream
-without competing authenticated genesis candidates. The shared
-[selection vectors](conformance/README.md#c2sp-candidate-selection) encode
-anchored selection.
-
 Retain applied IDs, signed bytes, and post-states within configured history
 limits. All copies consume input/scan limits even when deduplicated. A successor
 cannot be applied before its predecessor. Structurally parseable signed chain
@@ -1166,6 +1119,57 @@ If completeness, accepted-checkpoint freshness, chain continuity, or required
 historical key material cannot be established, fresh complete logged-state verification fails
 closed. Historical inclusion MAY still be reported separately. A fresh logged
 `ACTIVE` result never replaces the fresh `ACTIVE` response required from `su`.
+
+### Genesis Selection Anchored on the Record `ek`
+
+A reader MAY use the authenticated record's `ek` key to discard
+self-authenticated spam genesis candidates. Shared vectors that depend on this
+choice are marked `anchoredReader` and encode anchored selection. Such a reader
+MUST NOT compare `ek` with each genesis candidate's own entity key, because
+after an `ENTITY_KEY_ROTATION` the record carries a later key. It applies this
+rule instead:
+
+1. Take the genesis candidates (ISSUANCE, and inbound MIGRATION whose prior
+   history verifies), deduplicated by logical event ID, in log order.
+2. A candidate is eligible when it authenticates and either already holds the
+   record `ek` as its entity key or is the root of a chain of authenticated
+   `ENTITY_KEY_ROTATION` events that reaches the record `ek`.
+3. A candidate that is not eligible is noise, together with its successors,
+   exactly as a mismatched genesis entity key is when no rotation exists. It
+   never aborts verification of another history.
+4. The first eligible candidate decides; later genesis candidates are never
+   tried as alternatives. Its history is verified under the rules above,
+   including fatal contradictions and duplicate genesis. If that history ends
+   with an entity key other than the record `ek`, verification fails with the
+   current-entity-key mismatch described under
+   [Entity-Key Rotation](#entity-key-rotation).
+5. A malformed genesis authenticated by the eligible root key is invalid
+   authenticated genesis evidence and fails verification; it is not skipped.
+6. If no candidate is eligible, verification fails with the "no valid
+   lifecycle events" failure.
+
+Without `ENTITY_KEY_ROTATION`, this selects exactly the candidates that a
+genesis entity-key comparison selects. It is safe because a spam genesis can
+reach the record key only through an `ENTITY_KEY_ROTATION` carrying a valid
+`new_ae` signature by that key over chain-bound bytes, which requires that
+key's private key. Taking the first eligible candidate, with no fallback, also
+stops a holder of a superseded entity key from reviving a revoked identity
+while the record `ek` is stale: a fresh ISSUANCE under that key comes after the
+real genesis, which is eligible through its rotation chain and decides.
+
+The same rule applies to inbound MIGRATION. Before fetching more evidence, the
+reader requires the MIGRATION to be authorized by the end-of-history entity key
+of its verified prior history, and prior-log recursion compares that prior
+history's end-of-history entity key with the key that signs the MIGRATION
+`sigs.ae`, not with the prior ISSUANCE `ek`. Prior-log fetches stay inside the
+existing migration and scan budgets. Stream-bundle verification that takes an
+entity key as its signer key uses the same rule.
+
+A reader that does not anchor selection on `ek` verifies the bilateral binding
+after rebuilding the history. Both reach the same verdict for every stream
+without competing authenticated genesis candidates. The shared
+[selection vectors](conformance/README.md#c2sp-candidate-selection) encode
+anchored selection.
 
 ## Scope and Trust Policy
 

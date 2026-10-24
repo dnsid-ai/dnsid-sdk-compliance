@@ -55,7 +55,10 @@
     "superseded-entity-key-fork": {"effectId": "superseded-entity-key-fork", "type": "ENTITY_KEY_ROTATION", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "authenticated-chain"},
     "entity-rotation-to-es256-key": {"effectId": "entity-rotation-es256", "type": "ENTITY_KEY_ROTATION", "domain": "agent.example", "valid": true},
     "retirement-by-rotated-entity-key": {"effectId": "retirement-rotated-entity-key", "type": "RETIREMENT", "domain": "agent.example", "valid": true},
-    "entity-rotation-stray-private-member": {"effectId": "entity-rotation-stray-private-member", "type": "ENTITY_KEY_ROTATION", "domain": "agent.example", "valid": false, "authenticated": false, "failureScope": "candidate-signature"}
+    "entity-rotation-stray-private-member": {"effectId": "entity-rotation-stray-private-member", "type": "ENTITY_KEY_ROTATION", "domain": "agent.example", "valid": false, "authenticated": false, "failureScope": "candidate-signature"},
+    "revocation-by-latest-entity-key": {"effectId": "revocation-latest-entity-key", "type": "REVOCATION", "domain": "agent.example", "valid": true},
+    "revived-issuance-under-superseded-key": {"effectId": "revived-issuance", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "genesis-anchor"},
+    "malformed-issuance": {"effectId": "malformed-issuance", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "authenticated-payload"}
   },
   "cases": [
     {
@@ -396,6 +399,19 @@
       "candidates": ["issuance", "entity-rotation", "retirement-by-rotated-entity-key"],
       "recordEk": "entity-2",
       "expected": {"valid": true, "appliedEffectIds": ["issuance-1", "entity-rotation-1", "retirement-rotated-entity-key"], "ignoredCandidateIndexes": [], "identityState": "RETIRED"}
+    },
+    {
+      "id": "superseded-key-cannot-revive-revoked-identity",
+      "anchoredReader": true,
+      "candidates": ["issuance", "entity-rotation", "entity-rotation-second", "revocation-by-latest-entity-key", "revived-issuance-under-superseded-key"],
+      "recordEk": "entity-2",
+      "expected": {"valid": false}
+    },
+    {
+      "id": "malformed-genesis-authenticated-by-record-key-is-fatal",
+      "candidates": ["malformed-issuance", "issuance"],
+      "recordEk": "entity-1",
+      "expected": {"valid": false, "failingCandidateIndex": 0}
     }
   ]
 }

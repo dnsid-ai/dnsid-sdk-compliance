@@ -226,6 +226,18 @@ def entity_key_rotation_recipes(issuance, rotation):
     recipes["retirement-by-rotated-entity-key-is-applied"] = [
         ("issuance", issuance), ("entity-rotation", er12),
         ("retirement-by-rotated-entity-key", signed(successor(er12, s1, ts + 600, type="RETIREMENT"), {"ae": E2}))]
+    # First eligible genesis decides: a fresh ISSUANCE under a superseded key is no fallback.
+    revocation_latest = signed(successor(er23, state(e3, o1), ts + 150, type="REVOCATION", reason="keyCompromise"), {"ae": E3})
+    revived = signed(dict(context, type="ISSUANCE", seq=0, ts=ts + 700, gi=issuance["gi"], ek=e2, ku=o9),
+                     {"ae": E2, "op": ("operational-9", "operational-9")})
+    recipes["superseded-key-cannot-revive-revoked-identity"] = [
+        ("issuance", issuance), ("entity-rotation", er12), ("entity-rotation-second", er23),
+        ("revocation-by-latest-entity-key", revocation_latest), ("revived-issuance-under-superseded-key", revived)]
+    # Signed by the record key but its ek lacks alg: invalid authenticated genesis, not noise.
+    malformed = signed(dict(context, type="ISSUANCE", seq=0, ts=1782172790, gi=issuance["gi"],
+                            ek={k: v for k, v in e1.items() if k != "alg"}, ku=o1),
+                       {"ae": E1, "op": ("operational-1", "operational-1")})
+    recipes["malformed-genesis-authenticated-by-record-key-is-fatal"] = [("malformed-issuance", malformed), ("issuance", issuance)]
     recipes["ignored-entity-key-rotation-does-not-bind-new-key"] = recipes["entity-key-rotation-by-wrong-previous-signer-is-ignored"]
     # Malformed but fully signed by the active and new keys: fatal, not noise.
     for name in ("thumbprint-mismatch", "new-key-without-alg", "unchanged-thumbprint"):

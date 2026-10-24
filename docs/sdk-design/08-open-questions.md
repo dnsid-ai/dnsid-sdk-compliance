@@ -2,23 +2,15 @@
 
 This document tracks SDK design questions that are not yet resolved.
 
-1. **Contradictions while replaying anchored genesis candidates.**
-   [Genesis selection anchored on the record `ek`](11-c2sp-tlog-binding.md#genesis-selection-anchored-on-the-record-ek)
-   classifies each authenticated genesis candidate by the entity key its replay
-   ends with. A candidate without an authenticated `ENTITY_KEY_ROTATION`
-   successor is classified by its own entity key, so contradictions after it
-   never matter unless it matches. The rule does not yet say how an anchored
-   reader treats an authenticated chain or transition contradiction found
-   while replaying a candidate that does have such a rotation, before that
-   candidate is known to match the record `ek`. Treating
-   it as fatal would let a self-authenticated spam genesis with its own
-   contradicting successor abort verification of a valid stream. Treating it as
-   noise would report a contradiction in the matching history as a selection
-   failure instead of its own category. The shared vectors place a
-   contradiction after an authenticated `ENTITY_KEY_ROTATION` only in streams
-   with a single genesis candidate, and expect the contradiction's own category.
+There are no unresolved shared SDK design questions at this time.
 
 ## Resolved Questions
+
+Anchored genesis selection takes the first eligible authenticated genesis,
+with no fallback; eligibility follows authenticated `ENTITY_KEY_ROTATION`
+chains to the record `ek`, so contradictions after an ineligible candidate are
+noise and contradictions in the deciding history are fatal. See
+[Genesis selection anchored on the record `ek`](11-c2sp-tlog-binding.md#genesis-selection-anchored-on-the-record-ek).
 
 Operation-level `logchk` uses the operation-independent
 `VerifyLogEvidence(verifiedDomain, at)` primitive defined in

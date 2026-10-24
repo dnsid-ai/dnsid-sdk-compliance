@@ -199,8 +199,8 @@ fresh complete logged-state verification.
 
 `authenticated` means all required role signatures verify under predecessor
 authority, with each signature's `kid` naming the key that verifies it; for
-`ENTITY_KEY_ROTATION`, `new_ae` must name a non-empty `kid` of a public
-`new_ek`. `failureScope: "genesis-anchor"` marks a self-authenticated genesis
+`ENTITY_KEY_ROTATION`, `new_ae` must name a non-empty `kid` of a `new_ek`
+without private members (`d`, `p`, `q`, `dp`, `dq`, `qi`, `k`, `oth`). `failureScope: "genesis-anchor"` marks a self-authenticated genesis
 whose history ends with an entity key other than the record `ek`, and that
 genesis's own successors;
 `authenticated-payload` marks a fully signed rotation that fails structural
@@ -234,7 +234,11 @@ cannot authenticate and are ignored. Spam-genesis cases put a
 self-authenticated ISSUANCE with another entity key ahead of the real one, with
 and without a later rotation, with its own authenticated contradicting
 successors, and with a spam rotation to the record key whose `new_ae` is not
-made by that key; none of them is selected. Cases marked `anchoredReader: true`
+made by that key; none of them is selected. Two more anchored cases check
+that the first eligible genesis decides: a fresh ISSUANCE under a superseded
+entity key after the real history was rotated and revoked is not selected as a
+fallback (rejected), and a malformed ISSUANCE authenticated by the record key
+is fatal rather than skipped. Cases marked `anchoredReader: true`
 encode the optional anchored genesis selection. A reader that does not anchor
 on the record `ek` may diverge on them only when the stream has competing
 authenticated genesis candidates; its markers in

@@ -42,7 +42,8 @@
         "entity-key-rotation-by-superseded-key-is-ignored",
         "superseded-entity-key-fork-is-fatal",
         "entity-key-rotation-to-es256-key-binds-record",
-        "retirement-by-rotated-entity-key-is-applied"
+        "retirement-by-rotated-entity-key-is-applied",
+        "superseded-key-cannot-revive-revoked-identity"
       ]
     },
     {
@@ -101,7 +102,14 @@
         "entity-key-rotation-by-superseded-key-is-ignored",
         "superseded-entity-key-fork-is-fatal",
         "entity-key-rotation-to-es256-key-binds-record",
-        "retirement-by-rotated-entity-key-is-applied"
+        "retirement-by-rotated-entity-key-is-applied",
+        "superseded-key-cannot-revive-revoked-identity"
+      ]
+    },
+    {
+      "reason": "TypeScript skips a malformed ISSUANCE that the record entity key authenticates instead of failing on it as invalid authenticated genesis evidence",
+      "cases": [
+        "malformed-genesis-authenticated-by-record-key-is-fatal"
       ]
     }
   ],
@@ -151,7 +159,8 @@
         "entity-key-rotation-by-superseded-key-is-ignored",
         "superseded-entity-key-fork-is-fatal",
         "entity-key-rotation-to-es256-key-binds-record",
-        "retirement-by-rotated-entity-key-is-applied"
+        "retirement-by-rotated-entity-key-is-applied",
+        "superseded-key-cannot-revive-revoked-identity"
       ]
     }
   ]
