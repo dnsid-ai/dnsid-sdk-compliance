@@ -201,7 +201,8 @@ fresh complete logged-state verification.
 authority, with each signature's `kid` naming the key that verifies it; for
 `ENTITY_KEY_ROTATION`, `new_ae` must name a non-empty `kid` of a public
 `new_ek`. `failureScope: "genesis-anchor"` marks a self-authenticated genesis
-whose history ends with an entity key other than the record `ek`;
+whose history ends with an entity key other than the record `ek`, and that
+genesis's own successors;
 `authenticated-payload` marks a fully signed rotation that fails structural
 validation.
 

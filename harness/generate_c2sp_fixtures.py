@@ -107,7 +107,9 @@ def record_jwk(label):
 
 
 def es256_signature(key, data):
+    # Low-S, like the other original ES256 signatures; high-S is reserved for malleability cases.
     r, s = utils.decode_dss_signature(key.sign(data, ec.ECDSA(hashes.SHA256(), deterministic_signing=True)))
+    s = min(s, ORDER - s)
     return b64(r.to_bytes(32, "big") + s.to_bytes(32, "big"))
 
 

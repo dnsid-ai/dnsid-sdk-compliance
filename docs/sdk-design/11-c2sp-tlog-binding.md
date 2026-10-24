@@ -379,9 +379,9 @@ has a missing or empty `kid`, or `sigs.new_ae.kid` differs from the `kid` of
 Otherwise, structural validation does not hide an authenticated payload: when
 `sigs.new_ae.kid` equals the non-empty `kid` of `new_ek`, `sigs.prev_ae`
 verifies with the active entity key, and `sigs.new_ae` verifies with `new_ek`,
-but the envelope fails one of the other checks above (a thumbprint mismatch,
-`new_ek_thumb` equal to `prev_ek_thumb`, or a missing or unsupported `alg`),
-verification fails with an invalid-evidence error, as for any
+but the envelope fails any other check above (for example a missing thumbprint
+field, a thumbprint mismatch, `new_ek_thumb` equal to `prev_ek_thumb`, a `use`
+other than `sig`, or a missing or unsupported `alg`), verification fails with an invalid-evidence error, as for any
 structurally parseable authenticated error. A candidate that fails these checks
 and does not authenticate is ignored like any other unauthenticated candidate.
 

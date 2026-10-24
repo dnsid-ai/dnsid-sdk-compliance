@@ -38,7 +38,7 @@
     "entity-rotation-new-key-empty-kid": {"effectId": "entity-rotation-new-key-empty-kid", "type": "ENTITY_KEY_ROTATION", "domain": "agent.example", "valid": false, "authenticated": false, "failureScope": "candidate-signature"},
     "entity-rotation-new-key-without-alg": {"effectId": "entity-rotation-new-key-without-alg", "type": "ENTITY_KEY_ROTATION", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "authenticated-payload"},
     "entity-rotation-unchanged-thumbprint": {"effectId": "entity-rotation-unchanged-thumbprint", "type": "ENTITY_KEY_ROTATION", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "authenticated-payload"},
-    "entity-rotation-new-signature-kid-mismatch": {"effectId": "entity-rotation-new-signature-kid-mismatch", "type": "ENTITY_KEY_ROTATION", "domain": "agent.example", "valid": false, "authenticated": false, "failureScope": "candidate-encoding"},
+    "entity-rotation-new-signature-kid-mismatch": {"effectId": "entity-rotation-new-signature-kid-mismatch", "type": "ENTITY_KEY_ROTATION", "domain": "agent.example", "valid": false, "authenticated": false, "failureScope": "candidate-signature"},
     "rotation-before-entity-rotation": {"effectId": "rotation-before-entity-rotation", "type": "KEY_ROTATION", "domain": "agent.example", "valid": true},
     "entity-rotation-after-operational-rotation": {"effectId": "entity-rotation-after-operational-rotation", "type": "ENTITY_KEY_ROTATION", "domain": "agent.example", "valid": true},
     "rotation-after-entity-rotation": {"effectId": "rotation-after-entity-rotation", "type": "KEY_ROTATION", "domain": "agent.example", "valid": true},

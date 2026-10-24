@@ -14,9 +14,9 @@ This document tracks SDK design questions that are not yet resolved.
    it as fatal would let a self-authenticated spam genesis with its own
    contradicting successor abort verification of a valid stream. Treating it as
    noise would report a contradiction in the matching history as a selection
-   failure instead of its own category. The shared vectors place
-   contradictions only in streams with a single genesis candidate and expect the
-   contradiction's own category.
+   failure instead of its own category. The shared vectors place a
+   contradiction after an authenticated `ENTITY_KEY_ROTATION` only in streams
+   with a single genesis candidate, and expect the contradiction's own category.
 
 ## Resolved Questions
 

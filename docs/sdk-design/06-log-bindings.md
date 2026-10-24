@@ -194,6 +194,9 @@ FUNCTION DomainLog.SnapshotAt(at: timestamp) -> DomainSnapshot
         END
         activeEntityThumbprint = event.newEntityThumbprint
         // The operational key, its keyBoundAt, and governanceId are unchanged.
+        // KEY_ROTATION above keeps its existing checks; the rule that a new
+        // operational key differs from the active entity key is enforced by
+        // the log binding (for example the C2SP binding's signer-key rules).
       CASE "REVOCATION":
         IF state != "ACTIVE" THEN
           RAISE VerificationError("REVOCATION outside an ACTIVE issuance")
@@ -652,8 +655,9 @@ as its minimum version for identities whose entity key has rotated.
 | `reason`         | One of: `keyCompromise`, `policyViolation`, `superseded`, `cessationOfOperation` |
 
 Signed by the accountable-entity record-signing key current at that point of
-the verified chain: the ISSUANCE entity key, or the key installed by the latest
-preceding `ENTITY_KEY_ROTATION`. A signature by a superseded entity key does
+the verified chain: the ISSUANCE entity key or the entity key imported by a
+destination `MIGRATION`, or the key installed by the latest preceding
+`ENTITY_KEY_ROTATION`. A signature by a superseded entity key does
 not authorize the event.
 
 ---
