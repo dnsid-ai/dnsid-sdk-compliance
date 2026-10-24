@@ -227,8 +227,8 @@ active key and a new key equal to the operational key (`KEY_CONTINUITY`);
 interleaved `KEY_ROTATION`; a rotation before or without genesis; a rotation
 after `RETIREMENT` (`TERMINAL_STATE`); rotations fully signed under a matching
 non-empty `new_ek` kid but malformed (thumbprint mismatch, missing `alg`,
-unchanged thumbprint), which are fatal `INVALID_EVIDENCE`; and a private
-`new_ek`, a `new_ek` with a missing or empty `kid`, or a `new_ae` kid that
+unchanged thumbprint), which are fatal `INVALID_EVIDENCE`; and a `new_ek` with any private member (`d` or a
+stray one such as `p`), a `new_ek` with a missing or empty `kid`, or a `new_ae` kid that
 differs from `new_ek`, which cannot authenticate and are ignored. Spam-genesis cases put a
 self-authenticated ISSUANCE with another entity key ahead of the real one, with
 and without a later rotation, with its own authenticated contradicting

@@ -232,6 +232,9 @@ def entity_key_rotation_recipes(issuance, rotation):
         recipes[f"authenticated-malformed-entity-key-rotation-{name}-is-fatal"] = single(f"entity-rotation-{name}", structural[name])
     # A private new_ek is never a verification key, so the event cannot authenticate.
     recipes["entity-key-rotation-with-private-new-key-is-ignored"] = single("entity-rotation-private-new-key", structural["private-new-key"])
+    # Any private member, not only d, makes new_ek unusable as a verification key.
+    recipes["entity-key-rotation-with-stray-private-member-is-ignored"] = single(
+        "entity-rotation-stray-private-member", ekr(issuance, s0, ts, dict(e2, p=b64(bytes([1]) * 32)), E1, E2))
     # new_ae must name a non-empty kid(new_ek); otherwise the event cannot authenticate.
     for name in ("new-key-without-kid", "new-key-empty-kid", "new-signature-kid-mismatch"):
         recipes[f"entity-key-rotation-{name}-is-ignored"] = single(f"entity-rotation-{name}", structural[name])

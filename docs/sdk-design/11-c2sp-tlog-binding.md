@@ -365,7 +365,8 @@ Parsing and encoding reject the envelope unless:
 
 - `prev_ek_thumb`, `new_ek_thumb`, and `new_ek` are all present;
 - `new_ek` passes the same signing-JWK validation as `ek` and `new_ku`: a public
-  key only, `use` absent or `sig`, a non-empty `kid`, a supported `alg`, and a
+  key only, with no private member (`d`, `p`, `q`, `dp`, `dq`, `qi`, or `k`)
+  whatever its key type, `use` absent or `sig`, a non-empty `kid`, a supported `alg`, and a
   supported key type and curve (EdDSA/Ed25519 or ES256/P-256);
 - the thumbprint of `new_ek` equals `new_ek_thumb`;
 - `new_ek_thumb` differs from `prev_ek_thumb`; and
@@ -1508,6 +1509,17 @@ such a branch can therefore deny service to the identity, but it can never take
 it over: a fork is never applied, and only the active entity key can authorize
 the next `ENTITY_KEY_ROTATION`. Registries retire superseded keys as they would
 compromised ones, and treat a fork as an incident.
+
+### Verifiers Without Entity-Key Continuity
+
+A verifier that predates `ENTITY_KEY_ROTATION` skips it as unsupported. It
+then also skips every later event signed by the rotated entity key, including
+`REVOCATION` and `RETIREMENT`, because it still resolves entity authority to
+the superseded key. Such a verifier already rejects the rotated identity's
+bilateral binding, but log-only checks such as non-revocation can miss a
+terminal event. Relying parties MUST upgrade verifiers to a release that
+verifies `ENTITY_KEY_ROTATION` before registries rotate entity keys for the
+identities they verify; fresh protocol status remains required in every case.
 
 ## Errors
 

@@ -190,7 +190,7 @@ FUNCTION DomainLog.SnapshotAt(at: timestamp) -> DomainSnapshot
            Thumbprint(event.newEntityPublicKey) != event.newEntityThumbprint OR
            event.newEntityThumbprint == activeEntityThumbprint OR
            event.newEntityThumbprint == activeKeyThumbprint THEN
-          RAISE VerificationError("ENTITY_KEY_ROTATION new key binding is invalid")
+          RAISE VerificationError("ENTITY_KEY_ROTATION new key is invalid")
         END
         activeEntityThumbprint = event.newEntityThumbprint
         // The operational key, its keyBoundAt, and governanceId are unchanged.
@@ -643,7 +643,10 @@ Writers prepare the event like any other later lifecycle event and report its
 required signatures in order: previous entity, then new entity. Verifiers that
 predate this profile treat the event as unsupported; they keep rejecting a
 rotated identity because its ISSUANCE entity key no longer matches the record
-`ek`. Each SDK documents the first release that verifies `ENTITY_KEY_ROTATION`
+`ek`. They also skip every later event signed by the rotated key, including a
+`REVOCATION`, so they cannot observe that revocation from the log. Relying
+parties therefore upgrade verifiers before registries rotate entity keys, and
+interactive verification continues to require a fresh status response. Each SDK documents the first release that verifies `ENTITY_KEY_ROTATION`
 as its minimum version for identities whose entity key has rotated.
 
 **`REVOCATION`** — Permanent, forced termination. Work products from the triggering period should be treated as suspect.
