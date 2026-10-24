@@ -1138,24 +1138,24 @@ rule instead:
    `ENTITY_KEY_ROTATION` events that reaches the record `ek`.
 3. A candidate that is not eligible is noise, together with its successors,
    exactly as a mismatched genesis entity key is when no rotation exists. It
-   never aborts verification of another history, except as rule 5
-   requires.
+   never aborts verification of another history, except as rule 5 requires.
 4. The first eligible candidate decides; later genesis candidates are never
    tried as alternatives. Its history is verified under the rules above,
    including fatal contradictions and duplicate genesis. If that history ends
    with an entity key other than the record `ek`, verification fails with the
    current-entity-key mismatch described under
    [Entity-Key Rotation](#entity-key-rotation).
-5. A malformed ISSUANCE authenticated by any entity key of the eligible chain
-   ahead of the real genesis, or by the entity key current at its point once
-   the stream has started, is invalid authenticated genesis evidence and fails
-   verification; it is not skipped. After the stream has started, a malformed
-   ISSUANCE signed only by a superseded chain key is noise, as in rule 6. Those keys are the root key (the ISSUANCE entity key, or the key
-   that signed a MIGRATION genesis), every key installed by an
+5. A malformed ISSUANCE authenticated by an entity key of the eligible chain
+   is invalid authenticated genesis evidence and fails verification; it is
+   not skipped. The chain keys are the root key (the ISSUANCE entity key, or
+   the key that signed a MIGRATION genesis), every key installed by an
    `ENTITY_KEY_ROTATION` in the chain, and the record `ek` itself: keys the
-   identity holds or has held. A malformed ISSUANCE authenticated only by an
-   unrelated key is noise. A reader that does not anchor may reject every
-   self-authenticated malformed genesis; the shared vectors do not assert the
+   identity holds or has held. Ahead of the real genesis, any chain key makes
+   it fatal. After the stream has started it is fatal unless only a
+   superseded chain key signs it; that case is noise, as in rule 6. A
+   malformed ISSUANCE authenticated only by an unrelated key is noise. A
+   reader that does not anchor may reject every self-authenticated malformed
+   genesis ahead of the real genesis; the shared vectors do not assert the
    unrelated-key case.
 6. A well-formed ISSUANCE after the stream has started is a fatal duplicate
    genesis when the entity key current at that point of the chain signs it.

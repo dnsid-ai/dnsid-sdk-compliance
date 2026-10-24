@@ -268,6 +268,8 @@ def entity_key_rotation_recipes(issuance, rotation, migration):
         ("issuance", issuance), ("entity-rotation", er12), ("later-issuance-by-current-entity-key", later_issuance(e2, E2, 1100))]
     recipes["later-issuance-by-superseded-entity-key-is-ignored"] = [
         ("issuance", issuance), ("entity-rotation", er12), ("later-issuance-by-superseded-entity-key", later_issuance(e1, E1, 1110))]
+    recipes["malformed-genesis-by-current-entity-key-after-start-is-fatal"] = chain + [
+        ("malformed-issuance-by-current-entity-key", malformed_by(e3, E3, 1030))]
     recipes["later-issuance-by-superseded-intermediate-key-is-ignored"] = chain + [
         ("later-issuance-by-superseded-intermediate-key", later_issuance(e2, E2, 1120))]
     recipes["malformed-genesis-by-migration-signer-is-fatal"] = [

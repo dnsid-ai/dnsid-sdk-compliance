@@ -201,9 +201,8 @@ fresh complete logged-state verification.
 authority, with each signature's `kid` naming the key that verifies it; for
 `ENTITY_KEY_ROTATION`, `new_ae` must name a non-empty `kid` of a `new_ek`
 without private members (`d`, `p`, `q`, `dp`, `dq`, `qi`, `k`, `oth`).
-`failureScope: "genesis-anchor"` marks a self-authenticated genesis that
-anchored selection does not choose (it is not eligible, or an earlier eligible
-genesis decides) and that genesis's own successors; `authenticated-payload`
+`failureScope: "genesis-anchor"` marks a self-authenticated genesis that is
+not eligible for anchored selection, and that genesis's own successors; `authenticated-payload`
 marks a fully signed rotation or genesis that fails structural validation.
 
 A case may name `recordEk`, the disposable entity key the identity's TXT record
@@ -238,11 +237,12 @@ made by that key; none of them is selected. Further cases check
 that the first eligible genesis decides: a fresh ISSUANCE under a superseded
 entity key after the real history was rotated and revoked is not selected as a
 fallback (rejected), with the record carrying either the superseded or the
-original key. A malformed ISSUANCE is fatal rather than skipped when the record
-key or a MIGRATION genesis signer authenticates it, and when the root key or an
-intermediate rotated key authenticates it ahead of the real genesis; after the
-stream has started, one signed only by a superseded root or intermediate key is
-ignored. A malformed ISSUANCE authenticated only by an unrelated key is not
+original key. A malformed ISSUANCE is fatal rather than skipped when a chain
+key authenticates it ahead of the real genesis (the record key, the root key, or
+an intermediate rotated key), or when the current entity key or a MIGRATION
+genesis signer that is still current authenticates it after the stream has
+started; after the stream has started, one signed only by a superseded root or
+intermediate key is ignored. A malformed ISSUANCE authenticated only by an unrelated key is not
 asserted. A well-formed later ISSUANCE is a fatal
 `DUPLICATE_ISSUANCE` when the current entity key signs it and is ignored when a
 superseded chain key (the ISSUANCE key or an intermediate key) signs it. Cases marked `anchoredReader: true`

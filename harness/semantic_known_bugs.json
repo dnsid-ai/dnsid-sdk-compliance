@@ -48,7 +48,8 @@
         "later-issuance-by-superseded-entity-key-is-ignored",
         "malformed-genesis-by-superseded-root-key-after-start-is-ignored",
         "malformed-genesis-by-superseded-intermediate-key-after-start-is-ignored",
-        "later-issuance-by-superseded-intermediate-key-is-ignored"
+        "later-issuance-by-superseded-intermediate-key-is-ignored",
+        "malformed-genesis-by-current-entity-key-after-start-is-fatal"
       ]
     },
     {
@@ -112,13 +113,16 @@
         "later-issuance-by-superseded-entity-key-is-ignored",
         "malformed-genesis-by-superseded-root-key-after-start-is-ignored",
         "malformed-genesis-by-superseded-intermediate-key-after-start-is-ignored",
-        "later-issuance-by-superseded-intermediate-key-is-ignored"
+        "later-issuance-by-superseded-intermediate-key-is-ignored",
+        "malformed-genesis-by-current-entity-key-after-start-is-fatal"
       ]
     },
     {
       "reason": "TypeScript skips a malformed ISSUANCE authenticated by an identity chain key instead of failing on it as invalid authenticated genesis evidence",
       "cases": [
-        "malformed-genesis-authenticated-by-record-key-is-fatal"
+        "malformed-genesis-authenticated-by-record-key-is-fatal",
+        "malformed-genesis-by-root-key-ahead-of-real-genesis-is-fatal",
+        "malformed-genesis-by-intermediate-key-ahead-of-real-genesis-is-fatal"
       ]
     }
   ],
