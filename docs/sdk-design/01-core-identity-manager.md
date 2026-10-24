@@ -425,7 +425,9 @@ In particular, `RequiredLogSignatures(KEY_ROTATION)` returns only
 proofs as part of its preparation, parsing, and verification rules; those roles
 do not become base-profile requirements. `ENTITY_KEY_ROTATION` is defined by
 the [entity-key continuity profile](06-log-bindings.md#entity-key-continuity);
-its two roles are both profile-owned and are reported in that order.
+its two roles are both profile-owned and are reported in that order. The
+previous and new entity keys may be held by different processes; each then
+signs its role through `SignEventWithProvider`.
 
 #### `SignEvent(event: LogEvent, role: LogSignerRole) -> LogEvent`
 

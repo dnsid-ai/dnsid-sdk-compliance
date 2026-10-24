@@ -630,6 +630,12 @@ before the rotation. Bindings treat that as a fatal fork, so it can deny
 service but never move the identity to another key; see the C2SP binding's
 [security considerations](11-c2sp-tlog-binding.md#superseded-key-forks).
 
+Appending the event and re-publishing the TXT record with the new `ek` (and a
+new `sg`) are not atomic. Between the two, the record and the verified history
+name different entity keys and bilateral-binding verification fails closed;
+deployments keep that window short and retry until both have converged, as for
+managed operational-key rotation.
+
 Writers prepare the event like any other later lifecycle event and report its
 required signatures in order: previous entity, then new entity. Verifiers that
 predate this profile treat the event as unsupported; they keep rejecting a

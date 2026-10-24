@@ -13,6 +13,8 @@ import json
 from pathlib import Path
 
 import yaml
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import ec, utils
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from c2sp_event_identity_check import (
@@ -94,7 +96,19 @@ def ed_public(kid):
 
 
 def ed_thumb(public):
+    if public["kty"] == "EC":
+        return thumb(public)
     return b64(hashlib.sha256(canonical({k: public[k] for k in ("crv", "kty", "x")})).digest())
+
+
+def record_jwk(label):
+    # "entity-es256" is the disposable P-256 key PUBLIC[0]; other labels are Ed25519 seeds.
+    return PUBLIC[0] if label == "entity-es256" else ed_public(label)
+
+
+def es256_signature(key, data):
+    r, s = utils.decode_dss_signature(key.sign(data, ec.ECDSA(hashes.SHA256(), deterministic_signing=True)))
+    return b64(r.to_bytes(32, "big") + s.to_bytes(32, "big"))
 
 
 def entity_key_rotation_recipes(issuance, rotation):
@@ -141,6 +155,7 @@ def entity_key_rotation_recipes(issuance, rotation):
         "thumbprint-mismatch": ekr(issuance, s0, ts, e2, E1, E2, new_thumb=ed_thumb(e3)),
         "private-new-key": ekr(issuance, s0, ts, dict(e2, d=b64(bytes([ENTITY_SEEDS["entity-2"]]) * 32)), E1, E2),
         "new-key-without-kid": ekr(issuance, s0, ts, {k: v for k, v in e2.items() if k != "kid"}, E1, E2),
+        "new-key-empty-kid": ekr(issuance, s0, ts, dict(e2, kid=""), E1, E2),
         "new-key-without-alg": ekr(issuance, s0, ts, {k: v for k, v in e2.items() if k != "alg"}, E1, E2),
         "unchanged-thumbprint": ekr(issuance, s0, ts, e1, E1, E1),
         "new-signature-kid-mismatch": ekr(issuance, s0, ts, e2, E1, ("entity-3", "entity-2")),
@@ -178,14 +193,46 @@ def entity_key_rotation_recipes(issuance, rotation):
             ("spam-issuance", spam), ("spam-entity-rotation-to-record-key", spam_rotation), ("issuance", issuance), ("entity-rotation", er12)],
         "spam-genesis-alone-cannot-rotate-to-record-key": [("spam-issuance", spam), ("spam-entity-rotation-to-record-key", spam_rotation)],
     }
+    # A spam genesis whose own authenticated successors contradict each other stays noise.
+    spam_revocation = signed(successor(spam, state(spam_e, spam_o), 1782172710, type="REVOCATION", reason="keyCompromise"),
+                             {"ae": ("other-entity", "other-entity")})
+    spam_retirement = signed(successor(spam_revocation, state(spam_e, spam_o, "REVOKED"), 1782172720, type="RETIREMENT"),
+                             {"ae": ("other-entity", "other-entity")})
+    recipes["spam-genesis-contradiction-does-not-poison-real-history"] = [
+        ("spam-issuance", spam), ("spam-revocation", spam_revocation),
+        ("spam-post-terminal-retirement", spam_retirement), ("issuance", issuance)]
+    rotation_to_entity = signed(successor(er12, s1, ts + 400, type="KEY_ROTATION", prev_thumb=ed_thumb(o1),
+                                          new_ku=e2, new_thumb=ed_thumb(e2)),
+                                {"prev_op": ("operational-1", "operational-1"), "new_op": E2})
+    recipes["key-rotation-to-rotated-entity-key-is-fatal"] = [
+        ("issuance", issuance), ("entity-rotation", er12), ("rotation-to-rotated-entity-key", rotation_to_entity)]
+    recipes["entity-key-rotation-with-previous-kid-mismatch-is-ignored"] = single(
+        "entity-rotation-previous-kid-mismatch", ekr(issuance, s0, ts, e2, ("entity-2", "entity-1"), E2))
+    recipes["entity-key-rotation-by-superseded-key-is-ignored"] = [
+        ("issuance", issuance), ("entity-rotation", er12),
+        ("entity-rotation-by-superseded-key", ekr(er12, s1, ts + 250, e3, E1, E3, prev_thumb=ed_thumb(e1)))]
+    recipes["superseded-entity-key-fork-is-fatal"] = [
+        ("issuance", issuance), ("entity-rotation", er12), ("superseded-entity-key-fork", ekr(issuance, s0, ts + 300, e3, E1, E3))]
+    es_key = PUBLIC[0]
+    es_body = successor(issuance, s0, ts + 500, type="ENTITY_KEY_ROTATION", prev_ek_thumb=ed_thumb(e1),
+                        new_ek=es_key, new_ek_thumb=ed_thumb(es_key))
+    es_data = canonical(es_body)
+    es_rotation = dict(es_body, sigs={"prev_ae": {"kid": "entity-1", "sig": b64(edsign(ENTITY_SEEDS["entity-1"], es_data))},
+                                      "new_ae": {"kid": es_key["kid"], "sig": es256_signature(KEYS[0], es_data)}})
+    assert signatures_valid(dict(es_rotation, sigs={"new_ae": es_rotation["sigs"]["new_ae"]}), {"new_ae": es_key})
+    recipes["entity-key-rotation-to-es256-key-binds-record"] = single("entity-rotation-to-es256-key", es_rotation)
+    recipes["retirement-by-rotated-entity-key-is-applied"] = [
+        ("issuance", issuance), ("entity-rotation", er12),
+        ("retirement-by-rotated-entity-key", signed(successor(er12, s1, ts + 600, type="RETIREMENT"), {"ae": E2}))]
     recipes["ignored-entity-key-rotation-does-not-bind-new-key"] = recipes["entity-key-rotation-by-wrong-previous-signer-is-ignored"]
     # Malformed but fully signed by the active and new keys: fatal, not noise.
-    for name in ("thumbprint-mismatch", "new-key-without-kid", "new-key-without-alg", "unchanged-thumbprint"):
+    for name in ("thumbprint-mismatch", "new-key-without-alg", "unchanged-thumbprint"):
         recipes[f"authenticated-malformed-entity-key-rotation-{name}-is-fatal"] = single(f"entity-rotation-{name}", structural[name])
     # A private new_ek is never a verification key, so the event cannot authenticate.
     recipes["entity-key-rotation-with-private-new-key-is-ignored"] = single("entity-rotation-private-new-key", structural["private-new-key"])
-    recipes["structurally-invalid-entity-key-rotation-new-signature-kid-mismatch-is-ignored"] = single(
-        "entity-rotation-new-signature-kid-mismatch", structural["new-signature-kid-mismatch"])
+    # new_ae must name a non-empty kid(new_ek); otherwise the event cannot authenticate.
+    for name in ("new-key-without-kid", "new-key-empty-kid", "new-signature-kid-mismatch"):
+        recipes[f"entity-key-rotation-{name}-is-ignored"] = single(f"entity-rotation-{name}", structural[name])
     return recipes
 
 
@@ -326,7 +373,7 @@ def generate_selection():
             template[field] = semantic_case.get(field, default)
         if "recordEk" in semantic_case:
             # The TXT record's ek; absent means the record still carries the ISSUANCE entity key (entityJwk).
-            template["recordEntityJwk"] = ed_public(semantic_case["recordEk"])
+            template["recordEntityJwk"] = record_jwk(semantic_case["recordEk"])
             expected_binding = semantic_case["expected"].get("bilateralBinding")
             if expected_binding:
                 assert expected_binding["currentEntityThumbprint"] == ed_thumb(template["recordEntityJwk"]), name

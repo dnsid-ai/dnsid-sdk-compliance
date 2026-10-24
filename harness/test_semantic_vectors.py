@@ -60,39 +60,59 @@ class EntityKeyRotationEvidenceTests(unittest.TestCase):
     def test_entity_key_rotation_signatures_match_candidate_authentication(self):
         suite = json.loads(generator.SEMANTICS.read_text())
         evidence = json.loads(generator.OUTPUT.read_text())["cases"]
-        keys = {kid: generator.ed_public(kid) for kid in generator.ENTITY_SEEDS}
         checked = 0
         for case in suite["cases"]:
+            entries = []
             for item in evidence[case["id"]]["entries"]:
-                raw = generator.unb64(item["entry"])
-                if b'"type":"ENTITY_KEY_ROTATION"' not in raw:
+                try:
+                    entries.append((item, json.loads(generator.unb64(item["entry"]))))
+                except ValueError:
                     continue
-                entry = json.loads(raw)
+            by_id = {generator.event_id(entry): entry for _, entry in entries}
+
+            def entity_key(event):
+                # Entity key current after `event`, following the fixture's own chain.
+                if event["type"] == "ISSUANCE":
+                    return event["ek"]
+                if event["type"] == "ENTITY_KEY_ROTATION" and self.authenticates(event, by_id):
+                    return event["new_ek"]
+                return entity_key(by_id[event["prev_event_id"]])
+
+            self.entity_key = entity_key
+            for item, entry in entries:
+                if entry.get("type") != "ENTITY_KEY_ROTATION" or entry["prev_event_id"] not in by_id:
+                    continue  # pre-genesis copies have no predecessor authority to check
                 definition = next(d for d in suite["candidateFixtures"].values() if d["effectId"] == item["effectId"])
-                # Fixture kids name their disposable keys; the SDK instead takes the active
-                # entity key from verified predecessor state.
-                previous = keys.get(entry["sigs"].get("prev_ae", {}).get("kid"))
-                new_key = entry["new_ek"]
-                signatures = entry["sigs"]
-                # Authentication is cryptographic: prev_ae by the active key and new_ae by new_ek.
-                # Structural defects do not prevent it; a private new_ek is never a verification key.
-                private = {"d", "p", "q", "dp", "dq", "qi", "k"} & set(new_key)
-                verified = previous is not None and not private and set(signatures) == {"prev_ae", "new_ae"}
-                verified = verified and signatures["prev_ae"]["kid"] == previous["kid"]
-                verified = verified and ("kid" not in new_key or signatures["new_ae"]["kid"] == new_key["kid"])
-                if verified:
-                    data = generator.canonical(generator.payload(entry))
-                    for role, key in (("prev_ae", previous), ("new_ae", new_key)):
-                        try:
-                            Ed25519PublicKey.from_public_bytes(generator.unb64(key["x"])).verify(
-                                generator.unb64(signatures[role]["sig"]), data)
-                        except InvalidSignature:
-                            verified = False
-                # Authenticated means well formed and signed by the previous and new keys.
                 authenticated = definition.get("authenticated", definition["valid"])
-                self.assertEqual(verified, authenticated, (case["id"], item["effectId"]))
+                self.assertEqual(self.authenticates(entry, by_id), authenticated, (case["id"], item["effectId"]))
                 checked += 1
-        self.assertGreater(checked, 20)
+        self.assertGreater(checked, 25)
+
+    def authenticates(self, entry, by_id):
+        """prev_ae by the predecessor's entity key and new_ae by a public new_ek it names."""
+        predecessor = by_id.get(entry["prev_event_id"])
+        if predecessor is None:
+            return False
+        active = self.entity_key(predecessor)
+        new_key, signatures = entry["new_ek"], entry["sigs"]
+        if {"d", "p", "q", "dp", "dq", "qi", "k"} & set(new_key) or set(signatures) != {"prev_ae", "new_ae"}:
+            return False
+        if signatures["prev_ae"]["kid"] != active["kid"]:
+            return False
+        if not new_key.get("kid") or signatures["new_ae"]["kid"] != new_key["kid"]:
+            return False
+        data = generator.canonical(generator.payload(entry))
+        for role, key in (("prev_ae", active), ("new_ae", new_key)):
+            if key["kty"] == "EC":
+                if not generator.signatures_valid({**entry, "sigs": {role: signatures[role]}}, {role: key}):
+                    return False
+                continue
+            try:
+                Ed25519PublicKey.from_public_bytes(generator.unb64(key["x"])).verify(
+                    generator.unb64(signatures[role]["sig"]), data)
+            except InvalidSignature:
+                return False
+        return True
 
 
 class KnownBugMarkerTests(unittest.TestCase):

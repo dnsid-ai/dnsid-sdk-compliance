@@ -373,19 +373,23 @@ Parsing and encoding reject the envelope unless:
 
 A `new_ek` carrying any private member (`d`, `p`, `q`, `dp`, `dq`, `qi`, or
 `k`) is never used as a verification key, so such a candidate cannot
-authenticate and is skipped during a global-log scan. Otherwise, structural
-validation does not hide an authenticated payload: when `sigs.prev_ae`
-verifies with the active entity key and `sigs.new_ae` verifies with `new_ek`,
+authenticate and is skipped during a global-log scan. Likewise, when `new_ek`
+has a missing or empty `kid`, or `sigs.new_ae.kid` differs from the `kid` of
+`new_ek`, `new_ae` does not name the new key and the candidate is skipped.
+Otherwise, structural validation does not hide an authenticated payload: when
+`sigs.new_ae.kid` equals the non-empty `kid` of `new_ek`, `sigs.prev_ae`
+verifies with the active entity key, and `sigs.new_ae` verifies with `new_ek`,
 but the envelope fails one of the other checks above (a thumbprint mismatch,
-`new_ek_thumb` equal to `prev_ek_thumb`, or a missing or unsupported `kid`,
-`alg`, or curve), verification fails with an invalid-evidence error, as for any
+`new_ek_thumb` equal to `prev_ek_thumb`, or a missing or unsupported `alg`),
+verification fails with an invalid-evidence error, as for any
 structurally parseable authenticated error. A candidate that fails these checks
 and does not authenticate is ignored like any other unauthenticated candidate.
 
 Given the authority state after the event's chain predecessor, with entity key
 E and operational key O, the candidate is authenticated only when
 `sigs.prev_ae.kid` equals the `kid` of E, `sigs.prev_ae.sig` verifies with E,
-and `sigs.new_ae.sig` verifies with `new_ek`. An unauthenticated candidate,
+`new_ek` is public and has a non-empty `kid` equal to `sigs.new_ae.kid`, and
+`sigs.new_ae.sig` verifies with `new_ek`. An unauthenticated candidate,
 including one with a missing, wrong-key, or invalid `prev_ae` or `new_ae`, is
 skipped, never an error.
 
@@ -1102,7 +1106,11 @@ instead:
    that chain from it under the rules above.
 3. A candidate whose replay ends with an entity key other than the record `ek`
    is noise, exactly as a mismatched genesis entity key is when no rotation
-   exists. Its successors cannot be applied.
+   exists. Its successors cannot be applied. In particular, a genesis whose
+   entity key differs from the record `ek` and that has no authenticated
+   `ENTITY_KEY_ROTATION` successor is noise together with all its successors,
+   including authenticated contradictions among them; it never aborts
+   verification of another history.
 4. The remaining genesis candidates continue through the rules above, so the
    first starts the stream and a later distinct one is a duplicate genesis.
 5. If no candidate remains, verification fails with the "no valid lifecycle

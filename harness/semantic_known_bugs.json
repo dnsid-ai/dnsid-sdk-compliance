@@ -30,10 +30,18 @@
         "entity-key-rotation-after-retirement-is-fatal",
         "authenticated-malformed-entity-key-rotation-thumbprint-mismatch-is-fatal",
         "entity-key-rotation-with-private-new-key-is-ignored",
-        "authenticated-malformed-entity-key-rotation-new-key-without-kid-is-fatal",
+        "entity-key-rotation-new-key-without-kid-is-ignored",
+        "entity-key-rotation-new-key-empty-kid-is-ignored",
         "authenticated-malformed-entity-key-rotation-new-key-without-alg-is-fatal",
         "authenticated-malformed-entity-key-rotation-unchanged-thumbprint-is-fatal",
-        "structurally-invalid-entity-key-rotation-new-signature-kid-mismatch-is-ignored"
+        "entity-key-rotation-new-signature-kid-mismatch-is-ignored",
+        "spam-genesis-alone-cannot-rotate-to-record-key",
+        "key-rotation-to-rotated-entity-key-is-fatal",
+        "entity-key-rotation-with-previous-kid-mismatch-is-ignored",
+        "entity-key-rotation-by-superseded-key-is-ignored",
+        "superseded-entity-key-fork-is-fatal",
+        "entity-key-rotation-to-es256-key-binds-record",
+        "retirement-by-rotated-entity-key-is-applied"
       ]
     },
     {
@@ -42,7 +50,7 @@
         "spam-genesis-with-other-entity-key-is-ignored",
         "spam-genesis-before-rotated-history-is-ignored",
         "spam-genesis-cannot-rotate-to-record-key-without-new-signature",
-        "spam-genesis-alone-cannot-rotate-to-record-key"
+        "spam-genesis-contradiction-does-not-poison-real-history"
       ]
     }
   ],
@@ -77,13 +85,21 @@
         "entity-key-rotation-after-retirement-is-fatal",
         "authenticated-malformed-entity-key-rotation-thumbprint-mismatch-is-fatal",
         "entity-key-rotation-with-private-new-key-is-ignored",
-        "authenticated-malformed-entity-key-rotation-new-key-without-kid-is-fatal",
+        "entity-key-rotation-new-key-without-kid-is-ignored",
+        "entity-key-rotation-new-key-empty-kid-is-ignored",
         "authenticated-malformed-entity-key-rotation-new-key-without-alg-is-fatal",
         "authenticated-malformed-entity-key-rotation-unchanged-thumbprint-is-fatal",
-        "structurally-invalid-entity-key-rotation-new-signature-kid-mismatch-is-ignored",
+        "entity-key-rotation-new-signature-kid-mismatch-is-ignored",
         "spam-genesis-with-other-entity-key-is-ignored",
         "spam-genesis-before-rotated-history-is-ignored",
-        "spam-genesis-cannot-rotate-to-record-key-without-new-signature"
+        "spam-genesis-cannot-rotate-to-record-key-without-new-signature",
+        "spam-genesis-contradiction-does-not-poison-real-history",
+        "key-rotation-to-rotated-entity-key-is-fatal",
+        "entity-key-rotation-with-previous-kid-mismatch-is-ignored",
+        "entity-key-rotation-by-superseded-key-is-ignored",
+        "superseded-entity-key-fork-is-fatal",
+        "entity-key-rotation-to-es256-key-binds-record",
+        "retirement-by-rotated-entity-key-is-applied"
       ]
     }
   ],
@@ -118,13 +134,21 @@
         "entity-key-rotation-after-retirement-is-fatal",
         "authenticated-malformed-entity-key-rotation-thumbprint-mismatch-is-fatal",
         "entity-key-rotation-with-private-new-key-is-ignored",
-        "authenticated-malformed-entity-key-rotation-new-key-without-kid-is-fatal",
+        "entity-key-rotation-new-key-without-kid-is-ignored",
+        "entity-key-rotation-new-key-empty-kid-is-ignored",
         "authenticated-malformed-entity-key-rotation-new-key-without-alg-is-fatal",
         "authenticated-malformed-entity-key-rotation-unchanged-thumbprint-is-fatal",
-        "structurally-invalid-entity-key-rotation-new-signature-kid-mismatch-is-ignored",
+        "entity-key-rotation-new-signature-kid-mismatch-is-ignored",
         "spam-genesis-with-other-entity-key-is-ignored",
         "spam-genesis-before-rotated-history-is-ignored",
-        "spam-genesis-cannot-rotate-to-record-key-without-new-signature"
+        "spam-genesis-cannot-rotate-to-record-key-without-new-signature",
+        "spam-genesis-contradiction-does-not-poison-real-history",
+        "key-rotation-to-rotated-entity-key-is-fatal",
+        "entity-key-rotation-with-previous-kid-mismatch-is-ignored",
+        "entity-key-rotation-by-superseded-key-is-ignored",
+        "superseded-entity-key-fork-is-fatal",
+        "entity-key-rotation-to-es256-key-binds-record",
+        "retirement-by-rotated-entity-key-is-applied"
       ]
     }
   ]

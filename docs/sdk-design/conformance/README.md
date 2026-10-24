@@ -198,7 +198,9 @@ evidence failures, migration-history failures, or incompleteness that must abort
 fresh complete logged-state verification.
 
 `authenticated` means all required role signatures verify under predecessor
-authority. `failureScope: "genesis-anchor"` marks a self-authenticated genesis
+authority, with each signature's `kid` naming the key that verifies it; for
+`ENTITY_KEY_ROTATION`, `new_ae` must name a non-empty `kid` of a public
+`new_ek`. `failureScope: "genesis-anchor"` marks a self-authenticated genesis
 whose history ends with an entity key other than the record `ek`;
 `authenticated-payload` marks a fully signed rotation that fails structural
 validation.
@@ -222,13 +224,19 @@ and invalid or missing `new_ae` (ignored); a previous thumbprint that is not the
 active key and a new key equal to the operational key (`KEY_CONTINUITY`);
 `REVOCATION` by the rotated key (applied) and by the superseded key (ignored);
 interleaved `KEY_ROTATION`; a rotation before or without genesis; a rotation
-after `RETIREMENT` (`TERMINAL_STATE`); fully signed but malformed rotations
-(thumbprint mismatch, missing `kid` or `alg`, unchanged thumbprint), which are
-fatal `INVALID_EVIDENCE`; and a private `new_ek` or a `new_ae` kid that differs
-from `new_ek`, which cannot authenticate and are ignored. Spam-genesis cases put a
+after `RETIREMENT` (`TERMINAL_STATE`); rotations fully signed under a matching
+non-empty `new_ek` kid but malformed (thumbprint mismatch, missing `alg`,
+unchanged thumbprint), which are fatal `INVALID_EVIDENCE`; and a private
+`new_ek`, a `new_ek` with a missing or empty `kid`, or a `new_ae` kid that
+differs from `new_ek`, which cannot authenticate and are ignored. Spam-genesis cases put a
 self-authenticated ISSUANCE with another entity key ahead of the real one, with
-and without a later rotation, and add a spam rotation to the record key whose
-`new_ae` is not made by that key; none of them is selected.
+and without a later rotation, with its own authenticated contradicting
+successors, and with a spam rotation to the record key whose `new_ae` is not
+made by that key; none of them is selected. Further cases cover a `prev_ae`
+whose kid does not name the active key, a rotation signed by a superseded key
+(ignored), a superseded-key fork from before the rotation (`CHAIN_CONTINUITY`),
+a `KEY_ROTATION` to the rotated entity key (`KEY_CONTINUITY`), a rotation to an
+ES256 key, and `RETIREMENT` by the rotated key.
 
 These vectors are committed before SDK support. Their signed evidence is
 complete, but each adapter must still be extended to send `ENTITY_KEY_ROTATION`
