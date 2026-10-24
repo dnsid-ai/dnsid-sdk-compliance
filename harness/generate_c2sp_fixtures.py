@@ -251,11 +251,15 @@ def entity_key_rotation_recipes(issuance, rotation, migration):
                            ek={k: v for k, v in key.items() if k != "alg"}, ku=o9),
                       {"ae": signer, "op": ("operational-9", "operational-9")})
     chain = [("issuance", issuance), ("entity-rotation", er12), ("entity-rotation-second", er23)]
-    recipes["malformed-genesis-by-root-key-is-fatal"] = chain + [("malformed-issuance-by-root-key", malformed_by(e1, E1, 1000))]
-    recipes["malformed-genesis-by-intermediate-key-is-fatal"] = chain + [
+    # After the stream has started, superseded chain keys no longer authorize a genesis: noise.
+    recipes["malformed-genesis-by-superseded-root-key-after-start-is-ignored"] = chain + [
+        ("malformed-issuance-by-root-key", malformed_by(e1, E1, 1000))]
+    recipes["malformed-genesis-by-superseded-intermediate-key-after-start-is-ignored"] = chain + [
         ("malformed-issuance-by-intermediate-key", malformed_by(e2, E2, 1010))]
     recipes["malformed-genesis-by-root-key-ahead-of-real-genesis-is-fatal"] = [
         ("malformed-issuance-by-root-key-ahead", malformed_by(e1, E1, -230))] + chain
+    recipes["malformed-genesis-by-intermediate-key-ahead-of-real-genesis-is-fatal"] = [
+        ("malformed-issuance-by-intermediate-key-ahead", malformed_by(e2, E2, -220))] + chain
 
     def later_issuance(key, signer, offset):
         return signed(dict(context, type="ISSUANCE", seq=0, ts=ts + offset, gi=issuance["gi"], ek=key, ku=o9),
@@ -264,6 +268,8 @@ def entity_key_rotation_recipes(issuance, rotation, migration):
         ("issuance", issuance), ("entity-rotation", er12), ("later-issuance-by-current-entity-key", later_issuance(e2, E2, 1100))]
     recipes["later-issuance-by-superseded-entity-key-is-ignored"] = [
         ("issuance", issuance), ("entity-rotation", er12), ("later-issuance-by-superseded-entity-key", later_issuance(e1, E1, 1110))]
+    recipes["later-issuance-by-superseded-intermediate-key-is-ignored"] = chain + [
+        ("later-issuance-by-superseded-intermediate-key", later_issuance(e2, E2, 1120))]
     recipes["malformed-genesis-by-migration-signer-is-fatal"] = [
         ("inbound-migration", migration), ("malformed-issuance-by-migration-signer", malformed_by(e1, E1, 1020))]
     recipes["ignored-entity-key-rotation-does-not-bind-new-key"] = recipes["entity-key-rotation-by-wrong-previous-signer-is-ignored"]

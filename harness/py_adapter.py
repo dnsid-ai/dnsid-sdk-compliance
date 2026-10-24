@@ -408,7 +408,7 @@ class PyAdapter:
                         )
 
                 C2spTlogReader(req["lr"], C2spTlogReaderOptions(
-                    policy=policy, source=Source(), entity_key=jwk_from_dict(req["entityJwk"]),
+                    policy=policy, source=Source(), entity_key=jwk_from_dict(req.get("recordEntityJwk") or req["entityJwk"]),
                 )).rebuild_history(req["domain"])
         except (C2spTlogError, DNSidError) as exc:
             return {"ok": False, "error": "LifecycleError", "errorCategory": str(getattr(exc, "category", None) or "INVALID_EVIDENCE"), "message": str(exc)}
@@ -443,7 +443,8 @@ class PyAdapter:
 
         options = StreamVerifierOptions(
             context=C2spEventContext(scope="public", log_origin="log.example", stream_id=parsed.stream_id, lr=req["lr"]),
-            signer_key=entity,
+            # Anchored readers take the record ek; absent, the record carries the ISSUANCE key.
+            signer_key=jwk_from_dict(req["recordEntityJwk"]) if req.get("recordEntityJwk") else entity,
             checkpoint_integration_time_ms=req["checkpointIntegrationTimeMs"],
             verify_migration=migration if req.get("priorHistoryVerified") is not None else None,
         )

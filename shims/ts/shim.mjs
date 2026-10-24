@@ -317,7 +317,7 @@ async function c2spLifecycleVector(req) {
     c2sp.enforceCheckpointPolicy(checkpoint, parsed.origin, policy, parsed.scope, req.checkpointIntegrationTimeMs);
     if (!req.completeThroughCheckpoint) {
       const reader = new c2sp.C2spTlogReader(req.lr, {
-        policy, entityKey: req.entityJwk,
+        policy, entityKey: req.recordEntityJwk ?? req.entityJwk,
         streamSource: { load: async () => ({
           checkpoint, complete: false,
           entries: req.entries.map(item => ({ index: item.index, bytes: Buffer.from(item.entry, 'base64url') })),
@@ -359,7 +359,7 @@ async function c2spLifecycleVector(req) {
     if (!req.priorHistoryVerified) throw new Error('prior migration history unavailable');
     return { entityKey, activeOperationalKey: operationalKey, priorEvents: [priorEvent] };
   };
-  const options = { scope: 'public', logOrigin: parsed.origin, streamId: parsed.streamId, lr: req.lr, signerKey: entityKey, checkpointIntegrationTimeMs: req.checkpointIntegrationTimeMs, verifyMigration };
+  const options = { scope: 'public', logOrigin: parsed.origin, streamId: parsed.streamId, lr: req.lr, signerKey: req.recordEntityJwk ?? entityKey, checkpointIntegrationTimeMs: req.checkpointIntegrationTimeMs, verifyMigration };
   try {
     const selected = await c2sp.verifyStreamLifecycle(entries, req.domain, options);
     const appliedIndexes = selected.map((item) => item.index);

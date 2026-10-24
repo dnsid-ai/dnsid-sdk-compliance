@@ -44,9 +44,11 @@
         "entity-key-rotation-to-es256-key-binds-record",
         "retirement-by-rotated-entity-key-is-applied",
         "superseded-key-cannot-revive-revoked-identity",
-        "malformed-genesis-by-intermediate-key-is-fatal",
         "later-issuance-by-current-entity-key-is-duplicate-genesis",
-        "later-issuance-by-superseded-entity-key-is-ignored"
+        "later-issuance-by-superseded-entity-key-is-ignored",
+        "malformed-genesis-by-superseded-root-key-after-start-is-ignored",
+        "malformed-genesis-by-superseded-intermediate-key-after-start-is-ignored",
+        "later-issuance-by-superseded-intermediate-key-is-ignored"
       ]
     },
     {
@@ -78,7 +80,6 @@
         "entity-key-rotation-rejects-record-with-issuance-key",
         "chained-entity-key-rotations-bind-latest-key",
         "entity-key-rotation-by-wrong-previous-signer-is-ignored",
-        "ignored-entity-key-rotation-does-not-bind-new-key",
         "entity-key-rotation-with-invalid-new-signature-is-ignored",
         "entity-key-rotation-without-new-signature-is-ignored",
         "entity-key-rotation-from-inactive-key-is-fatal",
@@ -107,16 +108,17 @@
         "entity-key-rotation-to-es256-key-binds-record",
         "retirement-by-rotated-entity-key-is-applied",
         "superseded-key-cannot-revive-revoked-identity",
-        "malformed-genesis-by-intermediate-key-is-fatal",
         "later-issuance-by-current-entity-key-is-duplicate-genesis",
-        "later-issuance-by-superseded-entity-key-is-ignored"
+        "later-issuance-by-superseded-entity-key-is-ignored",
+        "malformed-genesis-by-superseded-root-key-after-start-is-ignored",
+        "malformed-genesis-by-superseded-intermediate-key-after-start-is-ignored",
+        "later-issuance-by-superseded-intermediate-key-is-ignored"
       ]
     },
     {
       "reason": "TypeScript skips a malformed ISSUANCE authenticated by an identity chain key instead of failing on it as invalid authenticated genesis evidence",
       "cases": [
-        "malformed-genesis-authenticated-by-record-key-is-fatal",
-        "malformed-genesis-by-root-key-ahead-of-real-genesis-is-fatal"
+        "malformed-genesis-authenticated-by-record-key-is-fatal"
       ]
     }
   ],
@@ -139,7 +141,6 @@
         "entity-key-rotation-rejects-record-with-issuance-key",
         "chained-entity-key-rotations-bind-latest-key",
         "entity-key-rotation-by-wrong-previous-signer-is-ignored",
-        "ignored-entity-key-rotation-does-not-bind-new-key",
         "entity-key-rotation-with-invalid-new-signature-is-ignored",
         "entity-key-rotation-without-new-signature-is-ignored",
         "entity-key-rotation-from-inactive-key-is-fatal",
@@ -168,9 +169,13 @@
         "entity-key-rotation-to-es256-key-binds-record",
         "retirement-by-rotated-entity-key-is-applied",
         "superseded-key-cannot-revive-revoked-identity",
-        "malformed-genesis-by-intermediate-key-is-fatal",
         "later-issuance-by-current-entity-key-is-duplicate-genesis",
-        "later-issuance-by-superseded-entity-key-is-ignored"
+        "later-issuance-by-superseded-entity-key-is-ignored",
+        "malformed-genesis-by-superseded-root-key-after-start-is-ignored",
+        "malformed-genesis-by-superseded-intermediate-key-after-start-is-ignored",
+        "malformed-genesis-by-root-key-ahead-of-real-genesis-is-fatal",
+        "malformed-genesis-by-intermediate-key-ahead-of-real-genesis-is-fatal",
+        "later-issuance-by-superseded-intermediate-key-is-ignored"
       ]
     }
   ]

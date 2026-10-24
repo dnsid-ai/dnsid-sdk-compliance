@@ -57,16 +57,18 @@
     "retirement-by-rotated-entity-key": {"effectId": "retirement-rotated-entity-key", "type": "RETIREMENT", "domain": "agent.example", "valid": true},
     "entity-rotation-stray-private-member": {"effectId": "entity-rotation-stray-private-member", "type": "ENTITY_KEY_ROTATION", "domain": "agent.example", "valid": false, "authenticated": false, "failureScope": "candidate-signature"},
     "revocation-by-latest-entity-key": {"effectId": "revocation-latest-entity-key", "type": "REVOCATION", "domain": "agent.example", "valid": true},
-    "revived-issuance-under-superseded-key": {"effectId": "revived-issuance", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "genesis-anchor"},
+    "revived-issuance-under-superseded-key": {"effectId": "revived-issuance", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": false, "failureScope": "candidate-signature"},
     "malformed-issuance": {"effectId": "malformed-issuance", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "authenticated-payload"},
     "revocation-by-rotated-entity-key-late": {"effectId": "revocation-rotated-entity-key-late", "type": "REVOCATION", "domain": "agent.example", "valid": true},
-    "revived-issuance-under-original-key": {"effectId": "revived-original-issuance", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "genesis-anchor"},
-    "malformed-issuance-by-root-key": {"effectId": "malformed-issuance-by-root-key", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "authenticated-payload"},
-    "malformed-issuance-by-intermediate-key": {"effectId": "malformed-issuance-by-intermediate-key", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "authenticated-payload"},
+    "revived-issuance-under-original-key": {"effectId": "revived-original-issuance", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": false, "failureScope": "candidate-signature"},
+    "malformed-issuance-by-root-key": {"effectId": "malformed-issuance-by-root-key", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": false, "failureScope": "candidate-signature"},
+    "malformed-issuance-by-intermediate-key": {"effectId": "malformed-issuance-by-intermediate-key", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": false, "failureScope": "candidate-signature"},
     "malformed-issuance-by-migration-signer": {"effectId": "malformed-issuance-by-migration-signer", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "authenticated-payload"},
     "malformed-issuance-by-root-key-ahead": {"effectId": "malformed-issuance-by-root-key-ahead", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "authenticated-payload"},
     "later-issuance-by-current-entity-key": {"effectId": "later-issuance-current-key", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "authenticated-transition"},
-    "later-issuance-by-superseded-entity-key": {"effectId": "later-issuance-superseded-key", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": false, "failureScope": "candidate-signature"}
+    "later-issuance-by-superseded-entity-key": {"effectId": "later-issuance-superseded-key", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": false, "failureScope": "candidate-signature"},
+    "malformed-issuance-by-intermediate-key-ahead": {"effectId": "malformed-issuance-by-intermediate-key-ahead", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "authenticated-payload"},
+    "later-issuance-by-superseded-intermediate-key": {"effectId": "later-issuance-superseded-intermediate-key", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": false, "failureScope": "candidate-signature"}
   },
   "cases": [
     {
@@ -429,18 +431,16 @@
       "expected": {"valid": false}
     },
     {
-      "id": "malformed-genesis-by-root-key-is-fatal",
-      "anchoredReader": true,
+      "id": "malformed-genesis-by-superseded-root-key-after-start-is-ignored",
       "candidates": ["issuance", "entity-rotation", "entity-rotation-second", "malformed-issuance-by-root-key"],
       "recordEk": "entity-3",
-      "expected": {"valid": false, "failingCandidateIndex": 3}
+      "expected": {"valid": true, "appliedEffectIds": ["issuance-1", "entity-rotation-1", "entity-rotation-2"], "ignoredCandidateIndexes": [3], "bilateralBinding": {"initialEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4", "currentEntityThumbprint": "8TlG3IhiRH5sWhsIGSSRnAqf9zyhEl1ir4t4cbTRCk0"}}
     },
     {
-      "id": "malformed-genesis-by-intermediate-key-is-fatal",
-      "anchoredReader": true,
+      "id": "malformed-genesis-by-superseded-intermediate-key-after-start-is-ignored",
       "candidates": ["issuance", "entity-rotation", "entity-rotation-second", "malformed-issuance-by-intermediate-key"],
       "recordEk": "entity-3",
-      "expected": {"valid": false, "failingCandidateIndex": 3}
+      "expected": {"valid": true, "appliedEffectIds": ["issuance-1", "entity-rotation-1", "entity-rotation-2"], "ignoredCandidateIndexes": [3], "bilateralBinding": {"initialEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4", "currentEntityThumbprint": "8TlG3IhiRH5sWhsIGSSRnAqf9zyhEl1ir4t4cbTRCk0"}}
     },
     {
       "id": "malformed-genesis-by-migration-signer-is-fatal",
@@ -469,6 +469,19 @@
       "candidates": ["issuance", "entity-rotation", "later-issuance-by-superseded-entity-key"],
       "recordEk": "entity-2",
       "expected": {"valid": true, "appliedEffectIds": ["issuance-1", "entity-rotation-1"], "ignoredCandidateIndexes": [2], "bilateralBinding": {"initialEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4", "currentEntityThumbprint": "r4thRn8KdhhgGDrzOwmSwySqMcXeIdd9SG333J-ZNtU"}}
+    },
+    {
+      "id": "malformed-genesis-by-intermediate-key-ahead-of-real-genesis-is-fatal",
+      "anchoredReader": true,
+      "candidates": ["malformed-issuance-by-intermediate-key-ahead", "issuance", "entity-rotation", "entity-rotation-second"],
+      "recordEk": "entity-3",
+      "expected": {"valid": false, "failingCandidateIndex": 0}
+    },
+    {
+      "id": "later-issuance-by-superseded-intermediate-key-is-ignored",
+      "candidates": ["issuance", "entity-rotation", "entity-rotation-second", "later-issuance-by-superseded-intermediate-key"],
+      "recordEk": "entity-3",
+      "expected": {"valid": true, "appliedEffectIds": ["issuance-1", "entity-rotation-1", "entity-rotation-2"], "ignoredCandidateIndexes": [3], "bilateralBinding": {"initialEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4", "currentEntityThumbprint": "8TlG3IhiRH5sWhsIGSSRnAqf9zyhEl1ir4t4cbTRCk0"}}
     }
   ]
 }

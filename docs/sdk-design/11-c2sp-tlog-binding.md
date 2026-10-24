@@ -1138,7 +1138,8 @@ rule instead:
    `ENTITY_KEY_ROTATION` events that reaches the record `ek`.
 3. A candidate that is not eligible is noise, together with its successors,
    exactly as a mismatched genesis entity key is when no rotation exists. It
-   never aborts verification of another history, except as rule 5 requires.
+   never aborts verification of another history, except as rule 5
+   requires.
 4. The first eligible candidate decides; later genesis candidates are never
    tried as alternatives. Its history is verified under the rules above,
    including fatal contradictions and duplicate genesis. If that history ends
@@ -1146,8 +1147,10 @@ rule instead:
    current-entity-key mismatch described under
    [Entity-Key Rotation](#entity-key-rotation).
 5. A malformed ISSUANCE authenticated by any entity key of the eligible chain
-   is invalid authenticated genesis evidence and fails verification wherever
-   it appears, including ahead of the real genesis; it is not skipped. Those keys are the root key (the ISSUANCE entity key, or the key
+   ahead of the real genesis, or by the entity key current at its point once
+   the stream has started, is invalid authenticated genesis evidence and fails
+   verification; it is not skipped. After the stream has started, a malformed
+   ISSUANCE signed only by a superseded chain key is noise, as in rule 6. Those keys are the root key (the ISSUANCE entity key, or the key
    that signed a MIGRATION genesis), every key installed by an
    `ENTITY_KEY_ROTATION` in the chain, and the record `ek` itself: keys the
    identity holds or has held. A malformed ISSUANCE authenticated only by an
@@ -1160,6 +1163,7 @@ rule instead:
    key after a rotation), current authority does not authorize it, so it is
    noise and is skipped. It cannot revive anything: the first eligible genesis
    still decides, and a terminal stream stays terminal.
+   This rule holds for every reader, anchored or not.
 7. If no candidate is eligible, verification fails with the "no valid
    lifecycle events" failure.
 

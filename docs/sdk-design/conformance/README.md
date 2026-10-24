@@ -238,13 +238,14 @@ made by that key; none of them is selected. Further cases check
 that the first eligible genesis decides: a fresh ISSUANCE under a superseded
 entity key after the real history was rotated and revoked is not selected as a
 fallback (rejected), with the record carrying either the superseded or the
-original key, and a malformed ISSUANCE is fatal rather than skipped when the
-record key, the chain's root key, an intermediate rotated key, or a MIGRATION
-genesis signer authenticates it. A malformed ISSUANCE authenticated only by an
-unrelated key is not asserted. A malformed root-key ISSUANCE ahead of the real
-genesis is also fatal. A well-formed later ISSUANCE is a fatal
+original key. A malformed ISSUANCE is fatal rather than skipped when the record
+key or a MIGRATION genesis signer authenticates it, and when the root key or an
+intermediate rotated key authenticates it ahead of the real genesis; after the
+stream has started, one signed only by a superseded root or intermediate key is
+ignored. A malformed ISSUANCE authenticated only by an unrelated key is not
+asserted. A well-formed later ISSUANCE is a fatal
 `DUPLICATE_ISSUANCE` when the current entity key signs it and is ignored when a
-superseded chain key signs it. Cases marked `anchoredReader: true`
+superseded chain key (the ISSUANCE key or an intermediate key) signs it. Cases marked `anchoredReader: true`
 encode the optional anchored genesis selection. A reader that does not anchor
 on the record `ek` may diverge on them only when the stream has competing
 authenticated genesis candidates; its markers in
