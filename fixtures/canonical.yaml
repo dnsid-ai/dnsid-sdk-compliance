@@ -90,3 +90,15 @@ cases:
     expect:
       ok: true
       value: "ek=https://example.com/entity-keys.json;gi=example.com;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;v=DNSid1"
+
+  - id: canonical-keeps-empty-ka
+    description: An empty ka pair is semantically absent but stays in the signature input
+    spec_ref: "draft-ihsanullah-dnsid-01 §KA Tag (empty value stays in the canonical record string)"
+    tags: [required, edge-case]
+    version: dnsid-draft-01
+    op: canonical
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ka=;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=AAAA"
+    expect:
+      ok: true
+      value: "ek=https://example.com/entity-keys.json;gi=example.com;ka=;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;v=dnsid-draft-01"

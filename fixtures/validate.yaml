@@ -197,3 +197,51 @@ cases:
       ok: false
       error: ValidationError
       error_contains: malformed
+
+  - id: validate-ku-root-dot-host-rejected
+    description: A root dot in the ku host is invalid
+    spec_ref: "draft-ihsanullah-dnsid-01 §Tag Definitions (ku/ek host MUST NOT end with a root dot)"
+    tags: [required, edge-case]
+    version: dnsid-draft-01
+    op: validate
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.test./jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=AAAA"
+      identity_fqdn: agent.test
+    expect:
+      ok: false
+      error: ValidationError
+    sdk:
+      ts:
+        known_bug: "validation normalizes the root dot away (dnsid-ts fix/reject-root-dot-key-host)"
+      py:
+        known_bug: "validation normalizes the root dot away (dnsid-py fix/reject-root-dot-key-host)"
+
+  - id: validate-ek-root-dot-host-rejected
+    description: A root dot in the ek host is invalid
+    spec_ref: "draft-ihsanullah-dnsid-01 §Tag Definitions (ku/ek host MUST NOT end with a root dot)"
+    tags: [required, edge-case]
+    version: dnsid-draft-01
+    op: validate
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com./entity-keys.json;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=AAAA"
+      identity_fqdn: agent.test
+    expect:
+      ok: false
+      error: ValidationError
+    sdk:
+      ts:
+        known_bug: "validation normalizes the root dot away (dnsid-ts fix/reject-root-dot-key-host)"
+      py:
+        known_bug: "validation normalizes the root dot away (dnsid-py fix/reject-root-dot-key-host)"
+
+  - id: validate-empty-ka-is-absent
+    description: An empty ka value is treated as absence and does not fail validation
+    spec_ref: "draft-ihsanullah-dnsid-01 §KA Tag (empty value is absence)"
+    tags: [required, edge-case]
+    version: dnsid-draft-01
+    op: validate
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ka=;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=AAAA"
+      identity_fqdn: agent.test
+    expect:
+      ok: true
