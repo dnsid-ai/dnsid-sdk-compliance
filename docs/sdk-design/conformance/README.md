@@ -199,7 +199,9 @@ fresh complete logged-state verification.
 
 `authenticated` means all required role signatures verify under predecessor
 authority. `failureScope: "genesis-anchor"` marks a self-authenticated genesis
-whose history ends with an entity key other than the record `ek`.
+whose history ends with an entity key other than the record `ek`;
+`authenticated-payload` marks a fully signed rotation that fails structural
+validation.
 
 A case may name `recordEk`, the disposable entity key the identity's TXT record
 currently carries; the evidence supplies it as `recordEntityJwk`. Without
@@ -208,10 +210,11 @@ that anchor genesis selection on the record `ek` use this key as described in
 [Genesis Selection Anchored on the Record `ek`](../11-c2sp-tlog-binding.md#genesis-selection-anchored-on-the-record-ek).
 For a case with `recordEk`, `valid` covers history selection and the bilateral
 binding against that key. `bilateralBinding` gives the expected
-`initialEntityThumbprint` and `currentEntityThumbprint`; a `valid: false` case
-with `recordEk` and no `errorCategory` expects only that verification fails,
-because the record-key mismatch and the no-valid-events failure have no stable
-category.
+`initialEntityThumbprint` and `currentEntityThumbprint`. When the record key is
+not reachable from any valid history, the case asserts only `valid: false`:
+anchored readers report no valid lifecycle events where other readers report a
+key-continuity or record-key mismatch. When the record key is the active entity
+key at the failing event, the case asserts the category.
 
 The `ENTITY_KEY_ROTATION` cases cover binding a rotated record key and
 rejecting the ISSUANCE key afterwards; chained rotations; wrong-key `prev_ae`
@@ -219,9 +222,10 @@ and invalid or missing `new_ae` (ignored); a previous thumbprint that is not the
 active key and a new key equal to the operational key (`KEY_CONTINUITY`);
 `REVOCATION` by the rotated key (applied) and by the superseded key (ignored);
 interleaved `KEY_ROTATION`; a rotation before or without genesis; a rotation
-after `RETIREMENT` (`TERMINAL_STATE`); and structurally invalid rotations
-(thumbprint mismatch, private `new_ek`, missing `kid` or `alg`, unchanged
-thumbprint, `new_ae` kid mismatch), which are ignored. Spam-genesis cases put a
+after `RETIREMENT` (`TERMINAL_STATE`); fully signed but malformed rotations
+(thumbprint mismatch, missing `kid` or `alg`, unchanged thumbprint), which are
+fatal `INVALID_EVIDENCE`; and a private `new_ek` or a `new_ae` kid that differs
+from `new_ek`, which cannot authenticate and are ignored. Spam-genesis cases put a
 self-authenticated ISSUANCE with another entity key ahead of the real one, with
 and without a later rotation, and add a spam rotation to the record key whose
 `new_ae` is not made by that key; none of them is selected.
@@ -395,7 +399,7 @@ underlying classification. Detailed precedence and fallback rules are owned by
 | `SNAPSHOT_NON_PREFIX` | The requested timestamp would select a non-prefix subsequence. |
 | `UNSUPPORTED_EVENT` | No supported base or companion profile defines reducer semantics for the event type. |
 | `CHAIN_CONTINUITY` | An authenticated C2SP event does not continue the signed stream chain, or accepted completeness evidence contradicts the applied chain. |
-| `INVALID_EVIDENCE` | A checkpoint, policy, witness quorum, trusted bundle, candidate scan prefix, or other completeness evidence fails, except for the more specific continuity/storage conditions below. |
+| `INVALID_EVIDENCE` | A checkpoint, policy, witness quorum, trusted bundle, candidate scan prefix, or other completeness evidence fails, or a fully authenticated lifecycle event fails structural validation, except for the more specific continuity/storage conditions below. |
 | `INCOMPLETE_STREAM` | The binding cannot establish complete logged-state history. |
 | `LOG_ROLLBACK` | A policy-accepted candidate checkpoint has a smaller tree than trusted state; retain trust and investigate with operations and security. |
 | `LOG_FORK` | A policy-accepted candidate has the trusted size but a different root; an equal-size conflict is an equivocation signal, not proof of malice. |

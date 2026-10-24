@@ -179,8 +179,13 @@ def entity_key_rotation_recipes(issuance, rotation):
         "spam-genesis-alone-cannot-rotate-to-record-key": [("spam-issuance", spam), ("spam-entity-rotation-to-record-key", spam_rotation)],
     }
     recipes["ignored-entity-key-rotation-does-not-bind-new-key"] = recipes["entity-key-rotation-by-wrong-previous-signer-is-ignored"]
-    for name, event in structural.items():
-        recipes[f"structurally-invalid-entity-key-rotation-{name}-is-ignored"] = single(f"entity-rotation-{name}", event)
+    # Malformed but fully signed by the active and new keys: fatal, not noise.
+    for name in ("thumbprint-mismatch", "new-key-without-kid", "new-key-without-alg", "unchanged-thumbprint"):
+        recipes[f"authenticated-malformed-entity-key-rotation-{name}-is-fatal"] = single(f"entity-rotation-{name}", structural[name])
+    # A private new_ek is never a verification key, so the event cannot authenticate.
+    recipes["entity-key-rotation-with-private-new-key-is-ignored"] = single("entity-rotation-private-new-key", structural["private-new-key"])
+    recipes["structurally-invalid-entity-key-rotation-new-signature-kid-mismatch-is-ignored"] = single(
+        "entity-rotation-new-signature-kid-mismatch", structural["new-signature-kid-mismatch"])
     return recipes
 
 

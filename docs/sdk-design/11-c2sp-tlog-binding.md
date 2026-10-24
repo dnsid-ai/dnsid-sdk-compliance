@@ -371,8 +371,16 @@ Parsing and encoding reject the envelope unless:
 - `new_ek_thumb` differs from `prev_ek_thumb`; and
 - `sigs.new_ae.kid` equals the `kid` of `new_ek`.
 
-During a global-log scan, a candidate that fails these checks is malformed and
-is ignored like any other candidate that cannot be authenticated.
+A `new_ek` carrying any private member (`d`, `p`, `q`, `dp`, `dq`, `qi`, or
+`k`) is never used as a verification key, so such a candidate cannot
+authenticate and is skipped during a global-log scan. Otherwise, structural
+validation does not hide an authenticated payload: when `sigs.prev_ae`
+verifies with the active entity key and `sigs.new_ae` verifies with `new_ek`,
+but the envelope fails one of the other checks above (a thumbprint mismatch,
+`new_ek_thumb` equal to `prev_ek_thumb`, or a missing or unsupported `kid`,
+`alg`, or curve), verification fails with an invalid-evidence error, as for any
+structurally parseable authenticated error. A candidate that fails these checks
+and does not authenticate is ignored like any other unauthenticated candidate.
 
 Given the authority state after the event's chain predecessor, with entity key
 E and operational key O, the candidate is authenticated only when
@@ -1477,6 +1485,21 @@ registry-lifetime and normally retained for process lifetime, but it is
 restart-ephemeral. Long-running deployments that require rollback resistance
 across restarts SHOULD inject durable storage and reuse the managed registry
 rather than constructing one per verification.
+
+## Security Considerations
+
+### Superseded-Key Forks
+
+A holder of a superseded key can sign a new payload that names a chain
+predecessor from before the rotation that superseded it. Candidate rule 3
+resolves signer authority from that predecessor's verified post-state, so the
+payload authenticates and conflicts with the applied chain. It is a signed fork
+and fails verification; it is not omitted. For a superseded entity key after an
+`ENTITY_KEY_ROTATION`, or a superseded operational key after a `KEY_ROTATION`,
+such a branch can therefore deny service to the identity, but it can never take
+it over: a fork is never applied, and only the active entity key can authorize
+the next `ENTITY_KEY_ROTATION`. Registries retire superseded keys as they would
+compromised ones, and treat a fork as an incident.
 
 ## Errors
 

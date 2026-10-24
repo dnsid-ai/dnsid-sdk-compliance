@@ -74,10 +74,12 @@ class EntityKeyRotationEvidenceTests(unittest.TestCase):
                 previous = keys.get(entry["sigs"].get("prev_ae", {}).get("kid"))
                 new_key = entry["new_ek"]
                 signatures = entry["sigs"]
-                verified = previous is not None and "d" not in new_key and "kid" in new_key and "alg" in new_key
-                verified = verified and set(signatures) == {"prev_ae", "new_ae"}
-                verified = verified and generator.ed_thumb(new_key) == entry["new_ek_thumb"] != entry["prev_ek_thumb"]
-                verified = verified and signatures["new_ae"]["kid"] == new_key.get("kid")
+                # Authentication is cryptographic: prev_ae by the active key and new_ae by new_ek.
+                # Structural defects do not prevent it; a private new_ek is never a verification key.
+                private = {"d", "p", "q", "dp", "dq", "qi", "k"} & set(new_key)
+                verified = previous is not None and not private and set(signatures) == {"prev_ae", "new_ae"}
+                verified = verified and signatures["prev_ae"]["kid"] == previous["kid"]
+                verified = verified and ("kid" not in new_key or signatures["new_ae"]["kid"] == new_key["kid"])
                 if verified:
                     data = generator.canonical(generator.payload(entry))
                     for role, key in (("prev_ae", previous), ("new_ae", new_key)):

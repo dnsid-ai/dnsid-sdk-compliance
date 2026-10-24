@@ -625,6 +625,11 @@ the new key authorizes `REVOCATION`, `RETIREMENT`, `DELEGATION`, and
 destination `MIGRATION`, authorizes any later `ENTITY_KEY_ROTATION`, and must
 equal the record's current `ek` for the bilateral binding to verify.
 
+A holder of a superseded entity key can still sign a conflicting branch from
+before the rotation. Bindings treat that as a fatal fork, so it can deny
+service but never move the identity to another key; see the C2SP binding's
+[security considerations](11-c2sp-tlog-binding.md#superseded-key-forks).
+
 Writers prepare the event like any other later lifecycle event and report its
 required signatures in order: previous entity, then new entity. Verifiers that
 predate this profile treat the event as unsupported; they keep rejecting a
