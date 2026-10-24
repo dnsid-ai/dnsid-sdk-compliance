@@ -283,6 +283,10 @@ registry-managed KMS custody and served under the governance domain through the
 registry-custodied key material, not a customer-held private key or the registry's
 log key. Registry key replacement and record re-signing, including compromise
 recovery or governance-domain changes, can invalidate relying-party pins. A
+rotated entity key keeps logged identities verifiable only when each affected
+identity's log records an
+[`ENTITY_KEY_ROTATION`](06-log-bindings.md#entity-key-continuity); the rotation
+still changes the pinned key. A
 changed governance ID also requires an explicit allowlist update. The SDK
 provides no automatic pin-update or rotation-notification guarantee.
 

@@ -170,6 +170,14 @@ apply only a verified prefix through `at`; they reject a boundary that would
 skip a future-timestamped event and then include a later log event. Exact error
 text is not normative; `errorCategory` is.
 
+`ENTITY_KEY_ROTATION` reducer cases cover continuity from the active entity key
+(including after a previous entity rotation), rejection of a new key equal to
+the active entity key or the active operational key (including after a
+`KEY_ROTATION`), mismatched or missing new thumbprints, interleaving with
+`KEY_ROTATION`, pre-genesis and post-terminal rejection, and a snapshot showing
+that entity rotation leaves the operational key and `keyBoundAt` unchanged.
+Signatures are binding-owned and are covered by the selection vectors below.
+
 ## C2SP candidate selection
 
 The active selection evidence is
@@ -190,7 +198,40 @@ evidence failures, migration-history failures, or incompleteness that must abort
 fresh complete logged-state verification.
 
 `authenticated` means all required role signatures verify under predecessor
-authority. The old misleading `issuance-resigned` case is now named
+authority. `failureScope: "genesis-anchor"` marks a self-authenticated genesis
+whose history ends with an entity key other than the record `ek`.
+
+A case may name `recordEk`, the disposable entity key the identity's TXT record
+currently carries; the evidence supplies it as `recordEntityJwk`. Without
+`recordEk`, the record carries the ISSUANCE entity key (`entityJwk`). Readers
+that anchor genesis selection on the record `ek` use this key as described in
+[Genesis Selection Anchored on the Record `ek`](../11-c2sp-tlog-binding.md#genesis-selection-anchored-on-the-record-ek).
+For a case with `recordEk`, `valid` covers history selection and the bilateral
+binding against that key. `bilateralBinding` gives the expected
+`initialEntityThumbprint` and `currentEntityThumbprint`; a `valid: false` case
+with `recordEk` and no `errorCategory` expects only that verification fails,
+because the record-key mismatch and the no-valid-events failure have no stable
+category.
+
+The `ENTITY_KEY_ROTATION` cases cover binding a rotated record key and
+rejecting the ISSUANCE key afterwards; chained rotations; wrong-key `prev_ae`
+and invalid or missing `new_ae` (ignored); a previous thumbprint that is not the
+active key and a new key equal to the operational key (`KEY_CONTINUITY`);
+`REVOCATION` by the rotated key (applied) and by the superseded key (ignored);
+interleaved `KEY_ROTATION`; a rotation before or without genesis; a rotation
+after `RETIREMENT` (`TERMINAL_STATE`); and structurally invalid rotations
+(thumbprint mismatch, private `new_ek`, missing `kid` or `alg`, unchanged
+thumbprint, `new_ae` kid mismatch), which are ignored. Spam-genesis cases put a
+self-authenticated ISSUANCE with another entity key ahead of the real one, with
+and without a later rotation, and add a spam rotation to the record key whose
+`new_ae` is not made by that key; none of them is selected.
+
+These vectors are committed before SDK support. Their signed evidence is
+complete, but each adapter must still be extended to send `ENTITY_KEY_ROTATION`
+fields, to use `recordEntityJwk` as the record key, and to report
+`bilateralBinding`. Until then the failing cases carry per-SDK markers in
+`harness/semantic_known_bugs.json` and report XFAIL; a marker is removed when its
+SDK passes. The old misleading `issuance-resigned` case is now named
 `issuance-signed-extension`: its signed `dnsid_test_variant` changes the payload,
 so the fatal second-genesis expectation is unchanged. Separate ES256 cases use
 actual high-S/low-S signature-only copies, including high-S first and replay
@@ -347,7 +388,7 @@ underlying classification. Detailed precedence and fallback rules are owned by
 | `INVALID_ISSUANCE` | Issuance key material is missing, inconsistent with its thumbprints, or does not separate entity and operational roles. |
 | `TERMINAL_STATE` | The shared reducer receives an event after `REVOCATION` or `RETIREMENT`. |
 | `DOMAIN_MISMATCH` | An applied event names a different identity. |
-| `KEY_CONTINUITY` | Rotation does not continue from the active operational key or introduces invalid key material. |
+| `KEY_CONTINUITY` | `KEY_ROTATION` does not continue from the active operational key, `ENTITY_KEY_ROTATION` does not continue from the active entity key, or either introduces invalid key material. |
 | `INVALID_REVOCATION_REASON` | A revocation reason is missing or outside the base vocabulary. |
 | `INVALID_MIGRATION` | Migration references are equal or verified history stitching is unavailable. |
 | `SNAPSHOT_EMPTY` | No verified event exists at or before the requested time. |

@@ -34,6 +34,11 @@ specifications are public at [c2sp.org](https://c2sp.org). The SDK design below
 defines how those protocol requirements are exposed safely and consistently
 across language bindings.
 
+`ENTITY_KEY_ROTATION` is defined by the
+[entity-key continuity profile](06-log-bindings.md#entity-key-continuity) in
+addition to the pinned method revision. Its version 1 envelope mapping is
+specified below under [Entity-Key Rotation](#entity-key-rotation).
+
 ## Responsibilities
 
 The binding answers:
@@ -165,8 +170,9 @@ Every version 1 envelope contains:
 | `sigs` | Top-level lifecycle-signature object; required on a complete entry. |
 
 The binding maps event-specific lifecycle fields according to the DNSid method
-specification. Version 1 supports `ISSUANCE`, `KEY_ROTATION`, `REVOCATION`,
-`RETIREMENT`, `MIGRATION`, and `DELEGATION`. An unsupported event type fails
+specification. Version 1 supports `ISSUANCE`, `KEY_ROTATION`,
+`ENTITY_KEY_ROTATION`, `REVOCATION`, `RETIREMENT`, `MIGRATION`, and
+`DELEGATION`. An unsupported event type fails
 preparation and direct parsing. During a global-log scan, an unrelated,
 unsupported, malformed, cross-context, or signature-invalid candidate is
 ignored when it cannot be authenticated and bound to the selected FQDN's
@@ -242,9 +248,10 @@ names and uppercase status values:
 ```
 
 ISSUANCE initializes `ACTIVE` state. Verified inbound MIGRATION imports the
-previous history's FQDN, governance identity, entity key, active operational
-key, and `ACTIVE` state before computing the destination genesis state.
-KEY_ROTATION replaces `operational_thumb`. REVOCATION and RETIREMENT replace
+previous history's FQDN, governance identity, entity key current at the end of
+that history, active operational key, and `ACTIVE` state before computing the
+destination genesis state. KEY_ROTATION replaces `operational_thumb`.
+ENTITY_KEY_ROTATION replaces `entity_thumb`. REVOCATION and RETIREMENT replace
 `status` with `REVOKED` and `RETIRED`, respectively. DELEGATION leaves this
 state unchanged. An outbound MIGRATION is not valid in a C2SP stream; migration
 out is represented only by the destination method's inbound event. SDKs MUST
@@ -279,6 +286,7 @@ Adding or replacing a signature MUST NOT change those signed bytes.
 |---|---|---|
 | `ISSUANCE` | `sigs.ae`, `sigs.op` | `Entity`, `OperationalCountersignature` |
 | `KEY_ROTATION` | `sigs.prev_op`, `sigs.new_op` | `PreviousOperational`, binding-owned `NewOperational` |
+| `ENTITY_KEY_ROTATION` | `sigs.prev_ae`, `sigs.new_ae` | `PreviousEntity`, `NewEntity` |
 | `REVOCATION` | `sigs.ae` | `Entity` |
 | `RETIREMENT` | `sigs.ae` | `Entity` |
 | `MIGRATION` | `sigs.ae` | `Entity` |
@@ -290,12 +298,19 @@ ENUM C2spSignerRole
   OperationalCountersignature
   PreviousOperational
   NewOperational
+  PreviousEntity
+  NewEntity
 END
 ```
 
-The first three roles reuse their shared DNSid meanings. `NewOperational` is
-owned by this binding and is used only for the new-key proof of possession on
-`KEY_ROTATION`.
+`Entity`, `OperationalCountersignature`, `PreviousOperational`,
+`PreviousEntity`, and `NewEntity` reuse their shared DNSid meanings.
+`NewOperational` is owned by this binding and is used only for the new-key
+proof of possession on `KEY_ROTATION`. `Entity` on `REVOCATION`, `RETIREMENT`,
+and `DELEGATION` selects the entity key current at the event's chain
+predecessor: the ISSUANCE or imported entity key, or the key installed by the
+latest preceding `ENTITY_KEY_ROTATION`. On inbound `MIGRATION` it selects the
+entity key current at the end of the verified previous history.
 
 `sigs.prev_op` is the base DNSid rotation authorization. `sigs.new_op` is an
 additional C2SP-binding proof of possession and MUST NOT replace or weaken the
@@ -320,6 +335,85 @@ Before signing or verification, the binding validates that:
 DNSid lifecycle signatures are distinct from C2SP checkpoint signatures and
 witness cosignatures. Log-infrastructure signatures remain outside the DNSid
 event envelope.
+
+## Entity-Key Rotation
+
+`ENTITY_KEY_ROTATION` moves an active identity to a new accountable-entity
+record-signing key, mirroring `KEY_ROTATION` for operational keys. Registries
+that custody entity keys use it to rotate them without breaking verification
+of the identities those keys sign.
+
+In addition to the common envelope fields (`v`, `kind`, `type`, `fqdn`, `ts`),
+the signed context fields, and the later-event chain fields `seq`,
+`prev_event_id`, and `prev_state_hash`, exactly as for `KEY_ROTATION`, the
+envelope contains:
+
+| Wire field | Shared `LogEvent` field | Meaning |
+|---|---|---|
+| `prev_ek_thumb` | `previousEntityThumbprint` | RFC 7638 thumbprint of the entity key current at the chain predecessor. |
+| `new_ek_thumb` | `newEntityThumbprint` | RFC 7638 thumbprint of the new entity key. |
+| `new_ek` | `newEntityPublicKey` | New entity public JWK. |
+
+Both signatures cover the same signed bytes as every other event:
+
+| Wire key | Shared `LogEvent` fields | Signed by |
+|---|---|---|
+| `sigs.prev_ae` | `previousEntityKid`, `sig` | The previous entity key (authorization). |
+| `sigs.new_ae` | `newEntityKid`, `newEntitySignature` | The new entity key (proof of possession). |
+
+Parsing and encoding reject the envelope unless:
+
+- `prev_ek_thumb`, `new_ek_thumb`, and `new_ek` are all present;
+- `new_ek` passes the same signing-JWK validation as `ek` and `new_ku`: a public
+  key only, `use` absent or `sig`, a non-empty `kid`, a supported `alg`, and a
+  supported key type and curve (EdDSA/Ed25519 or ES256/P-256);
+- the thumbprint of `new_ek` equals `new_ek_thumb`;
+- `new_ek_thumb` differs from `prev_ek_thumb`; and
+- `sigs.new_ae.kid` equals the `kid` of `new_ek`.
+
+During a global-log scan, a candidate that fails these checks is malformed and
+is ignored like any other candidate that cannot be authenticated.
+
+Given the authority state after the event's chain predecessor, with entity key
+E and operational key O, the candidate is authenticated only when
+`sigs.prev_ae.kid` equals the `kid` of E, `sigs.prev_ae.sig` verifies with E,
+and `sigs.new_ae.sig` verifies with `new_ek`. An unauthenticated candidate,
+including one with a missing, wrong-key, or invalid `prev_ae` or `new_ae`, is
+skipped, never an error.
+
+An authenticated `ENTITY_KEY_ROTATION` then follows the ordinary chain and
+lifecycle rules:
+
+- It is never a stream genesis. Before ISSUANCE or inbound MIGRATION has
+  started the stream it is skipped, as `KEY_ROTATION` is.
+- After REVOCATION or RETIREMENT it fails with the same terminal-state error as
+  every other authenticated post-terminal event.
+- `prev_ek_thumb` must equal the thumbprint of E; otherwise it fails with a key
+  continuity error ("authenticated ENTITY_KEY_ROTATION does not continue from
+  the active entity key").
+- `new_ek_thumb` must differ from the thumbprints of E and O; otherwise it fails
+  with a key continuity error ("authenticated ENTITY_KEY_ROTATION new key
+  binding is invalid").
+- E becomes `new_ek`. The computed state becomes
+  `{fqdn, status: "ACTIVE", entity_thumb: thumbprint(new_ek), operational_thumb: thumbprint(O)}`,
+  and the chain sequence advances as for any event.
+
+`KEY_ROTATION` keeps its rule that the new operational thumbprint may not equal
+the current entity thumbprint; after an `ENTITY_KEY_ROTATION` that is the
+rotated entity key. The bilateral binding still checks the ISSUANCE `fqdn` and
+`gi`, but requires the record `ek` key to equal the entity key current at the
+end of the verified history, and reports both `initialEntityThumbprint` and
+`currentEntityThumbprint` (see
+[`06-log-bindings.md`](06-log-bindings.md#logreader-interface)). Otherwise it
+fails with "c2sp-tlog current entity key does not match record ek for
+<fqdn>".
+
+Writers prepare `ENTITY_KEY_ROTATION` like any later event, with an
+authoritative predecessor reservation, and report its required signatures as
+`PreviousEntity` then `NewEntity`. The previous-entity process and the
+new-entity process may be separate; neither needs the other's private key.
+Verifiers that predate this event treat it as unsupported and keep rejecting a
+rotated identity with the existing ISSUANCE entity-key mismatch.
 
 ## Prepared Event Model
 
@@ -637,10 +731,11 @@ To rebuild an inbound migration, the binding:
    cycle detection and configured recursion, history-size, and response-size
    limits;
 4. requires the imported logged state to be `ACTIVE`;
-5. verifies the MIGRATION accountable-entity signature with the historical
-   entity key established by the imported history;
-6. imports the FQDN, governance identity, entity public key, active operational
-   public key, and thumbprints; and
+5. verifies the MIGRATION accountable-entity signature with the entity key
+   current at the end of the imported history, including any
+   `ENTITY_KEY_ROTATION` in it;
+6. imports the FQDN, governance identity, that current entity public key, active
+   operational public key, and thumbprints; and
 7. returns one stitched history containing the previous history, the MIGRATION
    event exactly once, then later verified destination events.
 
@@ -984,6 +1079,48 @@ reducer, it applies the method's candidate rules:
    predecessor, sequence, and state hash and satisfy timestamp and lifecycle
    rules. Signed forks, distinct duplicate genesis, and new post-terminal
    transitions are fatal, not omitted to recover earlier ACTIVE state.
+
+### Genesis Selection Anchored on the Record `ek`
+
+A reader MAY use the authenticated record's `ek` key to discard
+self-authenticated spam genesis candidates. Such a reader MUST NOT compare `ek`
+with each genesis candidate's own entity key, because after an
+`ENTITY_KEY_ROTATION` the record carries a later key. It applies this rule
+instead:
+
+1. Take the authenticated genesis candidates in log order: ISSUANCE, and
+   inbound MIGRATION whose prior history verifies.
+2. Replay each candidate's history: the candidate and the later candidates
+   that chain from it under the rules above.
+3. A candidate whose replay ends with an entity key other than the record `ek`
+   is noise, exactly as a mismatched genesis entity key is when no rotation
+   exists. Its successors cannot be applied.
+4. The remaining genesis candidates continue through the rules above, so the
+   first starts the stream and a later distinct one is a duplicate genesis.
+5. If no candidate remains, verification fails with the "no valid lifecycle
+   events" failure, or, where a single authenticated genesis exists, with the
+   current-entity-key mismatch described under
+   [Entity-Key Rotation](#entity-key-rotation).
+
+Without `ENTITY_KEY_ROTATION`, this selects exactly the candidates that a
+genesis entity-key comparison selects. It is safe because a spam genesis can
+end at the record key only through an `ENTITY_KEY_ROTATION` carrying a valid
+`new_ae` signature by that key over chain-bound bytes, which requires that
+key's private key.
+
+The same rule applies to inbound MIGRATION. Before fetching more evidence, the
+reader requires the MIGRATION to be authorized by the end-of-history entity key
+of its verified prior history, and prior-log recursion compares that prior
+history's end-of-history entity key with the key that signs the MIGRATION
+`sigs.ae`, not with the prior ISSUANCE `ek`. Prior-log fetches stay inside the
+existing migration and scan budgets. Stream-bundle verification that takes an
+entity key as its signer key uses the same rule.
+
+A reader that does not anchor selection on `ek` verifies the bilateral binding
+after rebuilding the history. Both reach the same verdict for every stream
+without competing authenticated genesis candidates. The shared
+[selection vectors](conformance/README.md#c2sp-candidate-selection) encode
+anchored selection.
 
 Retain applied IDs, signed bytes, and post-states within configured history
 limits. All copies consume input/scan limits even when deduplicated. A successor
@@ -1426,6 +1563,10 @@ Each SDK implementation provides tests for:
 - split ISSUANCE across independent accountable-entity and operational
   providers;
 - KEY_ROTATION with both `prev_op` and `new_op`;
+- ENTITY_KEY_ROTATION with both `prev_ae` and `new_ae`, its structural,
+  authorization, and continuity failures, interleaving with KEY_ROTATION, and
+  REVOCATION, RETIREMENT, DELEGATION, MIGRATION, and the bilateral binding
+  under the rotated entity key;
 - exact-byte idempotent append and crash recovery;
 - checkpoint, inclusion proof, consistency, witness quorum, and policy failures;
 - complete versus incomplete stream behavior;

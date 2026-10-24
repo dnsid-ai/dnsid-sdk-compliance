@@ -10,6 +10,28 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CONFORMANCE_DIR = ROOT / "docs" / "sdk-design" / "conformance"
 EVIDENCE = ROOT / "fixtures" / "c2sp-lifecycle-selection-logical-v1.json"
+# Per-SDK XFAIL markers for lifecycle and selection vectors; kept out of the
+# language-neutral conformance JSON so SDK status never changes its hashes.
+KNOWN_BUGS = Path(__file__).resolve().parent / "semantic_known_bugs.json"
+
+
+def load_known_bugs(case_ids: set[str], path: Path = KNOWN_BUGS) -> dict[str, dict]:
+    """Return {case_id: {sdk: {"known_bug": reason}}}; unknown or repeated IDs fail."""
+    markers: dict[str, dict] = {}
+    for sdk, groups in json.loads(path.read_text()).items():
+        if sdk not in {"go", "ts", "py"}:
+            raise ValueError(f"unknown SDK in {path.name}: {sdk}")
+        for group in groups:
+            reason = group["reason"]
+            if not isinstance(reason, str) or not reason.strip():
+                raise ValueError(f"{path.name}: {sdk} marker needs a reason")
+            for case_id in group["cases"]:
+                if case_id not in case_ids:
+                    raise ValueError(f"{path.name}: unknown case {case_id}")
+                if sdk in markers.setdefault(case_id, {}):
+                    raise ValueError(f"{path.name}: repeated {sdk} marker for {case_id}")
+                markers[case_id][sdk] = {"known_bug": reason}
+    return markers
 
 
 def load_semantic_suites() -> list[dict]:
@@ -27,6 +49,9 @@ def load_semantic_suites() -> list[dict]:
     expected_ids = {case["id"] for case in selection["cases"]}
     if evidence.keys() != expected_ids:
         raise ValueError("C2SP selection evidence does not match the semantic cases")
+    known_bugs = load_known_bugs(
+        {case["id"] for case in lifecycle["cases"]} | expected_ids
+    )
     lifecycle_cases = [
         {
             "id": case["id"],
@@ -42,6 +67,7 @@ def load_semantic_suites() -> list[dict]:
                 ],
             },
             "expect": _expect(case["expected"]),
+            "sdk": known_bugs.get(case["id"], {}),
         }
         for case in lifecycle["cases"]
     ]
@@ -93,6 +119,7 @@ def load_semantic_suites() -> list[dict]:
                     "op": "c2sp_lifecycle_vector",
                     "input": evidence[case["id"]],
                     "expect": _expect(case["expected"]),
+                    "sdk": known_bugs.get(case["id"], {}),
                 }
                 for case in selection["cases"]
             ],

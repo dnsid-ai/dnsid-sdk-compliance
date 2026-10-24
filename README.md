@@ -66,7 +66,11 @@ another checked-in fixture format:
 - `docs/sdk-design/conformance/c2sp-managed-trust-selection.json`
 
 Its adapters construct the SDK-native lifecycle events and C2SP evidence needed
-to execute those shared semantic expectations.
+to execute those shared semantic expectations. Per-SDK `known_bug` markers for
+the lifecycle and selection vectors live in `harness/semantic_known_bugs.json`,
+outside the language-neutral JSON, so SDK status never changes the semantic
+source hash. Each marker names an existing case and must be removed when the
+SDK passes it.
 
 ## How it works
 

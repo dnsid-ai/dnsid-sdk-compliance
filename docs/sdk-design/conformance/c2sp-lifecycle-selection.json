@@ -23,7 +23,29 @@
     "revocation-small-exponent-number": {"effectId": "revocation-small-exponent-number", "type": "REVOCATION", "domain": "agent.example", "valid": true},
     "revocation-large-exponent-number": {"effectId": "revocation-large-exponent-number", "type": "REVOCATION", "domain": "agent.example", "valid": true},
     "bad-signature-migration": {"effectId": "migration-bad-signature", "type": "MIGRATION", "domain": "agent.example", "valid": false, "authenticated": false, "failureScope": "candidate-signature", "direction": "inbound"},
-    "shared-kid-issuance": {"effectId": "issuance-shared-kid", "type": "ISSUANCE", "domain": "agent.example", "valid": true}
+    "shared-kid-issuance": {"effectId": "issuance-shared-kid", "type": "ISSUANCE", "domain": "agent.example", "valid": true},
+    "entity-rotation": {"effectId": "entity-rotation-1", "type": "ENTITY_KEY_ROTATION", "domain": "agent.example", "valid": true},
+    "entity-rotation-second": {"effectId": "entity-rotation-2", "type": "ENTITY_KEY_ROTATION", "domain": "agent.example", "valid": true},
+    "entity-rotation-wrong-previous-signer": {"effectId": "entity-rotation-wrong-previous-signer", "type": "ENTITY_KEY_ROTATION", "domain": "agent.example", "valid": false, "authenticated": false, "failureScope": "candidate-signature"},
+    "entity-rotation-invalid-new-signature": {"effectId": "entity-rotation-invalid-new-signature", "type": "ENTITY_KEY_ROTATION", "domain": "agent.example", "valid": false, "authenticated": false, "failureScope": "candidate-signature"},
+    "entity-rotation-missing-new-signature": {"effectId": "entity-rotation-missing-new-signature", "type": "ENTITY_KEY_ROTATION", "domain": "agent.example", "valid": false, "authenticated": false, "failureScope": "candidate-signature"},
+    "entity-rotation-inactive-previous-key": {"effectId": "entity-rotation-inactive-previous-key", "type": "ENTITY_KEY_ROTATION", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "authenticated-transition"},
+    "entity-rotation-to-operational-key": {"effectId": "entity-rotation-to-operational-key", "type": "ENTITY_KEY_ROTATION", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "authenticated-transition"},
+    "entity-rotation-after-retirement": {"effectId": "entity-rotation-after-retirement", "type": "ENTITY_KEY_ROTATION", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "authenticated-transition"},
+    "entity-rotation-thumbprint-mismatch": {"effectId": "entity-rotation-thumbprint-mismatch", "type": "ENTITY_KEY_ROTATION", "domain": "agent.example", "valid": false, "authenticated": false, "failureScope": "candidate-encoding"},
+    "entity-rotation-private-new-key": {"effectId": "entity-rotation-private-new-key", "type": "ENTITY_KEY_ROTATION", "domain": "agent.example", "valid": false, "authenticated": false, "failureScope": "candidate-encoding"},
+    "entity-rotation-new-key-without-kid": {"effectId": "entity-rotation-new-key-without-kid", "type": "ENTITY_KEY_ROTATION", "domain": "agent.example", "valid": false, "authenticated": false, "failureScope": "candidate-encoding"},
+    "entity-rotation-new-key-without-alg": {"effectId": "entity-rotation-new-key-without-alg", "type": "ENTITY_KEY_ROTATION", "domain": "agent.example", "valid": false, "authenticated": false, "failureScope": "candidate-encoding"},
+    "entity-rotation-unchanged-thumbprint": {"effectId": "entity-rotation-unchanged-thumbprint", "type": "ENTITY_KEY_ROTATION", "domain": "agent.example", "valid": false, "authenticated": false, "failureScope": "candidate-encoding"},
+    "entity-rotation-new-signature-kid-mismatch": {"effectId": "entity-rotation-new-signature-kid-mismatch", "type": "ENTITY_KEY_ROTATION", "domain": "agent.example", "valid": false, "authenticated": false, "failureScope": "candidate-encoding"},
+    "rotation-before-entity-rotation": {"effectId": "rotation-before-entity-rotation", "type": "KEY_ROTATION", "domain": "agent.example", "valid": true},
+    "entity-rotation-after-operational-rotation": {"effectId": "entity-rotation-after-operational-rotation", "type": "ENTITY_KEY_ROTATION", "domain": "agent.example", "valid": true},
+    "rotation-after-entity-rotation": {"effectId": "rotation-after-entity-rotation", "type": "KEY_ROTATION", "domain": "agent.example", "valid": true},
+    "revocation-by-rotated-entity-key": {"effectId": "revocation-rotated-entity-key", "type": "REVOCATION", "domain": "agent.example", "valid": true},
+    "revocation-by-superseded-entity-key": {"effectId": "revocation-superseded-entity-key", "type": "REVOCATION", "domain": "agent.example", "valid": false, "authenticated": false, "failureScope": "candidate-signature"},
+    "retirement": {"effectId": "retirement-1", "type": "RETIREMENT", "domain": "agent.example", "valid": true},
+    "spam-issuance": {"effectId": "spam-issuance", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "genesis-anchor"},
+    "spam-entity-rotation-to-record-key": {"effectId": "spam-entity-rotation", "type": "ENTITY_KEY_ROTATION", "domain": "agent.example", "valid": false, "authenticated": false, "failureScope": "candidate-signature"}
   },
   "cases": [
     {
@@ -162,6 +184,153 @@
       "id": "shared-kid-label-does-not-select-keys",
       "candidates": ["shared-kid-issuance"],
       "expected": {"valid": true, "appliedEffectIds": ["issuance-shared-kid"], "ignoredCandidateIndexes": []}
+    },
+    {
+      "id": "entity-key-rotation-binds-record-to-new-key",
+      "candidates": ["issuance", "entity-rotation"],
+      "recordEk": "entity-2",
+      "expected": {"valid": true, "appliedEffectIds": ["issuance-1", "entity-rotation-1"], "ignoredCandidateIndexes": [], "bilateralBinding": {"initialEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4", "currentEntityThumbprint": "r4thRn8KdhhgGDrzOwmSwySqMcXeIdd9SG333J-ZNtU"}}
+    },
+    {
+      "id": "entity-key-rotation-rejects-record-with-issuance-key",
+      "candidates": ["issuance", "entity-rotation"],
+      "recordEk": "entity-1",
+      "expected": {"valid": false}
+    },
+    {
+      "id": "chained-entity-key-rotations-bind-latest-key",
+      "candidates": ["issuance", "entity-rotation", "entity-rotation-second"],
+      "recordEk": "entity-3",
+      "expected": {"valid": true, "appliedEffectIds": ["issuance-1", "entity-rotation-1", "entity-rotation-2"], "ignoredCandidateIndexes": [], "bilateralBinding": {"initialEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4", "currentEntityThumbprint": "8TlG3IhiRH5sWhsIGSSRnAqf9zyhEl1ir4t4cbTRCk0"}}
+    },
+    {
+      "id": "entity-key-rotation-by-wrong-previous-signer-is-ignored",
+      "candidates": ["issuance", "entity-rotation-wrong-previous-signer"],
+      "recordEk": "entity-1",
+      "expected": {"valid": true, "appliedEffectIds": ["issuance-1"], "ignoredCandidateIndexes": [1], "bilateralBinding": {"initialEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4", "currentEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4"}}
+    },
+    {
+      "id": "ignored-entity-key-rotation-does-not-bind-new-key",
+      "candidates": ["issuance", "entity-rotation-wrong-previous-signer"],
+      "recordEk": "entity-2",
+      "expected": {"valid": false}
+    },
+    {
+      "id": "entity-key-rotation-with-invalid-new-signature-is-ignored",
+      "candidates": ["issuance", "entity-rotation-invalid-new-signature"],
+      "recordEk": "entity-1",
+      "expected": {"valid": true, "appliedEffectIds": ["issuance-1"], "ignoredCandidateIndexes": [1], "bilateralBinding": {"initialEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4", "currentEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4"}}
+    },
+    {
+      "id": "entity-key-rotation-without-new-signature-is-ignored",
+      "candidates": ["issuance", "entity-rotation-missing-new-signature"],
+      "recordEk": "entity-1",
+      "expected": {"valid": true, "appliedEffectIds": ["issuance-1"], "ignoredCandidateIndexes": [1], "bilateralBinding": {"initialEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4", "currentEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4"}}
+    },
+    {
+      "id": "entity-key-rotation-from-inactive-key-is-fatal",
+      "candidates": ["issuance", "entity-rotation-inactive-previous-key"],
+      "expected": {"valid": false, "failingCandidateIndex": 1, "errorCategory": "KEY_CONTINUITY"}
+    },
+    {
+      "id": "entity-key-rotation-to-operational-key-is-fatal",
+      "candidates": ["issuance", "entity-rotation-to-operational-key"],
+      "expected": {"valid": false, "failingCandidateIndex": 1, "errorCategory": "KEY_CONTINUITY"}
+    },
+    {
+      "id": "revocation-by-rotated-entity-key-is-applied",
+      "candidates": ["issuance", "entity-rotation", "revocation-by-rotated-entity-key"],
+      "recordEk": "entity-2",
+      "expected": {"valid": true, "appliedEffectIds": ["issuance-1", "entity-rotation-1", "revocation-rotated-entity-key"], "ignoredCandidateIndexes": [], "identityState": "REVOKED"}
+    },
+    {
+      "id": "revocation-by-superseded-entity-key-is-ignored",
+      "candidates": ["issuance", "entity-rotation", "revocation-by-superseded-entity-key"],
+      "recordEk": "entity-2",
+      "expected": {"valid": true, "appliedEffectIds": ["issuance-1", "entity-rotation-1"], "ignoredCandidateIndexes": [2], "bilateralBinding": {"initialEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4", "currentEntityThumbprint": "r4thRn8KdhhgGDrzOwmSwySqMcXeIdd9SG333J-ZNtU"}}
+    },
+    {
+      "id": "operational-and-entity-key-rotations-interleave",
+      "candidates": ["issuance", "rotation-before-entity-rotation", "entity-rotation-after-operational-rotation", "rotation-after-entity-rotation"],
+      "recordEk": "entity-2",
+      "expected": {"valid": true, "appliedEffectIds": ["issuance-1", "rotation-before-entity-rotation", "entity-rotation-after-operational-rotation", "rotation-after-entity-rotation"], "ignoredCandidateIndexes": [], "bilateralBinding": {"initialEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4", "currentEntityThumbprint": "r4thRn8KdhhgGDrzOwmSwySqMcXeIdd9SG333J-ZNtU"}}
+    },
+    {
+      "id": "entity-key-rotation-before-genesis-is-ignored",
+      "candidates": ["entity-rotation", "issuance"],
+      "recordEk": "entity-1",
+      "expected": {"valid": true, "appliedEffectIds": ["issuance-1"], "ignoredCandidateIndexes": [0], "bilateralBinding": {"initialEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4", "currentEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4"}}
+    },
+    {
+      "id": "entity-key-rotation-without-genesis-has-no-valid-events",
+      "candidates": ["entity-rotation"],
+      "recordEk": "entity-2",
+      "expected": {"valid": false}
+    },
+    {
+      "id": "entity-key-rotation-after-retirement-is-fatal",
+      "candidates": ["issuance", "retirement", "entity-rotation-after-retirement"],
+      "expected": {"valid": false, "failingCandidateIndex": 2, "errorCategory": "TERMINAL_STATE"}
+    },
+    {
+      "id": "structurally-invalid-entity-key-rotation-thumbprint-mismatch-is-ignored",
+      "candidates": ["issuance", "entity-rotation-thumbprint-mismatch"],
+      "recordEk": "entity-1",
+      "expected": {"valid": true, "appliedEffectIds": ["issuance-1"], "ignoredCandidateIndexes": [1], "bilateralBinding": {"initialEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4", "currentEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4"}}
+    },
+    {
+      "id": "structurally-invalid-entity-key-rotation-private-new-key-is-ignored",
+      "candidates": ["issuance", "entity-rotation-private-new-key"],
+      "recordEk": "entity-1",
+      "expected": {"valid": true, "appliedEffectIds": ["issuance-1"], "ignoredCandidateIndexes": [1], "bilateralBinding": {"initialEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4", "currentEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4"}}
+    },
+    {
+      "id": "structurally-invalid-entity-key-rotation-new-key-without-kid-is-ignored",
+      "candidates": ["issuance", "entity-rotation-new-key-without-kid"],
+      "recordEk": "entity-1",
+      "expected": {"valid": true, "appliedEffectIds": ["issuance-1"], "ignoredCandidateIndexes": [1], "bilateralBinding": {"initialEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4", "currentEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4"}}
+    },
+    {
+      "id": "structurally-invalid-entity-key-rotation-new-key-without-alg-is-ignored",
+      "candidates": ["issuance", "entity-rotation-new-key-without-alg"],
+      "recordEk": "entity-1",
+      "expected": {"valid": true, "appliedEffectIds": ["issuance-1"], "ignoredCandidateIndexes": [1], "bilateralBinding": {"initialEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4", "currentEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4"}}
+    },
+    {
+      "id": "structurally-invalid-entity-key-rotation-unchanged-thumbprint-is-ignored",
+      "candidates": ["issuance", "entity-rotation-unchanged-thumbprint"],
+      "recordEk": "entity-1",
+      "expected": {"valid": true, "appliedEffectIds": ["issuance-1"], "ignoredCandidateIndexes": [1], "bilateralBinding": {"initialEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4", "currentEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4"}}
+    },
+    {
+      "id": "structurally-invalid-entity-key-rotation-new-signature-kid-mismatch-is-ignored",
+      "candidates": ["issuance", "entity-rotation-new-signature-kid-mismatch"],
+      "recordEk": "entity-1",
+      "expected": {"valid": true, "appliedEffectIds": ["issuance-1"], "ignoredCandidateIndexes": [1], "bilateralBinding": {"initialEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4", "currentEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4"}}
+    },
+    {
+      "id": "spam-genesis-with-other-entity-key-is-ignored",
+      "candidates": ["spam-issuance", "issuance"],
+      "recordEk": "entity-1",
+      "expected": {"valid": true, "appliedEffectIds": ["issuance-1"], "ignoredCandidateIndexes": [0], "bilateralBinding": {"initialEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4", "currentEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4"}}
+    },
+    {
+      "id": "spam-genesis-before-rotated-history-is-ignored",
+      "candidates": ["spam-issuance", "issuance", "entity-rotation"],
+      "recordEk": "entity-2",
+      "expected": {"valid": true, "appliedEffectIds": ["issuance-1", "entity-rotation-1"], "ignoredCandidateIndexes": [0], "bilateralBinding": {"initialEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4", "currentEntityThumbprint": "r4thRn8KdhhgGDrzOwmSwySqMcXeIdd9SG333J-ZNtU"}}
+    },
+    {
+      "id": "spam-genesis-cannot-rotate-to-record-key-without-new-signature",
+      "candidates": ["spam-issuance", "spam-entity-rotation-to-record-key", "issuance", "entity-rotation"],
+      "recordEk": "entity-2",
+      "expected": {"valid": true, "appliedEffectIds": ["issuance-1", "entity-rotation-1"], "ignoredCandidateIndexes": [0, 1], "bilateralBinding": {"initialEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4", "currentEntityThumbprint": "r4thRn8KdhhgGDrzOwmSwySqMcXeIdd9SG333J-ZNtU"}}
+    },
+    {
+      "id": "spam-genesis-alone-cannot-rotate-to-record-key",
+      "candidates": ["spam-issuance", "spam-entity-rotation-to-record-key"],
+      "recordEk": "entity-2",
+      "expected": {"valid": false}
     }
   ]
 }

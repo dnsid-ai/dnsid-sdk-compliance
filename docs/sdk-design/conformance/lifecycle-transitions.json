@@ -165,6 +165,78 @@
       "type": "FUTURE_EVENT",
       "domain": "agent.example",
       "timestamp": "2026-01-02T12:00:00Z"
+    },
+    "entity-rotation-e1-e2": {
+      "type": "ENTITY_KEY_ROTATION",
+      "domain": "agent.example",
+      "previousEntityThumbprint": "entity-1",
+      "newEntityPublicKey": "jwk:entity-2",
+      "newEntityThumbprint": "entity-2",
+      "timestamp": "2026-01-02T06:00:00Z"
+    },
+    "entity-rotation-e2-e3": {
+      "type": "ENTITY_KEY_ROTATION",
+      "domain": "agent.example",
+      "previousEntityThumbprint": "entity-2",
+      "newEntityPublicKey": "jwk:entity-3",
+      "newEntityThumbprint": "entity-3",
+      "timestamp": "2026-01-02T18:00:00Z"
+    },
+    "entity-rotation-stale-e1-e3": {
+      "type": "ENTITY_KEY_ROTATION",
+      "domain": "agent.example",
+      "previousEntityThumbprint": "entity-1",
+      "newEntityPublicKey": "jwk:entity-3",
+      "newEntityThumbprint": "entity-3",
+      "timestamp": "2026-01-02T18:00:00Z"
+    },
+    "entity-rotation-e1-e1": {
+      "type": "ENTITY_KEY_ROTATION",
+      "domain": "agent.example",
+      "previousEntityThumbprint": "entity-1",
+      "newEntityPublicKey": "jwk:entity-1",
+      "newEntityThumbprint": "entity-1",
+      "timestamp": "2026-01-02T06:00:00Z"
+    },
+    "entity-rotation-e1-op1": {
+      "type": "ENTITY_KEY_ROTATION",
+      "domain": "agent.example",
+      "previousEntityThumbprint": "entity-1",
+      "newEntityPublicKey": "jwk:op-1",
+      "newEntityThumbprint": "op-1",
+      "timestamp": "2026-01-02T06:00:00Z"
+    },
+    "entity-rotation-e1-op2": {
+      "type": "ENTITY_KEY_ROTATION",
+      "domain": "agent.example",
+      "previousEntityThumbprint": "entity-1",
+      "newEntityPublicKey": "jwk:op-2",
+      "newEntityThumbprint": "op-2",
+      "timestamp": "2026-01-02T06:00:00Z"
+    },
+    "entity-rotation-e1-e2-wrong-thumbprint": {
+      "type": "ENTITY_KEY_ROTATION",
+      "domain": "agent.example",
+      "previousEntityThumbprint": "entity-1",
+      "newEntityPublicKey": "jwk:entity-2",
+      "newEntityThumbprint": "entity-9",
+      "timestamp": "2026-01-02T06:00:00Z"
+    },
+    "entity-rotation-e1-e2-missing-thumbprint": {
+      "type": "ENTITY_KEY_ROTATION",
+      "domain": "agent.example",
+      "previousEntityThumbprint": "entity-1",
+      "newEntityPublicKey": "jwk:entity-2",
+      "newEntityThumbprint": "",
+      "timestamp": "2026-01-02T06:00:00Z"
+    },
+    "entity-rotation-e1-e2-after-retirement": {
+      "type": "ENTITY_KEY_ROTATION",
+      "domain": "agent.example",
+      "previousEntityThumbprint": "entity-1",
+      "newEntityPublicKey": "jwk:entity-2",
+      "newEntityThumbprint": "entity-2",
+      "timestamp": "2026-01-03T06:00:00Z"
     }
   },
   "cases": [
@@ -354,6 +426,85 @@
       "events": ["issuance-primary", "rotation-op1-op2", "revocation"],
       "at": "2026-01-03T00:00:00Z",
       "expected": {"valid": true, "identityState": "REVOKED", "activeOperationalThumbprint": "op-2", "eventCount": 3}
+    },
+    {
+      "id": "entity-rotation-preserves-active-and-operational-key",
+      "operation": "reduce",
+      "events": ["issuance-primary", "entity-rotation-e1-e2"],
+      "expected": {"valid": true, "identityState": "ACTIVE", "activeOperationalThumbprint": "op-1", "governanceId": "example", "keyBoundAt": 1767225600}
+    },
+    {
+      "id": "chained-entity-rotations-continue-from-current-entity-key",
+      "operation": "reduce",
+      "events": ["issuance-primary", "entity-rotation-e1-e2", "entity-rotation-e2-e3"],
+      "expected": {"valid": true, "identityState": "ACTIVE", "activeOperationalThumbprint": "op-1"}
+    },
+    {
+      "id": "stale-previous-entity-key-rejected",
+      "operation": "reduce",
+      "events": ["issuance-primary", "entity-rotation-e1-e2", "entity-rotation-stale-e1-e3"],
+      "expected": {"valid": false, "failingEventIndex": 2, "errorCategory": "KEY_CONTINUITY"}
+    },
+    {
+      "id": "entity-rotation-before-genesis-rejected",
+      "operation": "reduce",
+      "events": ["entity-rotation-e1-e2"],
+      "expected": {"valid": false, "failingEventIndex": 0, "errorCategory": "GENESIS_REQUIRED"}
+    },
+    {
+      "id": "entity-rotation-to-same-key-rejected",
+      "operation": "reduce",
+      "events": ["issuance-primary", "entity-rotation-e1-e1"],
+      "expected": {"valid": false, "failingEventIndex": 1, "errorCategory": "KEY_CONTINUITY"}
+    },
+    {
+      "id": "entity-rotation-to-operational-key-rejected",
+      "operation": "reduce",
+      "events": ["issuance-primary", "entity-rotation-e1-op1"],
+      "expected": {"valid": false, "failingEventIndex": 1, "errorCategory": "KEY_CONTINUITY"}
+    },
+    {
+      "id": "entity-rotation-to-rotated-operational-key-rejected",
+      "operation": "reduce",
+      "events": ["issuance-primary", "rotation-op1-op2", "entity-rotation-e1-op2"],
+      "expected": {"valid": false, "failingEventIndex": 2, "errorCategory": "KEY_CONTINUITY"}
+    },
+    {
+      "id": "entity-rotation-with-mismatched-new-thumbprint-rejected",
+      "operation": "reduce",
+      "events": ["issuance-primary", "entity-rotation-e1-e2-wrong-thumbprint"],
+      "expected": {"valid": false, "failingEventIndex": 1, "errorCategory": "KEY_CONTINUITY"}
+    },
+    {
+      "id": "entity-rotation-without-new-thumbprint-rejected",
+      "operation": "reduce",
+      "events": ["issuance-primary", "entity-rotation-e1-e2-missing-thumbprint"],
+      "expected": {"valid": false, "failingEventIndex": 1, "errorCategory": "KEY_CONTINUITY"}
+    },
+    {
+      "id": "operational-and-entity-rotations-interleave",
+      "operation": "reduce",
+      "events": ["issuance-primary", "rotation-op1-op2", "entity-rotation-e1-e2", "rotation-op2-op3"],
+      "expected": {"valid": true, "identityState": "ACTIVE", "activeOperationalThumbprint": "op-3"}
+    },
+    {
+      "id": "revocation-after-entity-rotation-is-terminal",
+      "operation": "reduce",
+      "events": ["issuance-primary", "entity-rotation-e1-e2", "revocation"],
+      "expected": {"valid": true, "identityState": "REVOKED", "activeOperationalThumbprint": "op-1"}
+    },
+    {
+      "id": "entity-rotation-after-retirement-rejected",
+      "operation": "reduce",
+      "events": ["issuance-primary", "retirement", "entity-rotation-e1-e2-after-retirement"],
+      "expected": {"valid": false, "failingEventIndex": 2, "errorCategory": "TERMINAL_STATE"}
+    },
+    {
+      "id": "snapshot-after-entity-rotation-keeps-operational-key-age",
+      "operation": "snapshot",
+      "events": ["issuance-primary", "entity-rotation-e1-e2", "revocation"],
+      "at": "2026-01-02T12:00:00Z",
+      "expected": {"valid": true, "identityState": "ACTIVE", "activeOperationalThumbprint": "op-1", "eventCount": 2, "governanceId": "example", "keyBoundAt": 1767225600}
     }
   ]
 }

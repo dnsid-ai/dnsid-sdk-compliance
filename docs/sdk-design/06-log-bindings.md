@@ -20,7 +20,8 @@ The log module answers:
 
 The base draft describes a six-state status progression but defines signed core
 log events only for issuance, key rotation, revocation, retirement, migration,
-and delegation. In the current profile, pre-active states are live protocol
+and delegation. The [entity-key continuity profile](#entity-key-continuity)
+adds `ENTITY_KEY_ROTATION`. In the current profile, pre-active states are live protocol
 status and product workflow—not portable signed lifecycle events. SDKs use three
 separate models:
 
@@ -58,6 +59,7 @@ has one internal pre-history state, `UNISSUED`, and three materialized states:
 | `UNISSUED` | any other event | reject | A lifecycle history requires issuance genesis. |
 | `ACTIVE` | `ISSUANCE` | reject | A verified history contains exactly one issuance genesis. |
 | `ACTIVE` | `KEY_ROTATION` | `ACTIVE` | Previous thumbprint equals the active operational key; new key material matches its thumbprint; old and new keys differ. |
+| `ACTIVE` | `ENTITY_KEY_ROTATION` | `ACTIVE` | Previous entity thumbprint equals the active entity key; new key material matches its thumbprint; the new key differs from the active entity and operational keys. |
 | `ACTIVE` | `DELEGATION` | `ACTIVE` | No core identity-state or key-state change. |
 | `ACTIVE` | `MIGRATION` | `ACTIVE` | The binding has verified the previous history, final previous entry, and handoff to a different log reference. |
 | `ACTIVE` | `REVOCATION` | `REVOKED` | A valid reason code is required. |
@@ -113,6 +115,7 @@ FUNCTION DomainLog.SnapshotAt(at: timestamp) -> DomainSnapshot
   state = ""
   activeKey = nil
   activeKeyThumbprint = ""
+  activeEntityThumbprint = ""
   keyBoundAt = ZeroTime
   governanceId = ""
   eventsUpTo = []
@@ -158,6 +161,7 @@ FUNCTION DomainLog.SnapshotAt(at: timestamp) -> DomainSnapshot
         state = "ACTIVE"
         activeKey = event.initialOperationalPublicKey
         activeKeyThumbprint = event.initialOperationalThumbprint
+        activeEntityThumbprint = event.initialEntityThumbprint
         keyBoundAt = event.timestamp
         governanceId = event.governanceId
       CASE "KEY_ROTATION":
@@ -175,6 +179,21 @@ FUNCTION DomainLog.SnapshotAt(at: timestamp) -> DomainSnapshot
         activeKey = event.newOperationalPublicKey
         activeKeyThumbprint = event.newOperationalThumbprint
         keyBoundAt = event.timestamp
+      CASE "ENTITY_KEY_ROTATION":
+        IF state != "ACTIVE" THEN
+          RAISE VerificationError("ENTITY_KEY_ROTATION outside an ACTIVE issuance")
+        END
+        IF event.previousEntityThumbprint != activeEntityThumbprint THEN
+          RAISE VerificationError("ENTITY_KEY_ROTATION does not continue from the active entity key")
+        END
+        IF event.newEntityPublicKey == nil OR
+           Thumbprint(event.newEntityPublicKey) != event.newEntityThumbprint OR
+           event.newEntityThumbprint == activeEntityThumbprint OR
+           event.newEntityThumbprint == activeKeyThumbprint THEN
+          RAISE VerificationError("ENTITY_KEY_ROTATION new key binding is invalid")
+        END
+        activeEntityThumbprint = event.newEntityThumbprint
+        // The operational key, its keyBoundAt, and governanceId are unchanged.
       CASE "REVOCATION":
         IF state != "ACTIVE" THEN
           RAISE VerificationError("REVOCATION outside an ACTIVE issuance")
@@ -235,6 +254,13 @@ supplied by the log binding. If a timestamp boundary would require a non-prefix
 subsequence, or the prefix violates the lifecycle reducer, `SnapshotAt` raises
 instead of returning a snapshot. A replacement identity has a different fresh
 `DomainLog`; snapshots never cross identity histories.
+
+The reducer tracks the active accountable-entity key so that
+`ENTITY_KEY_ROTATION` continuity can be checked. An SDK that exposes
+historical entity-key queries treats an entity key as current from the
+timestamp of the event that installed it (`ISSUANCE`, a stitched `MIGRATION`
+import, or `ENTITY_KEY_ROTATION`) until the next `ENTITY_KEY_ROTATION`.
+`activeKey` and `keyBoundAt` continue to describe only the operational key.
 
 | Field | Type | Description |
 |---|---|---|
@@ -310,8 +336,9 @@ INTERFACE LogReader
   // MUST verify inclusion proof, timestamp proof, append-only consistency, the
   // accountable-entity signature over ISSUANCE, and the operational-key
   // countersignature over the same canonical ISSUANCE content. The event must
-  // match the current record's domain and gi, and its entity public key material
-  // must correspond to the current ek key.
+  // match the current record's domain and gi. The current ek key must equal the
+  // entity key current at the end of the verified history: the ISSUANCE entity
+  // key, or the key installed by the last ENTITY_KEY_ROTATION.
   VerifyBilateralBinding(record: DnsIdTxtRecord, entityKey: JWK, operationalKey: JWK) -> BilateralBinding
 
   // Verifies that currentOperationalThumbprint is either the ISSUANCE operational
@@ -352,7 +379,14 @@ END
 |---|---|
 | `initialOperationalThumbprint` | Operational key thumbprint recorded in ISSUANCE. |
 | `initialEntityThumbprint` | Entity key thumbprint recorded in ISSUANCE. |
+| `currentEntityThumbprint` | Thumbprint of the entity key current at the end of the verified history. Equals `initialEntityThumbprint` when no `ENTITY_KEY_ROTATION` exists. |
 | `timestamp` | ISSUANCE timestamp. |
+
+If the current `ek` key does not equal the entity key current at the end of the
+verified history, `VerifyBilateralBinding` fails (for example, "current entity
+key does not match record ek"). Relying-party key pins are unchanged: they are
+evaluated against the current `ek`, and an `ENTITY_KEY_ROTATION` never adds or
+changes a pin.
 
 `LoggedStateEvidence` prevents a bare non-revocation boolean from discarding
 the proof boundary on which it depends:
@@ -460,9 +494,12 @@ Lifecycle event signer roles are profile-owned. For draft 01, the
 accountable-entity record-signing key discovered through `ek` signs core
 lifecycle events except `KEY_ROTATION`, which is signed by the previous
 operational key discovered through `ku`. `ISSUANCE` is additionally
-countersigned by the initial operational key. Historical event verification uses
-public key material recorded in the lifecycle log, not whatever the live `ek` or
-`ku` endpoints currently serve.
+countersigned by the initial operational key. Under the
+[entity-key continuity profile](#entity-key-continuity), "the accountable-entity
+key" means the entity key current at that point of the verified chain, and
+`ENTITY_KEY_ROTATION` is signed by both the previous and the new entity key.
+Historical event verification uses public key material recorded in the
+lifecycle log, not whatever the live `ek` or `ku` endpoints currently serve.
 
 These base signature requirements are a floor. A log-method binding MAY require
 additional lifecycle signatures, but it MUST NOT omit, replace, or weaken a base
@@ -477,7 +514,7 @@ below. Method-owned verification metadata is intentionally excluded; see
 | Field | Description |
 |-------|-------------|
 | `type` | Event type identifier (`ISSUANCE`, `KEY_ROTATION`, etc.) |
-| `sig` | Base64url authorizing signature over the event's log-method-specific canonical serialization, excluding `sig` and countersignature fields. For draft 01, this is the accountable-entity signature on core events except `KEY_ROTATION`; on `KEY_ROTATION`, it is the previous-operational-key signature. |
+| `sig` | Base64url authorizing signature over the event's log-method-specific canonical serialization, excluding `sig` and countersignature fields. For draft 01, this is the accountable-entity signature on core events except `KEY_ROTATION`; on `KEY_ROTATION`, it is the previous-operational-key signature; on `ENTITY_KEY_ROTATION`, it is the previous-entity-key signature. |
 | `operationalCountersig` | Base64url operational-key countersignature. Required on `ISSUANCE`; profile-defined elsewhere. |
 
 The caller populates event data and either passes it to
@@ -515,9 +552,11 @@ operational key.
 | `operationalCountersig` | Countersignature verified against the initial operational public key material recorded in this event |
 
 Both signatures cover the same canonical ISSUANCE content. The event must match
-the current TXT record's DNSid FQDN and `gi`; the recorded entity key must
-correspond to the current `ek` key unless a future profile defines entity-key
-continuity.
+the current TXT record's DNSid FQDN and `gi`. The recorded entity key must
+correspond to the current `ek` key unless verified `ENTITY_KEY_ROTATION` events
+move the identity to a later entity key; the current `ek` key must then equal
+the entity key installed by the last of them (see
+[Entity-key continuity](#entity-key-continuity)).
 
 ---
 
@@ -542,6 +581,57 @@ key to the new key. An accountable-entity signature and a new-operational-key
 signature are not base requirements. TXT re-signing is required only when a TXT
 tag value changes.
 
+---
+
+<a id="entity-key-continuity"></a>
+
+**`ENTITY_KEY_ROTATION`** — Rotation to a new accountable-entity
+record-signing key. Establishes continuity from the previous entity key,
+mirroring `KEY_ROTATION` for operational keys. Defined by the entity-key
+continuity profile.
+
+Registries that custody accountable-entity keys must be able to rotate them
+without breaking verification of the identities those keys sign. Without this
+event, the ISSUANCE entity key is the only key that can authorize later events
+or satisfy the bilateral binding, so rotating it would strand every logged
+identity it signs.
+
+| Field                  | Description |
+|------------------------|-------------|
+| `domain`               | Identity FQDN |
+| `previousEntityKid` | Key ID of the previous (current-at-the-time) entity key retained for the authorizing signature |
+| `previousEntityThumbprint` | RFC 7638 thumbprint of the previous entity key |
+| `newEntityKid` | Key ID of the new entity key |
+| `newEntityPublicKey` | New entity JWK public key material; `kid` and `alg` required, with the same signing-key rules as `ek` |
+| `newEntityThumbprint` | RFC 7638 thumbprint of the new entity key |
+| `timestamp`            | Rotation time |
+| `sig` | Signature by the previous entity key (authorization) |
+| `newEntitySignature` | Signature by the new entity key over the same canonical content (proof of possession) |
+
+Both signatures are required and cover the same canonical content. The
+previous-entity signature authorizes the rotation; the new-entity signature
+proves possession and prevents binding a key the rotating party does not
+control. A candidate whose previous-entity signature does not verify under the
+entity key current at its chain predecessor, or whose new-entity signature does
+not verify under `newEntityPublicKey`, is not authorized and is skipped like
+any other unauthorized candidate; it is not an error.
+
+An authenticated `ENTITY_KEY_ROTATION` is never a stream genesis. Its previous
+thumbprint must equal the active entity key, and its new key must differ from
+both the active entity key and the active operational key; otherwise
+verification fails with a key-continuity error. It does not change the
+operational key, `keyBoundAt`, `governanceId`, or the identity state. After it,
+the new key authorizes `REVOCATION`, `RETIREMENT`, `DELEGATION`, and
+destination `MIGRATION`, authorizes any later `ENTITY_KEY_ROTATION`, and must
+equal the record's current `ek` for the bilateral binding to verify.
+
+Writers prepare the event like any other later lifecycle event and report its
+required signatures in order: previous entity, then new entity. Verifiers that
+predate this profile treat the event as unsupported; they keep rejecting a
+rotated identity because its ISSUANCE entity key no longer matches the record
+`ek`. Each SDK documents the first release that verifies `ENTITY_KEY_ROTATION`
+as its minimum version for identities whose entity key has rotated.
+
 **`REVOCATION`** — Permanent, forced termination. Work products from the triggering period should be treated as suspect.
 
 | Field            | Description |
@@ -550,8 +640,10 @@ tag value changes.
 | `timestamp`      | Revocation time |
 | `reason`         | One of: `keyCompromise`, `policyViolation`, `superseded`, `cessationOfOperation` |
 
-Signed by the accountable-entity record-signing key recorded in ISSUANCE or a
-future profile-defined entity-key-continuity proof.
+Signed by the accountable-entity record-signing key current at that point of
+the verified chain: the ISSUANCE entity key, or the key installed by the latest
+preceding `ENTITY_KEY_ROTATION`. A signature by a superseded entity key does
+not authorize the event.
 
 ---
 
@@ -562,11 +654,13 @@ future profile-defined entity-key-continuity proof.
 | `domain`    | Identity FQDN |
 | `timestamp` | Retirement time |
 
-Signed by the accountable-entity record-signing key.
+Signed by the accountable-entity record-signing key current at that point of
+the verified chain.
 
 `MIGRATION` is destination-only: the event is genesis in the new log stream and
-is authorized by the accountable-entity key established by the verified
-previous history through `finalEntryRef`. The destination binding imports only
+is authorized by, and imports, the accountable-entity key current at the end of
+the verified previous history through `finalEntryRef`, including any
+`ENTITY_KEY_ROTATION` in that history. The destination binding imports only
 an `ACTIVE` previous history and returns one stitched history. No outbound event
 is appended to the old stream.
 
@@ -582,7 +676,8 @@ is appended to the old stream.
 | `finalEntryRef`  | Reference to the last entry on the previous log |
 | `timestamp`      | Migration time |
 
-Signed by the accountable-entity record-signing key.
+Signed by the accountable-entity record-signing key current at the end of the
+verified previous history.
 
 ### Optional Events
 
@@ -595,3 +690,6 @@ Signed by the accountable-entity record-signing key.
 | `scope`       | Permitted operations |
 | `expiry`      | Delegation expiry time |
 | `timestamp`   | Delegation time |
+
+Signed by the accountable-entity record-signing key current at that point of
+the verified chain.

@@ -14,6 +14,7 @@ from pathlib import Path
 
 import yaml
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from c2sp_event_identity_check import (
     KEYS, PUBLIC, ORDER, b64, canonical, digest, event_id, flipped, leaf,
     payload, sign, signatures_valid, thumb, unb64,
@@ -25,6 +26,8 @@ HISTORICAL = ROOT / "fixtures/c2sp-lifecycle-selection-evidence.json"
 OUTPUT = ROOT / "fixtures/c2sp-lifecycle-selection-logical-v1.json"
 REVISION = "d5a65d06f76eff4db81e50f8767a600d2ca7fc2a"
 SEEDS = {"entity-1": 1, "operational-1": 2, "operational-2": 3, "other-entity": 7, "other-op": 8, "operational-9": 9}
+# Rotated accountable-entity keys appear only in ENTITY_KEY_ROTATION evidence.
+ENTITY_SEEDS = {**SEEDS, "entity-2": 10, "entity-3": 11}
 
 
 def edsign(seed, data):
@@ -82,6 +85,103 @@ def package_case(template, entries):
             proof = b"invalid fixture inclusion proof"
         result["entries"].append(dict(index=index, entry=b64(raw), proof=b64(proof), effectId=effect, proofValid=valid_proof))
     return result
+
+
+def ed_public(kid):
+    raw = Ed25519PrivateKey.from_private_bytes(bytes([ENTITY_SEEDS[kid]]) * 32).public_key()
+    return {"alg": "EdDSA", "crv": "Ed25519", "kid": kid, "kty": "OKP",
+            "x": b64(raw.public_bytes(Encoding.Raw, PublicFormat.Raw))}
+
+
+def ed_thumb(public):
+    return b64(hashlib.sha256(canonical({k: public[k] for k in ("crv", "kty", "x")})).digest())
+
+
+def entity_key_rotation_recipes(issuance, rotation):
+    """ENTITY_KEY_ROTATION evidence on the Ed25519 issuance; one disposable key per role."""
+    context = {k: issuance[k] for k in ("v", "kind", "method", "log_origin", "lr", "stream_id", "fqdn")}
+    e1, e2, e3, o1, o2, o9, spam_e, spam_o = map(ed_public, (
+        "entity-1", "entity-2", "entity-3", "operational-1", "operational-2", "operational-9", "other-entity", "other-op"))
+    assert issuance["ek"] == e1 and issuance["ku"] == o1 and rotation["prev_event_id"] == event_id(issuance)
+
+    def state(entity, operational, status="ACTIVE"):
+        return dict(fqdn=context["fqdn"], status=status, entity_thumb=ed_thumb(entity), operational_thumb=ed_thumb(operational))
+
+    def signed(body, roles):
+        # roles: wire role -> (embedded kid, disposable key that actually signs)
+        data = canonical(body)
+        return dict(body, sigs={role: {"kid": kid, "sig": b64(edsign(ENTITY_SEEDS[signer], data))}
+                                for role, (kid, signer) in roles.items()})
+
+    def successor(prev, prev_state, ts, **fields):
+        return dict(context, seq=prev["seq"] + 1, prev_event_id=event_id(prev),
+                    prev_state_hash=digest("state", prev_state), ts=ts, **fields)
+
+    def ekr(prev, prev_state, ts, new, prev_ae, new_ae, *, prev_thumb=None, new_thumb=None):
+        body = successor(prev, prev_state, ts, type="ENTITY_KEY_ROTATION",
+                         prev_ek_thumb=prev_thumb or prev_state["entity_thumb"],
+                         new_ek=new, new_ek_thumb=new_thumb or ed_thumb(new))
+        return signed(body, {role: signer for role, signer in (("prev_ae", prev_ae), ("new_ae", new_ae)) if signer})
+
+    E1, E2, E3 = ("entity-1", "entity-1"), ("entity-2", "entity-2"), ("entity-3", "entity-3")
+    s0, s1 = state(e1, o1), state(e2, o1)
+    ts = 1782173000
+    er12 = ekr(issuance, s0, ts, e2, E1, E2)
+    er23 = ekr(er12, s1, ts + 100, e3, E2, E3)
+    revocation = lambda signer, offset: signed(successor(er12, s1, ts + offset, type="REVOCATION", reason="keyCompromise"), {"ae": signer})
+    retirement = signed(successor(issuance, s0, ts - 50, type="RETIREMENT"), {"ae": E1})
+    er_after_op = ekr(rotation, state(e1, o2), ts + 10, e2, E1, E2)
+    rotation_after = signed(successor(er_after_op, state(e2, o2), ts + 110, type="KEY_ROTATION", prev_thumb=ed_thumb(o2),
+                                      new_ku=o9, new_thumb=ed_thumb(o9)),
+                            {"prev_op": ("operational-2", "operational-2"), "new_op": ("operational-9", "operational-9")})
+    spam = signed(dict(context, type="ISSUANCE", seq=0, ts=1782172700, gi=issuance["gi"], ek=spam_e, ku=spam_o),
+                  {"ae": ("other-entity", "other-entity"), "op": ("other-op", "other-op")})
+    spam_rotation = ekr(spam, state(spam_e, spam_o), 1782172750, e2, ("other-entity", "other-entity"), ("entity-2", "other-entity"))
+    structural = {
+        "thumbprint-mismatch": ekr(issuance, s0, ts, e2, E1, E2, new_thumb=ed_thumb(e3)),
+        "private-new-key": ekr(issuance, s0, ts, dict(e2, d=b64(bytes([ENTITY_SEEDS["entity-2"]]) * 32)), E1, E2),
+        "new-key-without-kid": ekr(issuance, s0, ts, {k: v for k, v in e2.items() if k != "kid"}, E1, E2),
+        "new-key-without-alg": ekr(issuance, s0, ts, {k: v for k, v in e2.items() if k != "alg"}, E1, E2),
+        "unchanged-thumbprint": ekr(issuance, s0, ts, e1, E1, E1),
+        "new-signature-kid-mismatch": ekr(issuance, s0, ts, e2, E1, ("entity-3", "entity-2")),
+    }
+    single = lambda candidate, event: ([("issuance", issuance), (candidate, event)])
+    recipes = {
+        "entity-key-rotation-binds-record-to-new-key": single("entity-rotation", er12),
+        "entity-key-rotation-rejects-record-with-issuance-key": single("entity-rotation", er12),
+        "chained-entity-key-rotations-bind-latest-key": [("issuance", issuance), ("entity-rotation", er12), ("entity-rotation-second", er23)],
+        "entity-key-rotation-by-wrong-previous-signer-is-ignored": single(
+            "entity-rotation-wrong-previous-signer", ekr(issuance, s0, ts, e2, ("entity-1", "other-entity"), E2)),
+        "entity-key-rotation-with-invalid-new-signature-is-ignored": single(
+            "entity-rotation-invalid-new-signature", ekr(issuance, s0, ts, e2, E1, ("entity-2", "other-entity"))),
+        "entity-key-rotation-without-new-signature-is-ignored": single(
+            "entity-rotation-missing-new-signature", ekr(issuance, s0, ts, e2, E1, None)),
+        "entity-key-rotation-from-inactive-key-is-fatal": single(
+            "entity-rotation-inactive-previous-key", ekr(issuance, s0, ts, e2, E1, E2, prev_thumb=ed_thumb(spam_e))),
+        "entity-key-rotation-to-operational-key-is-fatal": single(
+            "entity-rotation-to-operational-key", ekr(issuance, s0, ts, o1, E1, ("operational-1", "operational-1"))),
+        "revocation-by-rotated-entity-key-is-applied": [
+            ("issuance", issuance), ("entity-rotation", er12), ("revocation-by-rotated-entity-key", revocation(E2, 200))],
+        "revocation-by-superseded-entity-key-is-ignored": [
+            ("issuance", issuance), ("entity-rotation", er12), ("revocation-by-superseded-entity-key", revocation(E1, 210))],
+        "operational-and-entity-key-rotations-interleave": [
+            ("issuance", issuance), ("rotation-before-entity-rotation", rotation),
+            ("entity-rotation-after-operational-rotation", er_after_op), ("rotation-after-entity-rotation", rotation_after)],
+        "entity-key-rotation-before-genesis-is-ignored": [("entity-rotation", er12), ("issuance", issuance)],
+        "entity-key-rotation-without-genesis-has-no-valid-events": [("entity-rotation", er12)],
+        "entity-key-rotation-after-retirement-is-fatal": [
+            ("issuance", issuance), ("retirement", retirement),
+            ("entity-rotation-after-retirement", ekr(retirement, state(e1, o1, "RETIRED"), ts + 50, e2, E1, E2))],
+        "spam-genesis-with-other-entity-key-is-ignored": [("spam-issuance", spam), ("issuance", issuance)],
+        "spam-genesis-before-rotated-history-is-ignored": [("spam-issuance", spam), ("issuance", issuance), ("entity-rotation", er12)],
+        "spam-genesis-cannot-rotate-to-record-key-without-new-signature": [
+            ("spam-issuance", spam), ("spam-entity-rotation-to-record-key", spam_rotation), ("issuance", issuance), ("entity-rotation", er12)],
+        "spam-genesis-alone-cannot-rotate-to-record-key": [("spam-issuance", spam), ("spam-entity-rotation-to-record-key", spam_rotation)],
+    }
+    recipes["ignored-entity-key-rotation-does-not-bind-new-key"] = recipes["entity-key-rotation-by-wrong-previous-signer-is-ignored"]
+    for name, event in structural.items():
+        recipes[f"structurally-invalid-entity-key-rotation-{name}-is-ignored"] = single(f"entity-rotation-{name}", event)
+    return recipes
 
 
 def generate_selection():
@@ -181,6 +281,9 @@ def generate_selection():
         shared["sigs"][role] = {"kid": "shared-kid", "sig": b64(edsign(SEEDS[original], canonical(payload(shared))))}
     add("shared-kid-label-does-not-select-keys", ["shared-kid-issuance"], [shared])
 
+    for name, items in entity_key_rotation_recipes(issuance, rotation).items():
+        add(name, [candidate for candidate, _ in items], [event for _, event in items])
+
     def low_sign(body, roles):
         entry = sign(body, roles, deterministic=True)
         for role in roles:
@@ -216,6 +319,12 @@ def generate_selection():
         template["domain"] = semantic_suite["domain"]
         for field, default in (("checkpointAccepted", True), ("completeThroughCheckpoint", True), ("priorHistoryVerified", None), ("priorAppliedEffectIds", [])):
             template[field] = semantic_case.get(field, default)
+        if "recordEk" in semantic_case:
+            # The TXT record's ek; absent means the record still carries the ISSUANCE entity key (entityJwk).
+            template["recordEntityJwk"] = ed_public(semantic_case["recordEk"])
+            expected_binding = semantic_case["expected"].get("bilateralBinding")
+            if expected_binding:
+                assert expected_binding["currentEntityThumbprint"] == ed_thumb(template["recordEntityJwk"]), name
         entries = []
         for candidate_id in semantic_case["candidates"]:
             if candidate_id not in recipes[name]:

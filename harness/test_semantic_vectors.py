@@ -6,7 +6,11 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
 import generate_c2sp_fixtures as generator
+import semantic_vectors
 
 
 class SemanticVectorTests(unittest.TestCase):
@@ -50,6 +54,67 @@ class SemanticVectorTests(unittest.TestCase):
     def test_current_scenario_flags_control_generated_input(self):
         self.case["completeThroughCheckpoint"] = False
         self.assertFalse(self.generate()["completeThroughCheckpoint"])
+
+
+class EntityKeyRotationEvidenceTests(unittest.TestCase):
+    def test_entity_key_rotation_signatures_match_candidate_authentication(self):
+        suite = json.loads(generator.SEMANTICS.read_text())
+        evidence = json.loads(generator.OUTPUT.read_text())["cases"]
+        keys = {kid: generator.ed_public(kid) for kid in generator.ENTITY_SEEDS}
+        checked = 0
+        for case in suite["cases"]:
+            for item in evidence[case["id"]]["entries"]:
+                raw = generator.unb64(item["entry"])
+                if b'"type":"ENTITY_KEY_ROTATION"' not in raw:
+                    continue
+                entry = json.loads(raw)
+                definition = next(d for d in suite["candidateFixtures"].values() if d["effectId"] == item["effectId"])
+                # Fixture kids name their disposable keys; the SDK instead takes the active
+                # entity key from verified predecessor state.
+                previous = keys.get(entry["sigs"].get("prev_ae", {}).get("kid"))
+                new_key = entry["new_ek"]
+                signatures = entry["sigs"]
+                verified = previous is not None and "d" not in new_key and "kid" in new_key and "alg" in new_key
+                verified = verified and set(signatures) == {"prev_ae", "new_ae"}
+                verified = verified and generator.ed_thumb(new_key) == entry["new_ek_thumb"] != entry["prev_ek_thumb"]
+                verified = verified and signatures["new_ae"]["kid"] == new_key.get("kid")
+                if verified:
+                    data = generator.canonical(generator.payload(entry))
+                    for role, key in (("prev_ae", previous), ("new_ae", new_key)):
+                        try:
+                            Ed25519PublicKey.from_public_bytes(generator.unb64(key["x"])).verify(
+                                generator.unb64(signatures[role]["sig"]), data)
+                        except InvalidSignature:
+                            verified = False
+                # Authenticated means well formed and signed by the previous and new keys.
+                authenticated = definition.get("authenticated", definition["valid"])
+                self.assertEqual(verified, authenticated, (case["id"], item["effectId"]))
+                checked += 1
+        self.assertGreater(checked, 20)
+
+
+class KnownBugMarkerTests(unittest.TestCase):
+    def write(self, value):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        path = Path(directory.name) / "markers.json"
+        path.write_text(json.dumps(value))
+        return path
+
+    def test_markers_map_cases_to_sdk_known_bugs(self):
+        path = self.write({"go": [{"reason": "pending", "cases": ["a"]}]})
+        self.assertEqual(semantic_vectors.load_known_bugs({"a", "b"}, path), {"a": {"go": {"known_bug": "pending"}}})
+
+    def test_unknown_case_or_sdk_and_repeats_fail(self):
+        for value in ({"go": [{"reason": "x", "cases": ["missing"]}]},
+                      {"rust": [{"reason": "x", "cases": ["a"]}]},
+                      {"go": [{"reason": "", "cases": ["a"]}]},
+                      {"go": [{"reason": "x", "cases": ["a"]}, {"reason": "y", "cases": ["a"]}]}):
+            with self.assertRaises(ValueError):
+                semantic_vectors.load_known_bugs({"a"}, self.write(value))
+
+    def test_committed_markers_load(self):
+        semantic_vectors.load_semantic_suites()
 
 
 if __name__ == "__main__":

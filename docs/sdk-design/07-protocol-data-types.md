@@ -174,7 +174,12 @@ Behavior notes:
   re-signing is required only when TXT tag values change.
 - Accountable-entity key continuity, `ek` changes, `gi` changes, transfer, and
   recovery require future profile-defined continuity proof and must otherwise be
-  treated as reissuance or local-policy risk.
+  treated as reissuance or local-policy risk. For rotation of the
+  accountable-entity record-signing key, the
+  [entity-key continuity profile](06-log-bindings.md#entity-key-continuity)
+  defines that proof as `ENTITY_KEY_ROTATION`; the ISSUANCE match above then
+  compares current `ek` with the entity key current at the end of the verified
+  history.
 - For publication, `BuildUnsignedRecord` emits the required and configured tags
   listed above and rejects identical entity and operational key thumbprints;
   `RecordSigningProvider` selects the entity provider, and

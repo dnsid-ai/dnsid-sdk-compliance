@@ -1,0 +1,131 @@
+{
+  "go": [
+    {
+      "reason": "ENTITY_KEY_ROTATION, its key-continuity rules, and the adapter's bilateralBinding result are not implemented at this SDK revision",
+      "cases": [
+        "entity-rotation-preserves-active-and-operational-key",
+        "chained-entity-rotations-continue-from-current-entity-key",
+        "stale-previous-entity-key-rejected",
+        "entity-rotation-to-same-key-rejected",
+        "entity-rotation-to-operational-key-rejected",
+        "entity-rotation-to-rotated-operational-key-rejected",
+        "entity-rotation-with-mismatched-new-thumbprint-rejected",
+        "entity-rotation-without-new-thumbprint-rejected",
+        "operational-and-entity-rotations-interleave",
+        "revocation-after-entity-rotation-is-terminal",
+        "snapshot-after-entity-rotation-keeps-operational-key-age",
+        "entity-key-rotation-binds-record-to-new-key",
+        "entity-key-rotation-rejects-record-with-issuance-key",
+        "chained-entity-key-rotations-bind-latest-key",
+        "entity-key-rotation-by-wrong-previous-signer-is-ignored",
+        "ignored-entity-key-rotation-does-not-bind-new-key",
+        "entity-key-rotation-with-invalid-new-signature-is-ignored",
+        "entity-key-rotation-without-new-signature-is-ignored",
+        "entity-key-rotation-from-inactive-key-is-fatal",
+        "entity-key-rotation-to-operational-key-is-fatal",
+        "revocation-by-rotated-entity-key-is-applied",
+        "revocation-by-superseded-entity-key-is-ignored",
+        "operational-and-entity-key-rotations-interleave",
+        "entity-key-rotation-before-genesis-is-ignored",
+        "entity-key-rotation-after-retirement-is-fatal",
+        "structurally-invalid-entity-key-rotation-thumbprint-mismatch-is-ignored",
+        "structurally-invalid-entity-key-rotation-private-new-key-is-ignored",
+        "structurally-invalid-entity-key-rotation-new-key-without-kid-is-ignored",
+        "structurally-invalid-entity-key-rotation-new-key-without-alg-is-ignored",
+        "structurally-invalid-entity-key-rotation-unchanged-thumbprint-is-ignored",
+        "structurally-invalid-entity-key-rotation-new-signature-kid-mismatch-is-ignored"
+      ]
+    },
+    {
+      "reason": "Go selects genesis without anchoring on the record ek and checks the binding afterwards, so a self-authenticated genesis with another entity key is applied instead of skipped; this competing-genesis divergence predates ENTITY_KEY_ROTATION",
+      "cases": [
+        "spam-genesis-with-other-entity-key-is-ignored",
+        "spam-genesis-before-rotated-history-is-ignored",
+        "spam-genesis-cannot-rotate-to-record-key-without-new-signature",
+        "spam-genesis-alone-cannot-rotate-to-record-key"
+      ]
+    }
+  ],
+  "ts": [
+    {
+      "reason": "ENTITY_KEY_ROTATION, its key-continuity rules, and the adapter's bilateralBinding result are not implemented at this SDK revision",
+      "cases": [
+        "entity-rotation-preserves-active-and-operational-key",
+        "chained-entity-rotations-continue-from-current-entity-key",
+        "stale-previous-entity-key-rejected",
+        "entity-rotation-to-same-key-rejected",
+        "entity-rotation-to-operational-key-rejected",
+        "entity-rotation-to-rotated-operational-key-rejected",
+        "entity-rotation-with-mismatched-new-thumbprint-rejected",
+        "entity-rotation-without-new-thumbprint-rejected",
+        "operational-and-entity-rotations-interleave",
+        "revocation-after-entity-rotation-is-terminal",
+        "snapshot-after-entity-rotation-keeps-operational-key-age",
+        "entity-key-rotation-binds-record-to-new-key",
+        "entity-key-rotation-rejects-record-with-issuance-key",
+        "chained-entity-key-rotations-bind-latest-key",
+        "entity-key-rotation-by-wrong-previous-signer-is-ignored",
+        "ignored-entity-key-rotation-does-not-bind-new-key",
+        "entity-key-rotation-with-invalid-new-signature-is-ignored",
+        "entity-key-rotation-without-new-signature-is-ignored",
+        "entity-key-rotation-from-inactive-key-is-fatal",
+        "entity-key-rotation-to-operational-key-is-fatal",
+        "revocation-by-rotated-entity-key-is-applied",
+        "revocation-by-superseded-entity-key-is-ignored",
+        "operational-and-entity-key-rotations-interleave",
+        "entity-key-rotation-before-genesis-is-ignored",
+        "entity-key-rotation-after-retirement-is-fatal",
+        "structurally-invalid-entity-key-rotation-thumbprint-mismatch-is-ignored",
+        "structurally-invalid-entity-key-rotation-private-new-key-is-ignored",
+        "structurally-invalid-entity-key-rotation-new-key-without-kid-is-ignored",
+        "structurally-invalid-entity-key-rotation-new-key-without-alg-is-ignored",
+        "structurally-invalid-entity-key-rotation-unchanged-thumbprint-is-ignored",
+        "structurally-invalid-entity-key-rotation-new-signature-kid-mismatch-is-ignored",
+        "spam-genesis-with-other-entity-key-is-ignored",
+        "spam-genesis-before-rotated-history-is-ignored",
+        "spam-genesis-cannot-rotate-to-record-key-without-new-signature"
+      ]
+    }
+  ],
+  "py": [
+    {
+      "reason": "ENTITY_KEY_ROTATION, its key-continuity rules, and the adapter's bilateralBinding result are not implemented at this SDK revision",
+      "cases": [
+        "entity-rotation-preserves-active-and-operational-key",
+        "chained-entity-rotations-continue-from-current-entity-key",
+        "stale-previous-entity-key-rejected",
+        "entity-rotation-to-same-key-rejected",
+        "entity-rotation-to-operational-key-rejected",
+        "entity-rotation-to-rotated-operational-key-rejected",
+        "entity-rotation-with-mismatched-new-thumbprint-rejected",
+        "entity-rotation-without-new-thumbprint-rejected",
+        "operational-and-entity-rotations-interleave",
+        "revocation-after-entity-rotation-is-terminal",
+        "snapshot-after-entity-rotation-keeps-operational-key-age",
+        "entity-key-rotation-binds-record-to-new-key",
+        "entity-key-rotation-rejects-record-with-issuance-key",
+        "chained-entity-key-rotations-bind-latest-key",
+        "entity-key-rotation-by-wrong-previous-signer-is-ignored",
+        "ignored-entity-key-rotation-does-not-bind-new-key",
+        "entity-key-rotation-with-invalid-new-signature-is-ignored",
+        "entity-key-rotation-without-new-signature-is-ignored",
+        "entity-key-rotation-from-inactive-key-is-fatal",
+        "entity-key-rotation-to-operational-key-is-fatal",
+        "revocation-by-rotated-entity-key-is-applied",
+        "revocation-by-superseded-entity-key-is-ignored",
+        "operational-and-entity-key-rotations-interleave",
+        "entity-key-rotation-before-genesis-is-ignored",
+        "entity-key-rotation-after-retirement-is-fatal",
+        "structurally-invalid-entity-key-rotation-thumbprint-mismatch-is-ignored",
+        "structurally-invalid-entity-key-rotation-private-new-key-is-ignored",
+        "structurally-invalid-entity-key-rotation-new-key-without-kid-is-ignored",
+        "structurally-invalid-entity-key-rotation-new-key-without-alg-is-ignored",
+        "structurally-invalid-entity-key-rotation-unchanged-thumbprint-is-ignored",
+        "structurally-invalid-entity-key-rotation-new-signature-kid-mismatch-is-ignored",
+        "spam-genesis-with-other-entity-key-is-ignored",
+        "spam-genesis-before-rotated-history-is-ignored",
+        "spam-genesis-cannot-rotate-to-record-key-without-new-signature"
+      ]
+    }
+  ]
+}

@@ -2,7 +2,18 @@
 
 This document tracks SDK design questions that are not yet resolved.
 
-There are no unresolved shared SDK design questions at this time.
+1. **Contradictions while replaying anchored genesis candidates.**
+   [Genesis selection anchored on the record `ek`](11-c2sp-tlog-binding.md#genesis-selection-anchored-on-the-record-ek)
+   classifies each authenticated genesis candidate by the entity key its replay
+   ends with. It does not yet say how an anchored reader treats an
+   authenticated chain or transition contradiction found while replaying a
+   candidate before that candidate is known to match the record `ek`. Treating
+   it as fatal would let a self-authenticated spam genesis with its own
+   contradicting successor abort verification of a valid stream. Treating it as
+   noise would report a contradiction in the matching history as a selection
+   failure instead of its own category. The shared vectors place
+   contradictions only in streams with a single genesis candidate and expect the
+   contradiction's own category.
 
 ## Resolved Questions
 

@@ -417,12 +417,15 @@ these profile-owned roles. For draft 01 core lifecycle events:
 |---|---|
 | `ISSUANCE` | `Entity`, `OperationalCountersignature` |
 | `KEY_ROTATION` | `PreviousOperational` |
+| `ENTITY_KEY_ROTATION` | `PreviousEntity`, `NewEntity` |
 | other core lifecycle events | `Entity` |
 
 In particular, `RequiredLogSignatures(KEY_ROTATION)` returns only
 `PreviousOperational`. A concrete binding may separately require additional
 proofs as part of its preparation, parsing, and verification rules; those roles
-do not become base-profile requirements.
+do not become base-profile requirements. `ENTITY_KEY_ROTATION` is defined by
+the [entity-key continuity profile](06-log-bindings.md#entity-key-continuity);
+its two roles are both profile-owned and are reported in that order.
 
 #### `SignEvent(event: LogEvent, role: LogSignerRole) -> LogEvent`
 
@@ -436,6 +439,8 @@ ENUM LogSignerRole
   Operational
   OperationalCountersignature
   PreviousOperational
+  PreviousEntity
+  NewEntity
 END
 
 FUNCTION SignEvent(event: LogEvent, role: LogSignerRole) -> LogEvent
@@ -449,6 +454,10 @@ FUNCTION SignEvent(event: LogEvent, role: LogSignerRole) -> LogEvent
       event.operationalCountersig = Base64url(keyProvider.Sign(canonical))
     CASE PreviousOperational:
       event.sig = Base64url(keyProvider.SignKey(event.previousOperationalKid, canonical))
+    CASE PreviousEntity:
+      event.sig = Base64url(entityKeyProvider.SignKey(event.previousEntityKid, canonical))
+    CASE NewEntity:
+      event.newEntitySignature = Base64url(entityKeyProvider.SignKey(event.newEntityKid, canonical))
   END
   RETURN event
 END
@@ -467,6 +476,10 @@ FUNCTION SignEventWithProvider(event: LogEvent,
   ValidateProviderMatchesEventRole(event, role, keyProvider)
   IF role == PreviousOperational THEN
     signature = keyProvider.SignKey(event.previousOperationalKid, canonical)
+  ELSE IF role == PreviousEntity THEN
+    signature = keyProvider.SignKey(event.previousEntityKid, canonical)
+  ELSE IF role == NewEntity THEN
+    signature = keyProvider.SignKey(event.newEntityKid, canonical)
   ELSE
     signature = keyProvider.Sign(canonical)
   END
