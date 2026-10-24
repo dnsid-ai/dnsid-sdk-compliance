@@ -329,18 +329,21 @@
     },
     {
       "id": "spam-genesis-with-other-entity-key-is-ignored",
+      "anchoredReader": true,
       "candidates": ["spam-issuance", "issuance"],
       "recordEk": "entity-1",
       "expected": {"valid": true, "appliedEffectIds": ["issuance-1"], "ignoredCandidateIndexes": [0], "bilateralBinding": {"initialEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4", "currentEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4"}}
     },
     {
       "id": "spam-genesis-before-rotated-history-is-ignored",
+      "anchoredReader": true,
       "candidates": ["spam-issuance", "issuance", "entity-rotation"],
       "recordEk": "entity-2",
       "expected": {"valid": true, "appliedEffectIds": ["issuance-1", "entity-rotation-1"], "ignoredCandidateIndexes": [0], "bilateralBinding": {"initialEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4", "currentEntityThumbprint": "r4thRn8KdhhgGDrzOwmSwySqMcXeIdd9SG333J-ZNtU"}}
     },
     {
       "id": "spam-genesis-cannot-rotate-to-record-key-without-new-signature",
+      "anchoredReader": true,
       "candidates": ["spam-issuance", "spam-entity-rotation-to-record-key", "issuance", "entity-rotation"],
       "recordEk": "entity-2",
       "expected": {"valid": true, "appliedEffectIds": ["issuance-1", "entity-rotation-1"], "ignoredCandidateIndexes": [0, 1], "bilateralBinding": {"initialEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4", "currentEntityThumbprint": "r4thRn8KdhhgGDrzOwmSwySqMcXeIdd9SG333J-ZNtU"}}
@@ -353,6 +356,7 @@
     },
     {
       "id": "spam-genesis-contradiction-does-not-poison-real-history",
+      "anchoredReader": true,
       "candidates": ["spam-issuance", "spam-revocation", "spam-post-terminal-retirement", "issuance"],
       "recordEk": "entity-1",
       "expected": {"valid": true, "appliedEffectIds": ["issuance-1"], "ignoredCandidateIndexes": [0, 1, 2], "bilateralBinding": {"initialEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4", "currentEntityThumbprint": "UDDReOZl1ipXAfp9wYsm13sDBMK5og--QWdBjzuf6o4"}}

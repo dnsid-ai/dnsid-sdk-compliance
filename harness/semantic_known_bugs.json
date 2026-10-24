@@ -46,7 +46,7 @@
       ]
     },
     {
-      "reason": "Go selects genesis without anchoring on the record ek and checks the binding afterwards, so a self-authenticated genesis with another entity key is applied instead of skipped; this competing-genesis divergence predates ENTITY_KEY_ROTATION",
+      "reason": "Anchored-reader vector: Go selects genesis without anchoring on the record ek and checks the binding afterwards, so a self-authenticated competing genesis is applied (or its contradiction aborts verification) instead of being skipped. This divergence predates ENTITY_KEY_ROTATION and persists while Go does not anchor.",
       "cases": [
         "spam-genesis-with-other-entity-key-is-ignored",
         "spam-genesis-before-rotated-history-is-ignored",

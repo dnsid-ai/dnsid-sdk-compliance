@@ -227,13 +227,26 @@ active key and a new key equal to the operational key (`KEY_CONTINUITY`);
 interleaved `KEY_ROTATION`; a rotation before or without genesis; a rotation
 after `RETIREMENT` (`TERMINAL_STATE`); rotations fully signed under a matching
 non-empty `new_ek` kid but malformed (thumbprint mismatch, missing `alg`,
-unchanged thumbprint), which are fatal `INVALID_EVIDENCE`; and a `new_ek` with any private member (`d` or a
-stray one such as `p`), a `new_ek` with a missing or empty `kid`, or a `new_ae` kid that
-differs from `new_ek`, which cannot authenticate and are ignored. Spam-genesis cases put a
+unchanged thumbprint), which are fatal `INVALID_EVIDENCE`; and a `new_ek`
+with any private member (`d` or a stray one such as `p`), a `new_ek` with a
+missing or empty `kid`, or a `new_ae` kid that differs from `new_ek`, which
+cannot authenticate and are ignored. Spam-genesis cases put a
 self-authenticated ISSUANCE with another entity key ahead of the real one, with
 and without a later rotation, with its own authenticated contradicting
 successors, and with a spam rotation to the record key whose `new_ae` is not
-made by that key; none of them is selected. Further cases cover a `prev_ae`
+made by that key; none of them is selected. Cases marked `anchoredReader: true`
+encode the optional anchored genesis selection. A reader that does not anchor
+on the record `ek` may diverge on them only when the stream has competing
+authenticated genesis candidates; its markers in
+`harness/semantic_known_bugs.json` say so and persist while that remains its
+design, unlike markers for missing support, which are removed once the SDK
+passes.
+
+Rotation key errors fall into two layers. In the C2SP binding, structural
+checks on a fully signed rotation run first, and their failures (thumbprint
+mismatch, unchanged thumbprint, missing `alg`) are `INVALID_EVIDENCE`. The
+reducer vectors receive already parsed events, so the same defects reaching the
+shared reducer are `KEY_CONTINUITY` "invalid key material". Further cases cover a `prev_ae`
 whose kid does not name the active key, a rotation signed by a superseded key
 (ignored), a superseded-key fork from before the rotation (`CHAIN_CONTINUITY`),
 a `KEY_ROTATION` to the rotated entity key (`KEY_CONTINUITY`), a rotation to an

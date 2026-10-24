@@ -70,7 +70,9 @@ to execute those shared semantic expectations. Per-SDK `known_bug` markers for
 the lifecycle and selection vectors live in `harness/semantic_known_bugs.json`,
 outside the language-neutral JSON, so SDK status never changes the semantic
 source hash. Each marker names an existing case and must be removed when the
-SDK passes it.
+SDK passes it. Markers on `anchoredReader` cases may instead record a reader
+that does not anchor genesis selection on the record `ek`, which the design
+permits.
 
 ## How it works
 

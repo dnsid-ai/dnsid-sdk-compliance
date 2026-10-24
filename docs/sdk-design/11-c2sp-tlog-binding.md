@@ -366,15 +366,18 @@ Parsing and encoding reject the envelope unless:
 - `prev_ek_thumb`, `new_ek_thumb`, and `new_ek` are all present;
 - `new_ek` passes the same signing-JWK validation as `ek` and `new_ku`: a public
   key only, with no private member (`d`, `p`, `q`, `dp`, `dq`, `qi`, or `k`)
-  whatever its key type, `use` absent or `sig`, a non-empty `kid`, a supported `alg`, and a
-  supported key type and curve (EdDSA/Ed25519 or ES256/P-256);
+  whatever its key type, `use` absent or `sig`, a non-empty `kid`, a supported
+  `alg`, and a supported key type and curve (EdDSA/Ed25519 or ES256/P-256);
 - the thumbprint of `new_ek` equals `new_ek_thumb`;
 - `new_ek_thumb` differs from `prev_ek_thumb`; and
 - `sigs.new_ae.kid` equals the `kid` of `new_ek`.
 
 A `new_ek` carrying any private member (`d`, `p`, `q`, `dp`, `dq`, `qi`, or
 `k`) is never used as a verification key, so such a candidate cannot
-authenticate and is skipped during a global-log scan. Likewise, when `new_ek`
+authenticate and is skipped during a global-log scan. The key type and curve
+of `new_ek` select the algorithm that verifies `sigs.new_ae` (EdDSA for
+Ed25519, ES256 for P-256); a key with an unsupported key type or curve cannot
+verify it, so that candidate is skipped. Likewise, when `new_ek`
 has a missing or empty `kid`, or `sigs.new_ae.kid` differs from the `kid` of
 `new_ek`, `new_ae` does not name the new key and the candidate is skipped.
 Otherwise, structural validation does not hide an authenticated payload: when
@@ -1096,7 +1099,8 @@ reducer, it applies the method's candidate rules:
 ### Genesis Selection Anchored on the Record `ek`
 
 A reader MAY use the authenticated record's `ek` key to discard
-self-authenticated spam genesis candidates. Such a reader MUST NOT compare `ek`
+self-authenticated spam genesis candidates. Shared vectors that depend on this
+choice are marked `anchoredReader` and encode anchored selection. Such a reader MUST NOT compare `ek`
 with each genesis candidate's own entity key, because after an
 `ENTITY_KEY_ROTATION` the record carries a later key. It applies this rule
 instead:
