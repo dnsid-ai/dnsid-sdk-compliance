@@ -43,7 +43,8 @@
         "superseded-entity-key-fork-is-fatal",
         "entity-key-rotation-to-es256-key-binds-record",
         "retirement-by-rotated-entity-key-is-applied",
-        "superseded-key-cannot-revive-revoked-identity"
+        "superseded-key-cannot-revive-revoked-identity",
+        "malformed-genesis-by-intermediate-key-is-fatal"
       ]
     },
     {
@@ -103,7 +104,8 @@
         "superseded-entity-key-fork-is-fatal",
         "entity-key-rotation-to-es256-key-binds-record",
         "retirement-by-rotated-entity-key-is-applied",
-        "superseded-key-cannot-revive-revoked-identity"
+        "superseded-key-cannot-revive-revoked-identity",
+        "malformed-genesis-by-intermediate-key-is-fatal"
       ]
     },
     {
@@ -160,7 +162,8 @@
         "superseded-entity-key-fork-is-fatal",
         "entity-key-rotation-to-es256-key-binds-record",
         "retirement-by-rotated-entity-key-is-applied",
-        "superseded-key-cannot-revive-revoked-identity"
+        "superseded-key-cannot-revive-revoked-identity",
+        "malformed-genesis-by-intermediate-key-is-fatal"
       ]
     }
   ]

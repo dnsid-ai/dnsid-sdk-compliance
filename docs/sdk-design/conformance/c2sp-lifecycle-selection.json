@@ -60,7 +60,10 @@
     "revived-issuance-under-superseded-key": {"effectId": "revived-issuance", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "genesis-anchor"},
     "malformed-issuance": {"effectId": "malformed-issuance", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "authenticated-payload"},
     "revocation-by-rotated-entity-key-late": {"effectId": "revocation-rotated-entity-key-late", "type": "REVOCATION", "domain": "agent.example", "valid": true},
-    "revived-issuance-under-original-key": {"effectId": "revived-original-issuance", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "genesis-anchor"}
+    "revived-issuance-under-original-key": {"effectId": "revived-original-issuance", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "genesis-anchor"},
+    "malformed-issuance-by-root-key": {"effectId": "malformed-issuance-by-root-key", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "authenticated-payload"},
+    "malformed-issuance-by-intermediate-key": {"effectId": "malformed-issuance-by-intermediate-key", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "authenticated-payload"},
+    "malformed-issuance-by-migration-signer": {"effectId": "malformed-issuance-by-migration-signer", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "authenticated-payload"}
   },
   "cases": [
     {
@@ -421,6 +424,29 @@
       "candidates": ["issuance", "entity-rotation", "revocation-by-rotated-entity-key-late", "revived-issuance-under-original-key"],
       "recordEk": "entity-1",
       "expected": {"valid": false}
+    },
+    {
+      "id": "malformed-genesis-by-root-key-is-fatal",
+      "anchoredReader": true,
+      "candidates": ["issuance", "entity-rotation", "entity-rotation-second", "malformed-issuance-by-root-key"],
+      "recordEk": "entity-3",
+      "expected": {"valid": false, "failingCandidateIndex": 3}
+    },
+    {
+      "id": "malformed-genesis-by-intermediate-key-is-fatal",
+      "anchoredReader": true,
+      "candidates": ["issuance", "entity-rotation", "entity-rotation-second", "malformed-issuance-by-intermediate-key"],
+      "recordEk": "entity-3",
+      "expected": {"valid": false, "failingCandidateIndex": 3}
+    },
+    {
+      "id": "malformed-genesis-by-migration-signer-is-fatal",
+      "anchoredReader": true,
+      "candidates": ["inbound-migration", "malformed-issuance-by-migration-signer"],
+      "priorHistoryVerified": true,
+      "priorAppliedEffectIds": ["issuance-prior"],
+      "recordEk": "entity-1",
+      "expected": {"valid": false, "failingCandidateIndex": 1}
     }
   ]
 }

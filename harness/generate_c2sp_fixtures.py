@@ -113,7 +113,7 @@ def es256_signature(key, data):
     return b64(r.to_bytes(32, "big") + s.to_bytes(32, "big"))
 
 
-def entity_key_rotation_recipes(issuance, rotation):
+def entity_key_rotation_recipes(issuance, rotation, migration):
     """ENTITY_KEY_ROTATION evidence on the Ed25519 issuance; one disposable key per role."""
     context = {k: issuance[k] for k in ("v", "kind", "method", "log_origin", "lr", "stream_id", "fqdn")}
     e1, e2, e3, o1, o2, o9, spam_e, spam_o = map(ed_public, (
@@ -244,6 +244,18 @@ def entity_key_rotation_recipes(issuance, rotation):
                             ek={k: v for k, v in e1.items() if k != "alg"}, ku=o1),
                        {"ae": E1, "op": ("operational-1", "operational-1")})
     recipes["malformed-genesis-authenticated-by-record-key-is-fatal"] = [("malformed-issuance", malformed), ("issuance", issuance)]
+
+    def malformed_by(key, signer, offset):
+        # Self-authenticated ISSUANCE whose ek (the signer's key) lacks alg.
+        return signed(dict(context, type="ISSUANCE", seq=0, ts=ts + offset, gi=issuance["gi"],
+                           ek={k: v for k, v in key.items() if k != "alg"}, ku=o9),
+                      {"ae": signer, "op": ("operational-9", "operational-9")})
+    chain = [("issuance", issuance), ("entity-rotation", er12), ("entity-rotation-second", er23)]
+    recipes["malformed-genesis-by-root-key-is-fatal"] = chain + [("malformed-issuance-by-root-key", malformed_by(e1, E1, 1000))]
+    recipes["malformed-genesis-by-intermediate-key-is-fatal"] = chain + [
+        ("malformed-issuance-by-intermediate-key", malformed_by(e2, E2, 1010))]
+    recipes["malformed-genesis-by-migration-signer-is-fatal"] = [
+        ("inbound-migration", migration), ("malformed-issuance-by-migration-signer", malformed_by(e1, E1, 1020))]
     recipes["ignored-entity-key-rotation-does-not-bind-new-key"] = recipes["entity-key-rotation-by-wrong-previous-signer-is-ignored"]
     # Malformed but fully signed by the active and new keys: fatal, not noise.
     for name in ("thumbprint-mismatch", "new-key-without-alg", "unchanged-thumbprint"):
@@ -356,7 +368,8 @@ def generate_selection():
         shared["sigs"][role] = {"kid": "shared-kid", "sig": b64(edsign(SEEDS[original], canonical(payload(shared))))}
     add("shared-kid-label-does-not-select-keys", ["shared-kid-issuance"], [shared])
 
-    for name, items in entity_key_rotation_recipes(issuance, rotation).items():
+    migration = json.loads(recipes["verified-inbound-migration-stitches-prior-history"]["inbound-migration"][0])
+    for name, items in entity_key_rotation_recipes(issuance, rotation, migration).items():
         add(name, [candidate for candidate, _ in items], [event for _, event in items])
 
     def low_sign(body, roles):

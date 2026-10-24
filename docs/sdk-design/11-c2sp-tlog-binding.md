@@ -1143,8 +1143,15 @@ rule instead:
    with an entity key other than the record `ek`, verification fails with the
    current-entity-key mismatch described under
    [Entity-Key Rotation](#entity-key-rotation).
-5. A malformed genesis authenticated by the eligible root key is invalid
-   authenticated genesis evidence and fails verification; it is not skipped.
+5. A malformed ISSUANCE authenticated by any entity key of the eligible chain
+   is invalid authenticated genesis evidence and fails verification; it is not
+   skipped. Those keys are the root key (the ISSUANCE entity key, or the key
+   that signed a MIGRATION genesis), every key installed by an
+   `ENTITY_KEY_ROTATION` in the chain, and the record `ek` itself: keys the
+   identity holds or has held. A malformed ISSUANCE authenticated only by an
+   unrelated key is noise. A reader that does not anchor may reject every
+   self-authenticated malformed genesis; the shared vectors do not assert the
+   unrelated-key case.
 6. If no candidate is eligible, verification fails with the "no valid
    lifecycle events" failure.
 
