@@ -148,3 +148,31 @@ cases:
     sdk:
       py:
         known_bug: "normalize_fqdn applies str.lower() before UTS 46 (dnsid-py fix/txt-canonical-order-and-strict-syntax)"
+
+  - id: fqdn-reserved-hyphen-label-rejected
+    description: "\"--\" in positions 3-4 is reserved for A-labels (xn--); ab--c is not a valid label"
+    spec_ref: "SDK design 07 NormalizeFQDN (validate DNS label constraints); RFC 5891 §4.2.3.1; UTS 46 CheckHyphens"
+    tags: [idn, edge-case]
+    op: normalize_fqdn
+    input:
+      name: ab--c.example
+    expect:
+      ok: false
+      error: ValidationError
+    sdk:
+      ts:
+        known_bug: "WHATWG host parsing skips CheckHyphens (dnsid-ts fix/fqdn-ldh-and-reserved-hyphens)"
+
+  - id: fqdn-underscore-label-rejected
+    description: An agent FQDN is a host name; host-name labels are letters, digits and hyphens
+    spec_ref: "SDK design 07 NormalizeFQDN (validate DNS label constraints); RFC 5890 §2.3.1 LDH label; UTS 46 UseSTD3ASCIIRules"
+    tags: [edge-case]
+    op: normalize_fqdn
+    input:
+      name: a_b.example
+    expect:
+      ok: false
+      error: ValidationError
+    sdk:
+      ts:
+        known_bug: "WHATWG host parsing skips UseSTD3ASCIIRules (dnsid-ts fix/fqdn-ldh-and-reserved-hyphens)"
