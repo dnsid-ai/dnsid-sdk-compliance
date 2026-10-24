@@ -517,7 +517,7 @@ below. Method-owned verification metadata is intentionally excluded; see
 | Field | Description |
 |-------|-------------|
 | `type` | Event type identifier (`ISSUANCE`, `KEY_ROTATION`, etc.) |
-| `sig` | Base64url authorizing signature over the event's log-method-specific canonical serialization, excluding `sig` and countersignature fields. For draft 01, this is the accountable-entity signature on core events except `KEY_ROTATION`; on `KEY_ROTATION`, it is the previous-operational-key signature; on `ENTITY_KEY_ROTATION`, it is the previous-entity-key signature. |
+| `sig` | Base64url authorizing signature over the event's log-method-specific canonical serialization, excluding `sig`, countersignature fields, and `newEntitySignature`. For draft 01, this is the accountable-entity signature on core events except `KEY_ROTATION`; on `KEY_ROTATION`, it is the previous-operational-key signature; on `ENTITY_KEY_ROTATION`, it is the previous-entity-key signature. |
 | `operationalCountersig` | Base64url operational-key countersignature. Required on `ISSUANCE`; profile-defined elsewhere. |
 
 The caller populates event data and either passes it to

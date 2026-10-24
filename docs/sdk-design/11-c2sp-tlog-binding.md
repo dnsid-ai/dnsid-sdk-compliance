@@ -1087,7 +1087,9 @@ reducer, it applies the method's candidate rules:
    Otherwise use current verified state solely to recognize authenticated
    malformed-chain candidates. Initial ISSUANCE/MIGRATION retains bilateral
    or verified imported authority; later ISSUANCE cannot bootstrap a different
-   entity key. Never trust a candidate `kid` or unverified predecessor.
+   entity key (readers that anchor on the record `ek` choose the genesis as in
+   [Genesis Selection Anchored on the Record `ek`](#genesis-selection-anchored-on-the-record-ek)).
+   Never trust a candidate `kid` or unverified predecessor.
 4. Require every role signature for a new authenticated payload. Missing or
    invalid signatures, including stripped countersignatures, are noise and
    cannot reserve a logical ID.
@@ -1515,7 +1517,8 @@ rather than constructing one per verification.
 ### Superseded-Key Forks
 
 A holder of a superseded key can sign a new payload that names a chain
-predecessor from before the rotation that superseded it. Candidate rule 3
+predecessor from before the rotation that superseded it. Rule 3 of the
+candidate rules under [Stream Completeness and Logged State](#stream-completeness-and-logged-state)
 resolves signer authority from that predecessor's verified post-state, so the
 payload authenticates and conflicts with the applied chain. It is a signed fork
 and fails verification; it is not omitted. For a superseded entity key after an
