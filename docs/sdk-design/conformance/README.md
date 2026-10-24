@@ -237,7 +237,8 @@ successors, and with a spam rotation to the record key whose `new_ae` is not
 made by that key; none of them is selected. Two more anchored cases check
 that the first eligible genesis decides: a fresh ISSUANCE under a superseded
 entity key after the real history was rotated and revoked is not selected as a
-fallback (rejected), and a malformed ISSUANCE authenticated by the record key
+fallback (rejected), with the record carrying either the superseded or the
+original key, and a malformed ISSUANCE authenticated by the record key
 is fatal rather than skipped. Cases marked `anchoredReader: true`
 encode the optional anchored genesis selection. A reader that does not anchor
 on the record `ek` may diverge on them only when the stream has competing

@@ -2,7 +2,7 @@
   "format": "dnsid-c2sp-selection-evidence@v1",
   "method_revision": "d5a65d06f76eff4db81e50f8767a600d2ca7fc2a",
   "generator": "harness/generate_c2sp_fixtures.py; public disposable keys only",
-  "semantic_source_sha256": "7a741c178d96dd298042cbaa3f32bf32a256020284a23875ceb4586b5d320ae5",
+  "semantic_source_sha256": "42a450a2b99010e0dbfe5c4c8d07c22f2c6c1a888ad17fbea033597abf31c414",
   "cases": {
     "unrelated-and-malformed-candidates-do-not-poison-domain": {
       "domain": "agent.example",
@@ -2338,6 +2338,68 @@
         "kid": "entity-2",
         "kty": "OKP",
         "x": "Q6cucUQBdi32a2jCbfvfJoKq7J8kdOykYT5CSg-6_Tw"
+      }
+    },
+    "stale-record-key-cannot-revive-revoked-identity": {
+      "domain": "agent.example",
+      "lr": "c2sp-tlog:public:https://log.example#EREREREREREREREREREREQ",
+      "entries": [
+        {
+          "index": 0,
+          "entry": "eyJlayI6eyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJlbnRpdHktMSIsImt0eSI6Ik9LUCIsIngiOiJpb2pqM1hRSjhaWDlVdHN0UExwZGNzcG5DYjhkbEJJYjgzU0lBYlFQYjF3In0sImZxZG4iOiJhZ2VudC5leGFtcGxlIiwiZ2kiOiJleGFtcGxlIiwia2luZCI6ImRuc2lkLmxpZmVjeWNsZSIsImt1Ijp7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6Im9wZXJhdGlvbmFsLTEiLCJrdHkiOiJPS1AiLCJ4IjoiZ1RsM0RxaDlGMTlXbzFSbXcweC16TXVOaXBHMDdqZWlYZllQVzRfSnM1USJ9LCJsb2dfb3JpZ2luIjoibG9nLmV4YW1wbGUiLCJsciI6ImMyc3AtdGxvZzpwdWJsaWM6aHR0cHM6Ly9sb2cuZXhhbXBsZSNFUkVSRVJFUkVSRVJFUkVSRVJFUkVRIiwibWV0aG9kIjoiYzJzcC10bG9nIiwic2VxIjowLCJzaWdzIjp7ImFlIjp7ImtpZCI6ImVudGl0eS0xIiwic2lnIjoidFk5Rk5fb3IyS0tlZl9xcTI3aVM5TDJfTjhYTXFMeE8teHg3eDMwcHN5ZlRCV0pnY1BSX3MzZUd6T0VZTjN5YV9sVGY2T3ZBekFyVHZiWU1kdXlZQ0EifSwib3AiOnsia2lkIjoib3BlcmF0aW9uYWwtMSIsInNpZyI6IkFUMkpmNDZ3aTVTSThrWW4zYnZES0VpV1JTSXNNd2psSk5yVGttcDNBWEhJc3J5d1R6cWJ2SmF6Ymd5ZkRMMlBSSTlaSG1ldmxQZnEzTVZjVVZhcUFRIn19LCJzdHJlYW1faWQiOiJFUkVSRVJFUkVSRVJFUkVSRVJFUkVRIiwidHMiOjE3ODIxNzI4MDAsInR5cGUiOiJJU1NVQU5DRSIsInYiOjF9",
+          "proof": "YzJzcC5vcmcvdGxvZy1wcm9vZkB2MQppbmRleCAwCjJvOWhVcUdOU3VLQVd1N2I2b3l4WWg4SHl0cVRVU3dSWWRvR0pvY2N2dG89CkZqWWlqc3l3Q1g2aUZVVWRUS2xkb0YxVTI5Nkx2dDFJZWJiZ2pQUktwRTQ9Cgpsb2cuZXhhbXBsZQo0CjlpNkpqYUhwelU1c0NpUDdMWGJQQlc5ZmxQVDRMaENxaURFZ0dwbG12RlU9CgrigJQgbG9nLmV4YW1wbGUgUGJUdUNBU0doekxpb2xOMHR6VkNoQWJsQVJVbGh2bjZJeTQyMURGcXdZM2F6Z0VIR0FVUnJKalZTTWFDM1cwUWcrVHM5eHl4TDdJYnZIY1JJY1ROc0c3SWFBQT0K4oCUIHdpdG5lc3MuZXhhbXBsZSAyblpnTHdBQUFBQnFPZHFRQ0hoQjFIdmZ0TVMzMENVMkdyZ3dQd0M1QUJoM0szUml5TGgxMFVkYkNXbW1Wdkc2bWliZzVweFVIMWpXVTkrOVRhcXVlR1dXNXBCUis1V000UVZMQmc9PQo",
+          "effectId": "issuance-1",
+          "proofValid": true
+        },
+        {
+          "index": 1,
+          "entry": "eyJmcWRuIjoiYWdlbnQuZXhhbXBsZSIsImtpbmQiOiJkbnNpZC5saWZlY3ljbGUiLCJsb2dfb3JpZ2luIjoibG9nLmV4YW1wbGUiLCJsciI6ImMyc3AtdGxvZzpwdWJsaWM6aHR0cHM6Ly9sb2cuZXhhbXBsZSNFUkVSRVJFUkVSRVJFUkVSRVJFUkVRIiwibWV0aG9kIjoiYzJzcC10bG9nIiwibmV3X2VrIjp7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6ImVudGl0eS0yIiwia3R5IjoiT0tQIiwieCI6IlE2Y3VjVVFCZGkzMmEyakNiZnZmSm9LcTdKOGtkT3lrWVQ1Q1NnLTZfVHcifSwibmV3X2VrX3RodW1iIjoicjR0aFJuOEtkaGhnR0Ryek93bVN3eVNxTWNYZUlkZDlTRzMzM0otWk50VSIsInByZXZfZWtfdGh1bWIiOiJVRERSZU9abDFpcFhBZnA5d1lzbTEzc0RCTUs1b2ctLVFXZEJqenVmNm80IiwicHJldl9ldmVudF9pZCI6InlqZXJUQTNBRHl2elk1dE9wSzVaRmg1MzNWQWFHenlMNzJkaFduMmxtOFUiLCJwcmV2X3N0YXRlX2hhc2giOiJZUkZ2UGFiM3ZaUnVSZHpDWXdsaVBiUTRIbWNuWE1mOXlxU25UVVhHTTlRIiwic2VxIjoxLCJzaWdzIjp7Im5ld19hZSI6eyJraWQiOiJlbnRpdHktMiIsInNpZyI6IjBPNjAxbVFuajlPemphN3ZLMGhBdUxDMWNFU0pWUWNsVUcyb0dNZU5NLWZySVJZeUIyRGZ6UDVkSm5lRV9EOFl3NWRyOG5rVkdzYUpTNlIzc01Na0RRIn0sInByZXZfYWUiOnsia2lkIjoiZW50aXR5LTEiLCJzaWciOiIwNGpyYXpoUnpzUjhwX0hIV2l5VkZRaWZnLXFQaE0zNHpUdGY1cUNqQW1lWEp2ZEdYTWF4Q3BORzZzRGdxdmdsdG9qbWFDdG52LXZWY0M5SmVMY1hEQSJ9fSwic3RyZWFtX2lkIjoiRVJFUkVSRVJFUkVSRVJFUkVSRVJFUSIsInRzIjoxNzgyMTczMDAwLCJ0eXBlIjoiRU5USVRZX0tFWV9ST1RBVElPTiIsInYiOjF9",
+          "proof": "YzJzcC5vcmcvdGxvZy1wcm9vZkB2MQppbmRleCAxCjhRUEFuR1UxRThMY0pxcVFZem53MktJL2M2YmwzTHNqYjFhTHFhc1lXSlk9CkZqWWlqc3l3Q1g2aUZVVWRUS2xkb0YxVTI5Nkx2dDFJZWJiZ2pQUktwRTQ9Cgpsb2cuZXhhbXBsZQo0CjlpNkpqYUhwelU1c0NpUDdMWGJQQlc5ZmxQVDRMaENxaURFZ0dwbG12RlU9CgrigJQgbG9nLmV4YW1wbGUgUGJUdUNBU0doekxpb2xOMHR6VkNoQWJsQVJVbGh2bjZJeTQyMURGcXdZM2F6Z0VIR0FVUnJKalZTTWFDM1cwUWcrVHM5eHl4TDdJYnZIY1JJY1ROc0c3SWFBQT0K4oCUIHdpdG5lc3MuZXhhbXBsZSAyblpnTHdBQUFBQnFPZHFRQ0hoQjFIdmZ0TVMzMENVMkdyZ3dQd0M1QUJoM0szUml5TGgxMFVkYkNXbW1Wdkc2bWliZzVweFVIMWpXVTkrOVRhcXVlR1dXNXBCUis1V000UVZMQmc9PQo",
+          "effectId": "entity-rotation-1",
+          "proofValid": true
+        },
+        {
+          "index": 2,
+          "entry": "eyJmcWRuIjoiYWdlbnQuZXhhbXBsZSIsImtpbmQiOiJkbnNpZC5saWZlY3ljbGUiLCJsb2dfb3JpZ2luIjoibG9nLmV4YW1wbGUiLCJsciI6ImMyc3AtdGxvZzpwdWJsaWM6aHR0cHM6Ly9sb2cuZXhhbXBsZSNFUkVSRVJFUkVSRVJFUkVSRVJFUkVRIiwibWV0aG9kIjoiYzJzcC10bG9nIiwicHJldl9ldmVudF9pZCI6InhGQmJ4RjNOUWNuNS14NXdZWnlaX3U0ZmdqX2FwdEhNOTVwaXhLR21wSWsiLCJwcmV2X3N0YXRlX2hhc2giOiJGU0w3TXFtUU1QY3dZNlJhR2NtSTlLWmc0WWtsdTltX0Nrc21yY3B4NFY4IiwicmVhc29uIjoia2V5Q29tcHJvbWlzZSIsInNlcSI6Miwic2lncyI6eyJhZSI6eyJraWQiOiJlbnRpdHktMiIsInNpZyI6IkJGUmpSOE9OZTVyWTFpNW9nSTdlMmZNVVhHS3NLMkV3YmY2YXNaLWE3WWxLeFZkUUlOYks3eDdVSWpDYXN6UUEyTkx6N2szeFFLQVlkQUkyWnB6bkFnIn19LCJzdHJlYW1faWQiOiJFUkVSRVJFUkVSRVJFUkVSRVJFUkVRIiwidHMiOjE3ODIxNzM4MDAsInR5cGUiOiJSRVZPQ0FUSU9OIiwidiI6MX0",
+          "proof": "YzJzcC5vcmcvdGxvZy1wcm9vZkB2MQppbmRleCAyCjVSL0R1QjcwSngvM2k3ZExHRU4vQmNMRjlsWXozSDdqbFUwc2xZOXZWeG89CmhWdkNlc2JYc0NnMVc1ODlqYmYrL2oxaTYydDh2UWlZOTdodXNKSk1GYjA9Cgpsb2cuZXhhbXBsZQo0CjlpNkpqYUhwelU1c0NpUDdMWGJQQlc5ZmxQVDRMaENxaURFZ0dwbG12RlU9CgrigJQgbG9nLmV4YW1wbGUgUGJUdUNBU0doekxpb2xOMHR6VkNoQWJsQVJVbGh2bjZJeTQyMURGcXdZM2F6Z0VIR0FVUnJKalZTTWFDM1cwUWcrVHM5eHl4TDdJYnZIY1JJY1ROc0c3SWFBQT0K4oCUIHdpdG5lc3MuZXhhbXBsZSAyblpnTHdBQUFBQnFPZHFRQ0hoQjFIdmZ0TVMzMENVMkdyZ3dQd0M1QUJoM0szUml5TGgxMFVkYkNXbW1Wdkc2bWliZzVweFVIMWpXVTkrOVRhcXVlR1dXNXBCUis1V000UVZMQmc9PQo",
+          "effectId": "revocation-rotated-entity-key-late",
+          "proofValid": true
+        },
+        {
+          "index": 3,
+          "entry": "eyJlayI6eyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJlbnRpdHktMSIsImt0eSI6Ik9LUCIsIngiOiJpb2pqM1hRSjhaWDlVdHN0UExwZGNzcG5DYjhkbEJJYjgzU0lBYlFQYjF3In0sImZxZG4iOiJhZ2VudC5leGFtcGxlIiwiZ2kiOiJleGFtcGxlIiwia2luZCI6ImRuc2lkLmxpZmVjeWNsZSIsImt1Ijp7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6Im9wZXJhdGlvbmFsLTkiLCJrdHkiOiJPS1AiLCJ4IjoiX1Jja09GcWd4MXRrLTNqTllDLWgyWkg5Nl9kckU4V08xd0xxeURYcDloZyJ9LCJsb2dfb3JpZ2luIjoibG9nLmV4YW1wbGUiLCJsciI6ImMyc3AtdGxvZzpwdWJsaWM6aHR0cHM6Ly9sb2cuZXhhbXBsZSNFUkVSRVJFUkVSRVJFUkVSRVJFUkVRIiwibWV0aG9kIjoiYzJzcC10bG9nIiwic2VxIjowLCJzaWdzIjp7ImFlIjp7ImtpZCI6ImVudGl0eS0xIiwic2lnIjoiUXNKUDhDOTJKU3BmZUpsNm5rN1NsQjExR2dHaDI0VDNjZVNPTE5wWEdNUUhFa0pPWkx3V0VCQ09Wa3Q4TG5YX0pJd2VCVDU0a2x2UFRmYl80QzdYQkEifSwib3AiOnsia2lkIjoib3BlcmF0aW9uYWwtOSIsInNpZyI6IkJsUG5wVHR4b2hETnI2bXRsaWZIRGI5VDdEazBnUjFjM2NCdjlNUzEtcTkyOW9JV2VlOFhrMWk0X1NJSkRFdG9MY2FsNWNtc3I0bWROV0d1REJwdUF3In19LCJzdHJlYW1faWQiOiJFUkVSRVJFUkVSRVJFUkVSRVJFUkVRIiwidHMiOjE3ODIxNzM5MDAsInR5cGUiOiJJU1NVQU5DRSIsInYiOjF9",
+          "proof": "YzJzcC5vcmcvdGxvZy1wcm9vZkB2MQppbmRleCAzCnhXVVRyVFJQNm5HYWxtSG5lWGVtb0NWcjhwMDJTQzJlR0NkWE5mNHV1alk9CmhWdkNlc2JYc0NnMVc1ODlqYmYrL2oxaTYydDh2UWlZOTdodXNKSk1GYjA9Cgpsb2cuZXhhbXBsZQo0CjlpNkpqYUhwelU1c0NpUDdMWGJQQlc5ZmxQVDRMaENxaURFZ0dwbG12RlU9CgrigJQgbG9nLmV4YW1wbGUgUGJUdUNBU0doekxpb2xOMHR6VkNoQWJsQVJVbGh2bjZJeTQyMURGcXdZM2F6Z0VIR0FVUnJKalZTTWFDM1cwUWcrVHM5eHl4TDdJYnZIY1JJY1ROc0c3SWFBQT0K4oCUIHdpdG5lc3MuZXhhbXBsZSAyblpnTHdBQUFBQnFPZHFRQ0hoQjFIdmZ0TVMzMENVMkdyZ3dQd0M1QUJoM0szUml5TGgxMFVkYkNXbW1Wdkc2bWliZzVweFVIMWpXVTkrOVRhcXVlR1dXNXBCUis1V000UVZMQmc9PQo",
+          "effectId": "revived-original-issuance",
+          "proofValid": true
+        }
+      ],
+      "policy": "log log.example+3db4ee08+AcqTrBcFGHBx1nuDx/8O/oEI6OxFMFdddyaHkzPb2r58\nwitness primary witness.example+da76602f+BG56HN0psLeP0Tr0xVmP7/TvKpcWbjym8uT7/M2AUFvx\nquorum primary\n",
+      "checkpoint": "log.example\n4\n9i6JjaHpzU5sCiP7LXbPBW9flPT4LhCqiDEgGplmvFU=\n\n\u2014 log.example PbTuCASGhzLiolN0tzVChAblARUlhvn6Iy421DFqwY3azgEHGAURrJjVSMaC3W0Qg+Ts9xyxL7IbvHcRIcTNsG7IaAA=\n\u2014 witness.example 2nZgLwAAAABqOdqQCHhB1HvftMS30CU2GrgwPwC5ABh3K3RiyLh10UdbCWmmVvG6mibg5pxUH1jWU9+9TaqueGWW5pBR+5WM4QVLBg==\n",
+      "checkpointAccepted": true,
+      "completeThroughCheckpoint": true,
+      "entityJwk": {
+        "alg": "EdDSA",
+        "crv": "Ed25519",
+        "kid": "entity-1",
+        "kty": "OKP",
+        "x": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w"
+      },
+      "operationalJwk": {
+        "alg": "EdDSA",
+        "crv": "Ed25519",
+        "kid": "operational-1",
+        "kty": "OKP",
+        "x": "gTl3Dqh9F19Wo1Rmw0x-zMuNipG07jeiXfYPW4_Js5Q"
+      },
+      "priorHistoryVerified": null,
+      "priorAppliedEffectIds": [],
+      "checkpointIntegrationTimeMs": 1782176400000,
+      "recordEntityJwk": {
+        "alg": "EdDSA",
+        "crv": "Ed25519",
+        "kid": "entity-1",
+        "kty": "OKP",
+        "x": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w"
       }
     },
     "malformed-genesis-authenticated-by-record-key-is-fatal": {

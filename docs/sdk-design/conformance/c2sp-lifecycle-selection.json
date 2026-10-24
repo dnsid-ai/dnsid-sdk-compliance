@@ -58,7 +58,9 @@
     "entity-rotation-stray-private-member": {"effectId": "entity-rotation-stray-private-member", "type": "ENTITY_KEY_ROTATION", "domain": "agent.example", "valid": false, "authenticated": false, "failureScope": "candidate-signature"},
     "revocation-by-latest-entity-key": {"effectId": "revocation-latest-entity-key", "type": "REVOCATION", "domain": "agent.example", "valid": true},
     "revived-issuance-under-superseded-key": {"effectId": "revived-issuance", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "genesis-anchor"},
-    "malformed-issuance": {"effectId": "malformed-issuance", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "authenticated-payload"}
+    "malformed-issuance": {"effectId": "malformed-issuance", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "authenticated-payload"},
+    "revocation-by-rotated-entity-key-late": {"effectId": "revocation-rotated-entity-key-late", "type": "REVOCATION", "domain": "agent.example", "valid": true},
+    "revived-issuance-under-original-key": {"effectId": "revived-original-issuance", "type": "ISSUANCE", "domain": "agent.example", "valid": false, "authenticated": true, "failureScope": "genesis-anchor"}
   },
   "cases": [
     {
@@ -412,6 +414,13 @@
       "candidates": ["malformed-issuance", "issuance"],
       "recordEk": "entity-1",
       "expected": {"valid": false, "failingCandidateIndex": 0}
+    },
+    {
+      "id": "stale-record-key-cannot-revive-revoked-identity",
+      "anchoredReader": true,
+      "candidates": ["issuance", "entity-rotation", "revocation-by-rotated-entity-key-late", "revived-issuance-under-original-key"],
+      "recordEk": "entity-1",
+      "expected": {"valid": false}
     }
   ]
 }

@@ -233,6 +233,12 @@ def entity_key_rotation_recipes(issuance, rotation):
     recipes["superseded-key-cannot-revive-revoked-identity"] = [
         ("issuance", issuance), ("entity-rotation", er12), ("entity-rotation-second", er23),
         ("revocation-by-latest-entity-key", revocation_latest), ("revived-issuance-under-superseded-key", revived)]
+    # Same attack with the record still carrying the original key E1.
+    recipes["stale-record-key-cannot-revive-revoked-identity"] = [
+        ("issuance", issuance), ("entity-rotation", er12),
+        ("revocation-by-rotated-entity-key-late", revocation(E2, 800)),
+        ("revived-issuance-under-original-key", signed(dict(context, type="ISSUANCE", seq=0, ts=ts + 900, gi=issuance["gi"], ek=e1, ku=o9),
+                                                       {"ae": E1, "op": ("operational-9", "operational-9")}))]
     # Signed by the record key but its ek lacks alg: invalid authenticated genesis, not noise.
     malformed = signed(dict(context, type="ISSUANCE", seq=0, ts=1782172790, gi=issuance["gi"],
                             ek={k: v for k, v in e1.items() if k != "alg"}, ku=o1),

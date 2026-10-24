@@ -286,7 +286,7 @@ recovery or governance-domain changes, can invalidate relying-party pins. A
 rotated entity key keeps logged identities verifiable only when each affected
 identity's log records an
 [`ENTITY_KEY_ROTATION`](06-log-bindings.md#entity-key-continuity); the rotation
-still changes the pinned key. A
+still invalidates pins on the previous `ek`. A
 changed governance ID also requires an explicit allowlist update. The SDK
 provides no automatic pin-update or rotation-notification guarantee.
 
