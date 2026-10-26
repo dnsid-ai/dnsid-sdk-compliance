@@ -162,6 +162,13 @@ Behavior notes:
   algorithm-prefixed. The signature algorithm is determined by the single current
   JWK at `ek`; ES256 support is mandatory and Ed25519 support is recommended.
   ES256 signatures are JWA fixed-width `R || S`, not DER.
+- Signature verification with any JWKS key (`sg`, JWS, HTTP message signatures,
+  C2SP lifecycle events): ES256 signatures are exactly 64 bytes with R and S in
+  [1, n-1], and high-S signatures are valid. Ed25519 uses RFC 8032 cofactorless
+  verification, rejects S >= L, and rejects public keys that are non-canonical
+  (y >= p) or small-order. P-256 JWK `x` and `y` are exactly 32 bytes.
+- An empty `ka=` is semantically absent and does not fail validation; the pair
+  stays in `Canonical()`.
 - JWK `alg` is REQUIRED on signing keys served by `ek` and `ku` in this profile.
 - Verifiers that rely on the DNSid-to-accountable-entity binding MUST verify the
   bilateral ISSUANCE event, including both accountable-entity signature and DNSid
@@ -232,8 +239,9 @@ FUNCTION DnsIdTxtRecord.Canonical() -> string
   // tag name, semicolon-separated, with no whitespace. The exact v value remains
   // in the sorted tag set; DNSid1 is never rewritten to dnsid-draft-01.
   // Unknown extension tags are ignored semantically but preserved for signatures.
-  // Tags() omits unset/empty known optional tags, but preserves unknown tags even
-  // when their value is empty (see Serialize note below).
+  // Tags() returns every pair as parsed, including a known optional tag with an
+  // empty value (for example "ka="): that tag is semantically absent but stays in
+  // the signature input. Unknown tags are preserved even when their value is empty.
   // The result is always pure ASCII: the spec ABNF (§4.2) constrains tag names to
   // ALPHA/DIGIT/"_" and tag values to printable ASCII (%x21-3A / %x3C-7E), so no
   // encoding ambiguity exists. Sign and verify over the raw ASCII bytes.
@@ -418,6 +426,9 @@ FUNCTION Draft01BehaviorProfile.Validate(record: DnsIdTxtRecord) -> error
   IF ekURI.scheme != "https" OR ekURI.Hostname() == "" THEN
     RETURN ValidationError("ek must be a valid HTTPS URI with a host")
   END
+  IF HasSuffix(ekURI.Hostname(), ".") THEN
+    RETURN ValidationError("ek host must not end with a root dot")
+  END
   ekHost = NormalizeFQDN(ekURI.Hostname())
   IF ekHost != giDomain AND NOT HasSuffix(ekHost, "." + giDomain) THEN
     RETURN ValidationError("ek host must equal or be beneath gi")
@@ -427,7 +438,7 @@ FUNCTION Draft01BehaviorProfile.Validate(record: DnsIdTxtRecord) -> error
   IF kuURI.scheme != "https" OR kuURI.Hostname() == "" THEN
     RETURN ValidationError("ku must be a valid HTTPS URI with a host")
   END
-  IF NormalizeFQDN(kuURI.Hostname()) != identityFQDN THEN
+  IF HasSuffix(kuURI.Hostname(), ".") OR NormalizeFQDN(kuURI.Hostname()) != identityFQDN THEN
     RETURN ValidationError("ku host must equal identity FQDN")
   END
 
