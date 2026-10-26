@@ -2,7 +2,7 @@
   "format": "dnsid-c2sp-selection-evidence@v1",
   "method_revision": "d5a65d06f76eff4db81e50f8767a600d2ca7fc2a",
   "generator": "harness/generate_c2sp_fixtures.py; public disposable keys only",
-  "semantic_source_sha256": "1227b728ec4dba94be39ddde7fa2e1add624093db6928f0aab8d2ea57a104ee9",
+  "semantic_source_sha256": "ef642401c777ae12125b5e9a97cccf8aaf33c83690c2340945d71be5569a8bcc",
   "cases": {
     "unrelated-and-malformed-candidates-do-not-poison-domain": {
       "domain": "agent.example",
@@ -973,6 +973,47 @@
       ],
       "policy": "log log.example+3db4ee08+AcqTrBcFGHBx1nuDx/8O/oEI6OxFMFdddyaHkzPb2r58\nwitness primary witness.example+da76602f+BG56HN0psLeP0Tr0xVmP7/TvKpcWbjym8uT7/M2AUFvx\nquorum primary\n",
       "checkpoint": "log.example\n1\nVJchv1PmLVhHuUkR7t5ulKZegCbRRIXTEAkAlDFMlow=\n\n\u2014 log.example PbTuCJUi310k4maU4UNC8FGFY0KYRdgYi/d7RklgzwsP8wfEdX07sb4yUcdMnZQhzye6NZ/6xoFNvyGQvR5SHFhtIwk=\n\u2014 witness.example 2nZgLwAAAABqOdqQuoy36lcNPLLZRmzZpvhSF8+mmVeIJzvfMKZ8Y2V1XtJlVRX8clgT5sXi0219JRECevGxFxHXWgESAc+4v9gwDA==\n",
+      "checkpointAccepted": true,
+      "completeThroughCheckpoint": true,
+      "entityJwk": {
+        "alg": "EdDSA",
+        "crv": "Ed25519",
+        "kid": "entity-1",
+        "kty": "OKP",
+        "x": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w"
+      },
+      "operationalJwk": {
+        "alg": "EdDSA",
+        "crv": "Ed25519",
+        "kid": "operational-1",
+        "kty": "OKP",
+        "x": "gTl3Dqh9F19Wo1Rmw0x-zMuNipG07jeiXfYPW4_Js5Q"
+      },
+      "priorHistoryVerified": null,
+      "priorAppliedEffectIds": [],
+      "checkpointIntegrationTimeMs": 1782176400000
+    },
+    "bom-prefixed-entry-is-ignored": {
+      "domain": "agent.example",
+      "lr": "c2sp-tlog:public:https://log.example#EREREREREREREREREREREQ",
+      "entries": [
+        {
+          "index": 0,
+          "entry": "eyJlayI6eyJhbGciOiJFZERTQSIsImNydiI6IkVkMjU1MTkiLCJraWQiOiJlbnRpdHktMSIsImt0eSI6Ik9LUCIsIngiOiJpb2pqM1hRSjhaWDlVdHN0UExwZGNzcG5DYjhkbEJJYjgzU0lBYlFQYjF3In0sImZxZG4iOiJhZ2VudC5leGFtcGxlIiwiZ2kiOiJleGFtcGxlIiwia2luZCI6ImRuc2lkLmxpZmVjeWNsZSIsImt1Ijp7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImtpZCI6Im9wZXJhdGlvbmFsLTEiLCJrdHkiOiJPS1AiLCJ4IjoiZ1RsM0RxaDlGMTlXbzFSbXcweC16TXVOaXBHMDdqZWlYZllQVzRfSnM1USJ9LCJsb2dfb3JpZ2luIjoibG9nLmV4YW1wbGUiLCJsciI6ImMyc3AtdGxvZzpwdWJsaWM6aHR0cHM6Ly9sb2cuZXhhbXBsZSNFUkVSRVJFUkVSRVJFUkVSRVJFUkVRIiwibWV0aG9kIjoiYzJzcC10bG9nIiwic2VxIjowLCJzaWdzIjp7ImFlIjp7ImtpZCI6ImVudGl0eS0xIiwic2lnIjoidFk5Rk5fb3IyS0tlZl9xcTI3aVM5TDJfTjhYTXFMeE8teHg3eDMwcHN5ZlRCV0pnY1BSX3MzZUd6T0VZTjN5YV9sVGY2T3ZBekFyVHZiWU1kdXlZQ0EifSwib3AiOnsia2lkIjoib3BlcmF0aW9uYWwtMSIsInNpZyI6IkFUMkpmNDZ3aTVTSThrWW4zYnZES0VpV1JTSXNNd2psSk5yVGttcDNBWEhJc3J5d1R6cWJ2SmF6Ymd5ZkRMMlBSSTlaSG1ldmxQZnEzTVZjVVZhcUFRIn19LCJzdHJlYW1faWQiOiJFUkVSRVJFUkVSRVJFUkVSRVJFUkVRIiwidHMiOjE3ODIxNzI4MDAsInR5cGUiOiJJU1NVQU5DRSIsInYiOjF9",
+          "proof": "YzJzcC5vcmcvdGxvZy1wcm9vZkB2MQppbmRleCAwCm1EaDhSU2dIM3N2RlZwSGcxS2lzM3IxV055OEFuK09lV3A4K09lbGpuczQ9Cgpsb2cuZXhhbXBsZQoyCnFGVlNLb1A2eG5NYjNSRDM1RS9KeW8yeWt1eG82dDExMk9LWEt5N2dVeTA9CgrigJQgbG9nLmV4YW1wbGUgUGJUdUNFd0FCVi83bFBzY3pYSENQUjhZZzBuRjF6ZW1kVHJxam1WN2t1djAvQzVMK0U0M3BUTlg2YWJoSUx4aFZVSTI2QUVDMnUxK3hXUmhmMFpuQXdBSFN3UT0K4oCUIHdpdG5lc3MuZXhhbXBsZSAyblpnTHdBQUFBQnFPZHFRRW02a0pzajRrTUdBSGhEdmZ3ODdmZ1R3amtJdW1KUVUrQXlvalhkMWY3N1NuMU1NZ3pLR3dDQ0tXV0w1dFNWOEE3bThuejdYa2djSjlnc3FzOFRZQ1E9PQo",
+          "effectId": "issuance-1",
+          "proofValid": true
+        },
+        {
+          "index": 1,
+          "entry": "77u_eyJmcWRuIjoiYWdlbnQuZXhhbXBsZSIsImtpbmQiOiJkbnNpZC5saWZlY3ljbGUiLCJsb2dfb3JpZ2luIjoibG9nLmV4YW1wbGUiLCJsciI6ImMyc3AtdGxvZzpwdWJsaWM6aHR0cHM6Ly9sb2cuZXhhbXBsZSNFUkVSRVJFUkVSRVJFUkVSRVJFUkVRIiwibWV0aG9kIjoiYzJzcC10bG9nIiwicHJldl9ldmVudF9pZCI6InlqZXJUQTNBRHl2elk1dE9wSzVaRmg1MzNWQWFHenlMNzJkaFduMmxtOFUiLCJwcmV2X3N0YXRlX2hhc2giOiJZUkZ2UGFiM3ZaUnVSZHpDWXdsaVBiUTRIbWNuWE1mOXlxU25UVVhHTTlRIiwicmVhc29uIjoia2V5Q29tcHJvbWlzZSIsInNlcSI6MSwic2lncyI6eyJhZSI6eyJraWQiOiJlbnRpdHktMSIsInNpZyI6IlVpN1UyNjZXQjBaelktVnlRTHk5WWpubC1KcU95RXVRajlZMW51NllTM2N2alU4WFZ6UmpzM0E4a0JlUnRSWTEwNURWdTA2WXJkOHBtSERhNWtuc0F3In19LCJzdHJlYW1faWQiOiJFUkVSRVJFUkVSRVJFUkVSRVJFUkVRIiwidHMiOjE3ODIxNzI5MjEsInR5cGUiOiJSRVZPQ0FUSU9OIiwidiI6MX0",
+          "proof": "YzJzcC5vcmcvdGxvZy1wcm9vZkB2MQppbmRleCAxCjhRUEFuR1UxRThMY0pxcVFZem53MktJL2M2YmwzTHNqYjFhTHFhc1lXSlk9Cgpsb2cuZXhhbXBsZQoyCnFGVlNLb1A2eG5NYjNSRDM1RS9KeW8yeWt1eG82dDExMk9LWEt5N2dVeTA9CgrigJQgbG9nLmV4YW1wbGUgUGJUdUNFd0FCVi83bFBzY3pYSENQUjhZZzBuRjF6ZW1kVHJxam1WN2t1djAvQzVMK0U0M3BUTlg2YWJoSUx4aFZVSTI2QUVDMnUxK3hXUmhmMFpuQXdBSFN3UT0K4oCUIHdpdG5lc3MuZXhhbXBsZSAyblpnTHdBQUFBQnFPZHFRRW02a0pzajRrTUdBSGhEdmZ3ODdmZ1R3amtJdW1KUVUrQXlvalhkMWY3N1NuMU1NZ3pLR3dDQ0tXV0w1dFNWOEE3bThuejdYa2djSjlnc3FzOFRZQ1E9PQo",
+          "effectId": "revocation-bom",
+          "proofValid": true
+        }
+      ],
+      "policy": "log log.example+3db4ee08+AcqTrBcFGHBx1nuDx/8O/oEI6OxFMFdddyaHkzPb2r58\nwitness primary witness.example+da76602f+BG56HN0psLeP0Tr0xVmP7/TvKpcWbjym8uT7/M2AUFvx\nquorum primary\n",
+      "checkpoint": "log.example\n2\nqFVSKoP6xnMb3RD35E/Jyo2ykuxo6t112OKXKy7gUy0=\n\n\u2014 log.example PbTuCEwABV/7lPsczXHCPR8Yg0nF1zemdTrqjmV7kuv0/C5L+E43pTNX6abhILxhVUI26AEC2u1+xWRhf0ZnAwAHSwQ=\n\u2014 witness.example 2nZgLwAAAABqOdqQEm6kJsj4kMGAHhDvfw87fgTwjkIumJQU+AyojXd1f77Sn1MMgzKGwCCKWWL5tSV8A7m8nz7XkgcJ9gsqs8TYCQ==\n",
       "checkpointAccepted": true,
       "completeThroughCheckpoint": true,
       "entityJwk": {

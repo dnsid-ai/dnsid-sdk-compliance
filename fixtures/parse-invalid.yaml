@@ -208,3 +208,27 @@ cases:
     expect:
       ok: false
       error: ParseError
+
+  - id: parse-invalid-trailing-newline-in-value
+    description: A tag value ending in LF is outside the tag-value grammar
+    spec_ref: "draft-ihsanullah-dnsid-01 §Record Format (dnsid-tag-value = *( %x21-3A / %x3C-7E ))"
+    tags: [required, edge-case]
+    version: dnsid-draft-01
+    op: parse
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com\n;ek=https://example.com/entity-keys.json;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=AAAA"
+    expect:
+      ok: false
+      error: ParseError
+
+  - id: parse-invalid-trailing-newline-after-record
+    description: A record followed by LF is not a dnsid-record
+    spec_ref: "draft-ihsanullah-dnsid-01 §Record Format"
+    tags: [required, edge-case]
+    version: dnsid-draft-01
+    op: parse
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=AAAA\n"
+    expect:
+      ok: false
+      error: ParseError

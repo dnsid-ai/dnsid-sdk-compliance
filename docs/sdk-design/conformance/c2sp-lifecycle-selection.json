@@ -23,7 +23,8 @@
     "revocation-small-exponent-number": {"effectId": "revocation-small-exponent-number", "type": "REVOCATION", "domain": "agent.example", "valid": true},
     "revocation-large-exponent-number": {"effectId": "revocation-large-exponent-number", "type": "REVOCATION", "domain": "agent.example", "valid": true},
     "bad-signature-migration": {"effectId": "migration-bad-signature", "type": "MIGRATION", "domain": "agent.example", "valid": false, "authenticated": false, "failureScope": "candidate-signature", "direction": "inbound"},
-    "shared-kid-issuance": {"effectId": "issuance-shared-kid", "type": "ISSUANCE", "domain": "agent.example", "valid": true}
+    "shared-kid-issuance": {"effectId": "issuance-shared-kid", "type": "ISSUANCE", "domain": "agent.example", "valid": true},
+    "bom-prefixed-revocation": {"effectId": "revocation-bom", "domain": "agent.example", "valid": false, "authenticated": false, "failureScope": "candidate-encoding"}
   },
   "cases": [
     {
@@ -162,6 +163,11 @@
       "id": "shared-kid-label-does-not-select-keys",
       "candidates": ["shared-kid-issuance"],
       "expected": {"valid": true, "appliedEffectIds": ["issuance-shared-kid"], "ignoredCandidateIndexes": []}
+    },
+    {
+      "id": "bom-prefixed-entry-is-ignored",
+      "candidates": ["issuance", "bom-prefixed-revocation"],
+      "expected": {"valid": true, "appliedEffectIds": ["issuance-1"], "ignoredCandidateIndexes": [1]}
     }
   ]
 }

@@ -210,11 +210,6 @@ cases:
     expect:
       ok: false
       error: ValidationError
-    sdk:
-      ts:
-        known_bug: "validation normalizes the root dot away (dnsid-ts fix/reject-root-dot-key-host)"
-      py:
-        known_bug: "validation normalizes the root dot away (dnsid-py fix/reject-root-dot-key-host)"
 
   - id: validate-ek-root-dot-host-rejected
     description: A root dot in the ek host is invalid
@@ -228,11 +223,6 @@ cases:
     expect:
       ok: false
       error: ValidationError
-    sdk:
-      ts:
-        known_bug: "validation normalizes the root dot away (dnsid-ts fix/reject-root-dot-key-host)"
-      py:
-        known_bug: "validation normalizes the root dot away (dnsid-py fix/reject-root-dot-key-host)"
 
   - id: validate-empty-ka-is-absent
     description: An empty ka value is treated as absence and does not fail validation
@@ -245,3 +235,42 @@ cases:
       identity_fqdn: agent.test
     expect:
       ok: true
+
+  - id: validate-gi-ipv4-literal-rejected
+    description: An IPv4 literal is not a registrant domain name
+    spec_ref: "draft-ihsanullah-dnsid-01 §GI Tag (gi MUST be a domain name); RFC 1123 §2.1"
+    tags: [required, edge-case]
+    version: dnsid-draft-01
+    op: validate
+    input:
+      raw: "v=dnsid-draft-01;gi=127.0.0.1;ek=https://127.0.0.1/entity-keys.json;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=AAAA"
+      identity_fqdn: agent.test
+    expect:
+      ok: false
+      error: ValidationError
+
+  - id: validate-ku-userinfo-rejected
+    description: userinfo in an https URI is treated as an error
+    spec_ref: "RFC 9110 §4.2.4; draft-ihsanullah-dnsid-01 §Tag Definitions (ku is an HTTPS URL)"
+    tags: [security, edge-case]
+    version: dnsid-draft-01
+    op: validate
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https://user@agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=AAAA"
+      identity_fqdn: agent.test
+    expect:
+      ok: false
+      error: ValidationError
+
+  - id: validate-ku-without-authority-rejected
+    description: "https:host/path has no authority; WHATWG URL recovers a host, RFC 3986 and RFC 9110 do not"
+    spec_ref: "RFC 9110 §4.2.2 (empty host is invalid); RFC 3986 §3"
+    tags: [security, edge-case]
+    version: dnsid-draft-01
+    op: validate
+    input:
+      raw: "v=dnsid-draft-01;gi=example.com;ek=https://example.com/entity-keys.json;ku=https:agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;sg=AAAA"
+      identity_fqdn: agent.test
+    expect:
+      ok: false
+      error: ValidationError
