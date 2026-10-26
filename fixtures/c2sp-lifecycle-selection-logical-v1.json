@@ -2,7 +2,7 @@
   "format": "dnsid-c2sp-selection-evidence@v1",
   "method_revision": "d5a65d06f76eff4db81e50f8767a600d2ca7fc2a",
   "generator": "harness/generate_c2sp_fixtures.py; public disposable keys only",
-  "semantic_source_sha256": "ccedc4d907cc530cc58724751052d539312d2e4c66ab98a565cc5fa2c1ed961e",
+  "semantic_source_sha256": "ef642401c777ae12125b5e9a97cccf8aaf33c83690c2340945d71be5569a8bcc",
   "cases": {
     "unrelated-and-malformed-candidates-do-not-poison-domain": {
       "domain": "agent.example",

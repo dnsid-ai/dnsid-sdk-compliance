@@ -114,6 +114,3 @@ cases:
     expect:
       ok: true
       value: "ek=https://example.com/entity-keys.json;gi=example.com;ku=https://agent.test/jwks.json;lr=microledger:abc123;su=https://agent.test/status;v=dnsid-draft-01;x=1;x0=2"
-    sdk:
-      py:
-        known_bug: "canonical() sorts whole tag=value strings (dnsid-py fix/txt-canonical-order-and-strict-syntax)"

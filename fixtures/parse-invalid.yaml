@@ -220,9 +220,6 @@ cases:
     expect:
       ok: false
       error: ParseError
-    sdk:
-      py:
-        known_bug: "tag regexes use re.match with $, which matches before a final LF (dnsid-py fix/txt-canonical-order-and-strict-syntax)"
 
   - id: parse-invalid-trailing-newline-after-record
     description: A record followed by LF is not a dnsid-record
@@ -235,6 +232,3 @@ cases:
     expect:
       ok: false
       error: ParseError
-    sdk:
-      py:
-        known_bug: "tag regexes use re.match with $, which matches before a final LF (dnsid-py fix/txt-canonical-order-and-strict-syntax)"

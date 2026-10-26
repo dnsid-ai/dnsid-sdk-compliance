@@ -145,9 +145,6 @@ cases:
     expect:
       ok: true
       value: xn--nxasmq6b.com
-    sdk:
-      py:
-        known_bug: "normalize_fqdn applies str.lower() before UTS 46 (dnsid-py fix/txt-canonical-order-and-strict-syntax)"
 
   - id: fqdn-reserved-hyphen-label-rejected
     description: "\"--\" in positions 3-4 is reserved for A-labels (xn--); ab--c is not a valid label"
@@ -159,9 +156,6 @@ cases:
     expect:
       ok: false
       error: ValidationError
-    sdk:
-      ts:
-        known_bug: "WHATWG host parsing skips CheckHyphens (dnsid-ts fix/fqdn-ldh-and-reserved-hyphens)"
 
   - id: fqdn-underscore-label-rejected
     description: An agent FQDN is a host name; host-name labels are letters, digits and hyphens
@@ -173,6 +167,3 @@ cases:
     expect:
       ok: false
       error: ValidationError
-    sdk:
-      ts:
-        known_bug: "WHATWG host parsing skips UseSTD3ASCIIRules (dnsid-ts fix/fqdn-ldh-and-reserved-hyphens)"

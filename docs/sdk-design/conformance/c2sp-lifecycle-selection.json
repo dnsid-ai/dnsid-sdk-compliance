@@ -167,8 +167,7 @@
     {
       "id": "bom-prefixed-entry-is-ignored",
       "candidates": ["issuance", "bom-prefixed-revocation"],
-      "expected": {"valid": true, "appliedEffectIds": ["issuance-1"], "ignoredCandidateIndexes": [1]},
-      "knownBugs": {"ts": "assertCanonicalJsonBytes strips a leading BOM before comparing (dnsid-ts fix/c2sp-bom-and-strict-https-uri)"}
+      "expected": {"valid": true, "appliedEffectIds": ["issuance-1"], "ignoredCandidateIndexes": [1]}
     }
   ]
 }

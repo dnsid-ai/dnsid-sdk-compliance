@@ -210,11 +210,6 @@ cases:
     expect:
       ok: false
       error: ValidationError
-    sdk:
-      ts:
-        known_bug: "validation normalizes the root dot away (dnsid-ts fix/reject-root-dot-key-host)"
-      py:
-        known_bug: "validation normalizes the root dot away (dnsid-py fix/reject-root-dot-key-host)"
 
   - id: validate-ek-root-dot-host-rejected
     description: A root dot in the ek host is invalid
@@ -228,11 +223,6 @@ cases:
     expect:
       ok: false
       error: ValidationError
-    sdk:
-      ts:
-        known_bug: "validation normalizes the root dot away (dnsid-ts fix/reject-root-dot-key-host)"
-      py:
-        known_bug: "validation normalizes the root dot away (dnsid-py fix/reject-root-dot-key-host)"
 
   - id: validate-empty-ka-is-absent
     description: An empty ka value is treated as absence and does not fail validation
@@ -258,11 +248,6 @@ cases:
     expect:
       ok: false
       error: ValidationError
-    sdk:
-      go:
-        known_bug: "isDomainName accepts an all-numeric top label (dnsid-go fix/reject-ipv4-gi)"
-      py:
-        known_bug: "is_domain_name accepts an all-numeric top label (dnsid-py fix/txt-canonical-order-and-strict-syntax)"
 
   - id: validate-ku-userinfo-rejected
     description: userinfo in an https URI is treated as an error
@@ -276,9 +261,6 @@ cases:
     expect:
       ok: false
       error: ValidationError
-    sdk:
-      ts:
-        known_bug: "validateHttpsUrl relies on WHATWG URL, which accepts userinfo (dnsid-ts fix/c2sp-bom-and-strict-https-uri)"
 
   - id: validate-ku-without-authority-rejected
     description: "https:host/path has no authority; WHATWG URL recovers a host, RFC 3986 and RFC 9110 do not"
@@ -292,6 +274,3 @@ cases:
     expect:
       ok: false
       error: ValidationError
-    sdk:
-      ts:
-        known_bug: "validateHttpsUrl relies on WHATWG URL, which repairs a missing authority (dnsid-ts fix/c2sp-bom-and-strict-https-uri)"
