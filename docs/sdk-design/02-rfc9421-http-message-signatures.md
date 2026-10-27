@@ -345,6 +345,8 @@ When enabled, the helper MUST:
    - `"@authority";req`
    - `"@target-uri";req`
    - `"accept-signature";req`
+   - `"signature-input";req`
+   - `"signature";req`
    - `"content-digest"`
    - `"cache-control"`
    Append any `responseSignature.additionalComponents` in caller order, without
@@ -359,10 +361,16 @@ When enabled, the helper MUST:
 5. Cover exact unparameterized `accept-signature` in the outgoing request
    signature, in addition to the request profile's usual components.
 
+Covering both request signature fields binds the response to the original
+request signer and signed content. A challenge alone can be copied into a
+different request. Covering only the request's `Signature` field is insufficient;
+its signature parameters must also be bound to prevent the signature-value
+substitution described in RFC 9421 §7.3.7.
+
 For example, with a disposable example nonce (production nonces MUST be random):
 
 ```http
-Accept-Signature: sig1=("@status" "@method";req "@authority";req "@target-uri";req "accept-signature";req "content-digest" "cache-control");created;expires;nonce="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+Accept-Signature: sig1=("@status" "@method";req "@authority";req "@target-uri";req "accept-signature";req "signature-input";req "signature";req "content-digest" "cache-control");created;expires;nonce="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 ```
 
 The signed client MUST retain an invocation-local snapshot of its expected

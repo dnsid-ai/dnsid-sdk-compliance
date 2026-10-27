@@ -37,7 +37,7 @@ provider behavior where needed; a scenario flag must not supply the verdict.
 | Scenario | Required result |
 |---|---|
 | Response option absent | Existing request-only behavior; no added negotiation or response verification. |
-| Response option enabled | One RFC 8941 `Accept-Signature` member with the ordered required components and any selected additions, bare time flags, and a fresh base64url challenge; outgoing request signature covers `accept-signature`. |
+| Response option enabled | One RFC 8941 `Accept-Signature` member with the ordered required components, including `"signature-input";req` and `"signature";req`, and any selected additions, bare time flags, and a fresh base64url challenge; outgoing request signature covers `accept-signature`. |
 | Invalid expected domain, non-HTTPS target, or preexisting negotiation header | `ArgumentError` before network work; no replacement of caller policy. |
 | Repeated sends or explicit retry of the same logical operation | New challenge and request signature per attempt. |
 | Caller mutates options or request objects after the signed client prepares a send | In-flight expected domain, challenge, and request context remain unchanged; standalone helpers document the caller's snapshot responsibility. |
@@ -51,7 +51,8 @@ provider behavior where needed; a scenario flag must not supply the verdict.
 | Signing key changes, provider fails, or body exceeds bounds | Error before committing response changes; no unsigned-success fallback. |
 | Valid request-bound response from the expected domain | Standalone verifier returns verified identity; enabled client returns the intact response only after verification. |
 | Unsigned response, wrong/missing requested label, missing coverage, reordered coverage, or wrong nonce | Reject even if an unrelated or otherwise cryptographically valid signature exists. |
-| Modified response status/content/cache field, or originating request method/authority/target/negotiation | Reject; request-derived components use the retained originating request, not response-supplied metadata. |
+| Modified response status/content/cache field, or originating request method/authority/target/negotiation/signature-input/signature | Reject; request-derived components use the retained originating request, not response-supplied metadata. |
+| Gateway copies the original method, URL, and negotiation into a differently signed request with changed content or caller identity, then relays the expected service's valid signed response | Client rejects against its retained original request signature fields, even though the response domain and challenge match. |
 | Missing/invalid timestamps or algorithm, expired/future signature, mismatched key metadata, or non-current operational key | Reject under configured freshness and key policy. |
 | Valid signature from another DNSid domain | Reject before DNSid lookup of that untrusted domain; an accepted entity alone cannot replace the expected agent. |
 | DNSid status/lifecycle/acceptance failure, including cache-hit denial | Reject with existing classification; no TLS-only or unrestricted fallback. |
