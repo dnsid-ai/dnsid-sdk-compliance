@@ -357,14 +357,13 @@ selected log binding parses and validates them:
 ```
 TYPE PreparedRegistryEvent
   entryBytes: bytes       // exact response body; never decoded and re-encoded
-  logReference: string    // exact DNSID-Log-Reference response-header value
 END
 ```
 
 `PreparedRegistryEvent` is not a `PreparedC2spTlogEvent`. The former preserves
-untrusted registry bytes and reference text; the latter is produced only after
-the C2SP binding parses those bytes against that reference and validates the
-expected identity, keys, signatures, log context, and chain fields.
+untrusted registry bytes; the latter is produced only after the C2SP binding
+parses those bytes against a bound log reference and validates the expected
+identity, keys, signatures, log context, and chain fields.
 
 ```
 FUNCTION RegistryClient(baseUrl: string) -> RegistryClient
@@ -443,10 +442,9 @@ RegistryClient.PrepareIssuance(domain: string,
   // request body. Send idempotencyKey as the Idempotency-Key header.
   // The registry uses the authenticated identity's previously registered
   // operational public key and returns the exact partially signed canonical JCS
-  // entry bytes as the response body. It also returns the bound C2SP stream
-  // reference in the required DNSID-Log-Reference response header.
-  // Treat both values as untrusted input. Parse the entry with the bound log
-  // implementation, independently reproduce signedBytes, verify the domain,
+  // entry bytes as the response body. Treat the body as untrusted input.
+  // Parse the entry with the bound log implementation against the reference in
+  // its signed lr field, independently reproduce signedBytes, verify the domain,
   // governance identity, accountable-entity key and signature, local operational
   // public key, log context, and seq=0, then add only the operational signature.
   // A retry uses the same idempotency key and must receive byte-identical prepared
@@ -458,7 +456,7 @@ RegistryClient.PrepareKeyRotation(domain: string, request: KeyRotationPreparatio
   // Send idempotencyKey as the Idempotency-Key header and encode request using the
   // wire fields previous_key_id and public_key.
   // Treat the returned envelope as untrusted input. Parse it with the bound log
-  // implementation, independently reproduce signedBytes, verify the domain,
+  // implementation against the identity's verified log reference, independently reproduce signedBytes, verify the domain,
   // previous key, new key, log context, and stream-chain fields, then add the
   // previous-key authorization and every binding-owned signature.
 

@@ -547,8 +547,10 @@ uses an authoritative predecessor reservation and exact-byte submission
 contract.
 
 `PreparedRegistryEvent` is the untrusted transport container defined by the
-registry design: exact `entryBytes` plus the exact bound `logReference`. The SDK
-passes both to `ParsePreparedEvent`; only the resulting validated
+registry design: exact `entryBytes`. The SDK passes them to `ParsePreparedEvent`
+with a bound reference. For issuance, the reference is the strict parse of the
+entry's signed `lr`. For later events, it is the identity's verified reference
+from stream state. Only the resulting validated
 `PreparedC2spTlogEvent` may be countersigned. This type boundary prevents an
 authenticated registry response from being mistaken for a binding-validated
 event.
@@ -556,7 +558,7 @@ event.
 For the current registry adapter, `PrepareIssuance` sends an empty request body.
 The service derives the operational public key from the authenticated identity's
 previously registered key and returns exact partially signed canonical entry
-bytes plus the required bound log reference. The SDK treats that response as
+bytes. The SDK treats that response as
 untrusted and verifies it against the expected domain, governance identity,
 accountable-entity key, local operational key, log context, and `seq=0` before
 countersigning. Other operator APIs may gather issuance inputs differently, but
