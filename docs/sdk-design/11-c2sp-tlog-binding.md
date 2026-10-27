@@ -790,9 +790,11 @@ Append-only consistency state is scoped by checkpoint origin. After checkpoint
 signature and witness-policy verification, a reader loads the previously
 trusted checkpoint for that origin. A smaller tree is a rollback and fails. An
 equal-size tree MUST have the same root. For a larger tree, the reader verifies
-either an RFC 6962 consistency proof supplied by
-`C2spConsistencyProofSource`, or the old prefix root when a verified complete
-scan contains all leaves through the old tree size. It then atomically advances
+the old prefix root from a verified complete scan, an RFC 6962 consistency
+proof from an explicit source, or the trusted-size root computed from
+candidate-authenticated hash tiles, under
+[the selection rules below](#checkpoint-consistency-evidence-selection).
+It then atomically advances
 the store with `CompareAndSwap`; on a lost race it reloads and repeats the
 consistency check against the newer trusted checkpoint. A reader MUST NOT split
 verification and advancement into separate non-atomic writes.
@@ -816,6 +818,74 @@ checkpoint used as fresh complete evidence. `eventTime` MUST NOT be later than
 non-revocation evidence require `checkpointFreshnessTime` to satisfy local
 freshness policy. If no accepted `includedBy` can be established,
 timestamp-based checks fail closed.
+
+### Checkpoint Consistency Evidence Selection
+
+Stream completeness and checkpoint consistency are separate requirements. A
+stream bundle establishes the accepted complete lifecycle for one identity
+through its checkpoint; its signature and event inclusion proofs do not prove
+that the checkpoint extends previously trusted global-log history. Witness
+quorum verification does not remove the reader's consistency requirement.
+
+After authenticating the candidate checkpoint, apply these rules in order:
+
+1. With no trusted checkpoint for a genuinely unseen origin, apply the existing
+   first-contact policy; no consistency proof is required.
+2. Reject a smaller candidate as `LOG_ROLLBACK`. For an equal-size candidate,
+   require the same root or fail with `LOG_FORK`; no consistency proof is needed.
+   Growth from a valid empty trusted tree also needs no consistency proof or
+   hash-tile reads.
+3. For a larger candidate with a nonempty trusted tree, if lifecycle
+   verification has already obtained a verified complete scan through the
+   candidate size, reuse it to verify both the candidate root and the trusted
+   prefix root. Do not call a proof source or fetch hash tiles to duplicate that
+   check.
+4. Otherwise, use an explicitly configured `C2spConsistencyProofSource` when
+   one is supplied.
+5. Otherwise, a built-in standard-resource network reader MUST verify
+   consistency from C2SP hash tiles as described below. This is the default for
+   both preferred- and required-bundle verification, not an opt-in optimization.
+
+An accepted size-0 checkpoint MUST carry the RFC 6962 empty-tree root,
+`SHA-256` of the empty byte string. The same requirement applies to stored
+trusted checkpoints. Trust remains keyed by checkpoint origin, not identity
+or stream. Every path
+retains the store's atomic advancement and lost-race re-verification rules.
+
+The built-in tile reader computes the candidate root and the root at the
+trusted size from the same tiles. It MUST authenticate every tile it uses
+against the policy-accepted candidate size and root before it compares the
+trusted-size root with the trusted root. Right-edge tiles of the candidate tree
+are authenticated by reproducing the candidate root. Any other tile is
+authenticated by hashing its own entries and comparing the result with its
+entry in the parent tile, up to a right-edge tile. The reader MUST NOT use the trusted
+root as input to that authentication. A stock RFC 6962 consistency verifier does so when
+the trusted size is a power of two, and then cannot separate invalid tiles from
+inconsistent history. The reader reads standard
+`tile/<level>/<tile>[.p/<width>]` resources with fixed height 8: a full tile has
+256 SHA-256 hashes and is 8,192 bytes. Responses MUST have the exact requested
+width. Per attempt, reads MUST NOT exceed two tiles per tile level of the
+candidate tree plus the full-tile retries below; a reader never reads all
+entries or all level-zero tiles. Full tiles MAY be cached only after
+authentication, keyed by full URL. Tile reads use the same bounded safe resource fetcher,
+candidate tree-size limit, cancellation, and overall verification budget as
+other log evidence; the aggregate entry-byte cap is not a hash-tile limit.
+
+C2SP lets a log delete a partial tile once the corresponding full tile exists. On
+HTTP `404` for a partial tile, the reader fetches that full tile once, keeps the
+required prefix, and authenticates it against the candidate root. A reader MAY
+also treat HTTP `403` as a missing partial tile for object stores that conceal
+object absence. Another missing response or any other failure fails the attempt
+without a raw scan.
+
+Failure of an explicit proof source or the built-in tile path MUST NOT trigger
+a complete-log scan or switch consistency sources. Preserve fetch failures and
+classify invalid evidence under the [diagnostic rules](#checkpoint-failure-diagnostics).
+Lower-level custom readers that genuinely lack both a proof source and tile
+capability MAY use the existing missing-evidence fallback: in preferred-bundle
+mode only, obtain a complete scan and verify both roots before advancement.
+Required-bundle mode fails instead. A failed available capability is not missing
+capability; built-in standard-resource readers MUST NOT use this fallback.
 
 ### Trusted Checkpoint Store Contract
 
@@ -1152,19 +1222,21 @@ rejects redirects, and verifies the expected FQDN and exact `lr` in addition to
 the full bundle contract above. In preferred mode it MAY fall back to the raw
 scanner only for HTTP `404`, `408`, `429`, or `5xx`, when a transport or body
 read fails with an explicitly transient error before a complete response body
-is obtained, or when an otherwise valid bundle advances a stored checkpoint
-but no consistency-proof source is available. In the last case the complete raw
-scan MUST independently recompute and verify both the stored prefix root and the
-new checkpoint root before advancing the checkpoint store. An interrupted or
-truncated body read is availability failure; a completely read body that is
-truncated or malformed bundle evidence is invalid evidence. Redirects, other
+is obtained. An otherwise valid bundle that advances a stored checkpoint uses
+the built-in hash-tile path, not a complete raw scan. A hash-tile or explicit
+proof-source failure MUST NOT trigger bundle availability fallback. An
+interrupted or truncated body read is availability failure; a completely read
+body that is truncated or malformed bundle evidence is invalid evidence. Redirects, other
 HTTP statuses, unsafe destinations, response-limit violations, rollback,
 equal-size root conflicts, an invalid supplied consistency proof, and any
 completely obtained body that is malformed, expired, policy-mismatched,
 unknown-signer, signature-invalid, incomplete, or otherwise invalid fail closed
-instead of silently downgrading to a scan. `requireStreamBundle` disables both
-availability and missing-consistency-evidence fallback. Audit and testnet
-callers can continue to select raw scanning by omitting bundle verifier keys.
+instead of silently downgrading to a scan. `requireStreamBundle` disables
+availability fallback, but does not disable hash-tile consistency reads. The
+lower-level custom-reader missing-capability exception is defined only under
+[consistency evidence selection](#checkpoint-consistency-evidence-selection).
+Audit and testnet callers can continue to select raw scanning by omitting
+bundle verifier keys.
 
 A final event reference contains an opaque stream ID, not the identity FQDN
 needed for the standard bundle URL. A `ReadEvent` implementation MAY use the raw
@@ -1271,8 +1343,9 @@ The initial managed catalog is:
 | `public` | `https://log.dev.dnsid.ai` | One reviewed `dnsid-c2sp-tlog-trust-profile@v1` document. |
 | `public` | `https://log.dnsid.ai` | One reviewed `dnsid-c2sp-tlog-trust-profile@v1` document. |
 
-Both initial entries prefer verified stream bundles, with raw scanning only under
-the availability and missing-consistency-evidence fallback rules below.
+Both initial entries prefer verified stream bundles and use hash tiles for
+checkpoint advancement. Raw scanning is permitted only under the bundle
+availability fallback rules above, not after a consistency-path failure.
 
 The catalog is private SDK data, not a new wire format. Each entry contains an
 ordinary trust profile or policy document supported by the generic factory.
@@ -1328,9 +1401,9 @@ limits plus these fixed defaults:
 - checkpoint maximum age: 10 minutes;
 - maximum stream-bundle lifetime: 10 minutes;
 - allowed clock skew: zero;
-- verified stream bundles preferred for profile-backed entries, with raw
-  scanning for those entries only under the availability and
-  missing-consistency-evidence fallback rules above;
+- verified stream bundles preferred for profile-backed entries, with hash-tile
+  consistency proofs for checkpoint advancement and raw scanning only under
+  the bundle availability fallback rules above;
 - policy-only entries use the bounded raw scanner directly; and
 - one in-memory checkpoint store shared by every catalog entry and reader from
   that managed registry.
@@ -1375,7 +1448,7 @@ instead of a literal category field. Message matching is not a supported API.
 |---|---|
 | `LOG_ROLLBACK` | The policy-accepted candidate has a smaller tree size than trusted state. |
 | `LOG_FORK` | The policy-accepted candidate has the same tree size but a different root. |
-| `LOG_INCONSISTENT` | A larger policy-accepted candidate has an invalid supplied consistency proof, or a verified complete scan reproduces its root but contradicts the trusted prefix root. |
+| `LOG_INCONSISTENT` | A larger policy-accepted candidate has an invalid explicitly supplied consistency proof, the trusted-size root computed from candidate-authenticated hash tiles differs from the trusted root, or a verified complete scan reproduces the candidate root but contradicts the trusted prefix root. |
 | `CHECKPOINT_STORE_ERROR` | Trusted storage is unavailable, malformed, lost, or refuses the operation. |
 
 Before using a complete scan as consistency evidence, verify that its required
@@ -1385,6 +1458,13 @@ invalid indexes, or failure to reproduce that root is `INVALID_EVIDENCE`, not
 prefix establish `LOG_INCONSISTENT`. Invalid supplied consistency evidence MUST
 NOT be treated as missing evidence or trigger raw fallback.
 
+For the built-in hash-tile path, malformed tile lengths or failure to
+reproduce the candidate root is `INVALID_EVIDENCE`, not `LOG_INCONSISTENT`.
+Only after tile authentication can a trusted-size root mismatch establish
+`LOG_INCONSISTENT`. Tile retrieval failures retain their transport
+classification, including after a full-tile retry; none permits raw
+fallback or a trust reset.
+
 Continuity diagnostics MUST carry the origin, trusted and observed tree sizes,
 both root hashes, and an underlying cause when one exists. These values remain
 available through public verification wrappers. If a binding exposes a split-view
@@ -1393,8 +1473,8 @@ failure is safe or that recovery is authorized. No classification establishes
 malice or legitimate recovery.
 
 Bindings MUST separately identify missing consistency capability/evidence without
-message matching. It MAY trigger only the already permitted
-[missing-consistency fallback](#verification-convenience-factory). If surfaced,
+message matching. It MAY trigger only the lower-level custom-reader
+[missing-capability fallback](#checkpoint-consistency-evidence-selection). If surfaced,
 it is a non-transient configuration/evidence failure, not a fork or an invalid
 proof; it does not require a new shared category. Fetch errors, cancellation,
 and storage failures MUST retain their causes and MUST NOT be relabeled
@@ -1428,6 +1508,11 @@ Each SDK implementation provides tests for:
 - KEY_ROTATION with both `prev_op` and `new_op`;
 - exact-byte idempotent append and crash recovery;
 - checkpoint, inclusion proof, consistency, witness quorum, and policy failures;
+- the [consistency evidence selection and hash-tile scenarios](conformance/README.md#c2sp-checkpoint-continuity-and-storage),
+  including scan reuse before an explicit source, per-level tile-request
+  bounds, full-tile recovery, candidate authentication before the trusted-root
+  comparison at power-of-two trusted sizes, and no scan fallback after
+  proof-source or tile failures;
 - complete versus incomplete stream behavior;
 - factory rejection of zero or multiple policy sources, malformed HTTPS URLs,
   redirects, unsafe destinations, oversized policy responses, invalid fetcher
@@ -1444,8 +1529,10 @@ Each SDK implementation provides tests for:
 - factory-to-`IdentityManager` verification through the authenticated
   `{log-prefix}/streams/{fqdn}?format=bundle` endpoint, including exact FQDN and
   `lr` binding, signer rotation overlap, required-bundle mode, bounded reads,
-  permitted availability and missing-consistency-evidence fallback, and no
-  fallback after invalid bundle bytes or consistency contradictions;
+  permitted availability fallback, hash-tile advancement in preferred- and
+  required-bundle modes, the lower-level custom-reader missing-capability
+  exception, and no fallback after invalid bundle bytes or consistency-path
+  failures;
 - trust-profile conformance covering exact scope/prefix binding, multiple
   bundle verifier keys for rotation, caller-supplied profiles, and rejection of
   unknown or duplicate members, malformed or colliding keys, bundle/checkpoint

@@ -281,6 +281,7 @@ selection outcome but is not a normative error string.
 ## C2SP checkpoint continuity and storage
 
 The normative behavior is defined by the binding's
+[consistency evidence selection](../11-c2sp-tlog-binding.md#checkpoint-consistency-evidence-selection),
 [store contract](../11-c2sp-tlog-binding.md#trusted-checkpoint-store-contract),
 [durable-storage requirements](../11-c2sp-tlog-binding.md#durable-checkpoint-storage),
 [re-baseline procedure](../11-c2sp-tlog-binding.md#authorized-checkpoint-re-baselining),
@@ -293,13 +294,25 @@ SDK tests do not establish operator authorization or audit-archive integrity.
 
 | Scenario | Required result |
 |---|---|
+| First accepted checkpoint or repeated equal-size/equal-root checkpoint | No consistency proof or consistency-only hash-tile fetch is needed; normal policy and evidence checks still apply. |
+| Size-0 candidate or stored checkpoint has a nonempty-tree root | Reject as `INVALID_EVIDENCE` for candidate evidence or `CHECKPOINT_STORE_ERROR` for malformed stored state; do not advance or replace trust. |
+| Growth from a valid size-0 trusted checkpoint | Accept without proof nodes or hash-tile reads, subject to normal candidate verification. |
 | Smaller policy-accepted candidate | `LOG_ROLLBACK`; trusted state unchanged. |
 | Equal-size candidate with another root | `LOG_FORK`; trusted state unchanged. |
 | Larger candidate with invalid supplied consistency proof | `LOG_INCONSISTENT`; no scan fallback or trust change. |
 | Complete scan reproduces candidate root but not trusted prefix | `LOG_INCONSISTENT`; trusted state unchanged. |
 | Scan lacks the required candidate prefix, has invalid indexes, or cannot reproduce candidate root | `INVALID_EVIDENCE`, not `LOG_INCONSISTENT`; no trust change. |
-| No consistency source for an otherwise valid growing bundle | Distinct machine-readable missing-evidence condition; only permitted fallback may proceed, after verifying both roots. Required-bundle mode fails. |
-| Proof/scan fetch fails or is canceled | Preserve cause and retry classification; do not classify as inconsistent evidence or reset trust. |
+| Complete lifecycle scan is already verified | Reuse its candidate and trusted-prefix roots without a proof-source call or consistency tile reads, even when an explicit proof source is configured. |
+| Explicit custom proof source is configured for growth from a nonempty trusted tree and no verified scan exists | Use it instead of the built-in tile path; failure does not switch to tiles or a scan. |
+| Standard network reader verifies a growing bundle from a nonempty trusted tree in preferred or required mode | Advance using hash tiles by default, without fetching entry bundles or requiring an enable option. |
+| Growth spans uneven sizes and multiple tile levels | Correct candidate and trusted-size roots; at most two tile reads per tile level plus one full-tile retry per missing partial tile, not a complete entry or level-zero scan. |
+| Partial tile returns 404 after log growth | Fetch the full tile once, keep the required prefix, and authenticate it against the candidate root. A supported 403 recovery obeys the same rules. |
+| Tile has malformed length, exceeds its requested width, or fails candidate-root authentication | Fail closed with no raw fallback or trust change; malformed length and failed authentication are `INVALID_EVIDENCE`, not `LOG_INCONSISTENT`. Include a changed full tile used only for the trusted-size root, such as tile `0/1` for growth from 300 to 70,000. |
+| Trusted-size root from candidate-authenticated tiles differs from the trusted root | `LOG_INCONSISTENT`; no raw fallback or trust change. |
+| Same contradiction when the trusted size is a power of two | `LOG_INCONSISTENT`, not `INVALID_EVIDENCE`; the trusted root is never used to authenticate tiles. |
+| Lower-level custom reader has no proof source or tile capability for an otherwise valid growing bundle | Distinct machine-readable missing-evidence condition; preferred mode may use a complete scan only after verifying both roots. Required mode fails. Built-in standard-resource readers cannot take this exception. |
+| Proof/tile/scan fetch fails or is canceled | Preserve cause and retry classification; do not classify as inconsistent evidence or reset trust. Proof-source and tile failures never trigger a raw scan. |
+| Candidate exceeds the tree-size limit or the overall budget expires during tile reads | Fail closed without advancing trust; bounds apply to full-tile retries as well as initial reads. |
 | Store load or pre-publication write fails | Non-transient `CHECKPOINT_STORE_ERROR`; no empty/in-memory substitution or trust change. |
 | Continuity error crosses a public verification boundary | Category mapping, origin, both sizes/roots, and available cause remain inspectable without message matching; roots cannot mutate trust. |
 | Two conflicting extensions race against the same old checkpoint | At most one succeeds; loser checks against the winner before accepting anything. A stale witnessed time also fails an exact-state comparison. |
@@ -326,7 +339,8 @@ verification entrypoints, rather than using supplied acceptance flags.
 
 Those vectors use native memory stores and injected dependencies. They do not
 establish durable-storage, concurrency, cancellation, lock-recovery,
-administrative-recovery, network-fallback, or full identity-manager coverage.
+administrative-recovery, hash-tile root computation or retrieval,
+network-fallback, or full identity-manager coverage.
 The selection/event-identity fixtures do not establish those guarantees either.
 Native test results and shared harness results MUST identify which cases
 actually ran; known classification gaps do not count as compliant passes.
@@ -354,9 +368,9 @@ underlying classification. Detailed precedence and fallback rules are owned by
 | `SNAPSHOT_NON_PREFIX` | The requested timestamp would select a non-prefix subsequence. |
 | `UNSUPPORTED_EVENT` | No supported base or companion profile defines reducer semantics for the event type. |
 | `CHAIN_CONTINUITY` | An authenticated C2SP event does not continue the signed stream chain, or accepted completeness evidence contradicts the applied chain. |
-| `INVALID_EVIDENCE` | A checkpoint, policy, witness quorum, trusted bundle, candidate scan prefix, or other completeness evidence fails, except for the more specific continuity/storage conditions below. |
+| `INVALID_EVIDENCE` | A checkpoint, policy, witness quorum, trusted bundle, hash-tile length or candidate-root authentication, candidate scan prefix, or other completeness evidence fails, except for the more specific continuity/storage conditions below. |
 | `INCOMPLETE_STREAM` | The binding cannot establish complete logged-state history. |
 | `LOG_ROLLBACK` | A policy-accepted candidate checkpoint has a smaller tree than trusted state; retain trust and investigate with operations and security. |
 | `LOG_FORK` | A policy-accepted candidate has the trusted size but a different root; an equal-size conflict is an equivocation signal, not proof of malice. |
-| `LOG_INCONSISTENT` | A larger policy-accepted candidate has an invalid supplied consistency proof, or a scan reproduces the candidate root but contradicts the trusted prefix root. |
+| `LOG_INCONSISTENT` | A larger policy-accepted candidate has an invalid explicitly supplied consistency proof, the trusted-size root computed from candidate-authenticated hash tiles differs from the trusted root, or a scan reproduces the candidate root but contradicts the trusted prefix root. |
 | `CHECKPOINT_STORE_ERROR` | Trusted checkpoint storage is unavailable, malformed, lost, or refuses the operation; fail closed and never substitute empty trust. |
