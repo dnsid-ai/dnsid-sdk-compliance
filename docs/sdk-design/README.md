@@ -14,7 +14,9 @@ must make the same choices, and no base-protocol edit is required before
 implementing it. Concrete C2SP semantics remain requirements of the mutable
 C2SP log-method specification and its SDK binding.
 
-Implementation coverage for each SDK is tracked in [implementations/README.md](implementations/README.md).
+Implementation coverage and the 2026-10-27 release review are tracked in
+[implementations/README.md](implementations/README.md), including tested release
+commits, validation results, and remaining gaps.
 
 The documents are organized by SDK responsibility:
 
@@ -60,11 +62,11 @@ constructors share one initialization path, and obsolete configuration is
 replaced directly, without compatibility adapters.
 
 These SDK configuration and acceptance contracts do not change protocol wire
-behavior. Implementation trackers record reviewed baselines, not claims that
-this revised surface is already implemented. Replacing the public constructors
-and configuration types is a breaking SDK API change, with no compatibility
-shims. All three SDK implementation trackers require a full review against the
-settled contract before their baselines or coverage claims are advanced; follow
+behavior. Implementation trackers record reviewed release baselines and remaining
+gaps, not claims of complete coverage. Replacing the public constructors and
+configuration types is a breaking SDK API change, with no compatibility shims.
+Such changes require a full review against the settled contract; subsequent
+release reviews follow
 [the implementation review procedure](AGENTS.md#updating-sdk-implementation-coverage).
 
 ## Shared Profile Contracts
