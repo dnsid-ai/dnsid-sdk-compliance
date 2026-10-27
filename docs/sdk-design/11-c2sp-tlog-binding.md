@@ -855,8 +855,11 @@ retains the store's atomic advancement and lost-race re-verification rules.
 The built-in tile reader computes the candidate root and the root at the
 trusted size from the same tiles. It MUST authenticate every tile it uses
 against the policy-accepted candidate size and root before it compares the
-trusted-size root with the trusted root. It MUST NOT use the trusted root as
-input to that authentication. A stock RFC 6962 consistency verifier does so when
+trusted-size root with the trusted root. Right-edge tiles of the candidate tree
+are authenticated by reproducing the candidate root. Any other tile is
+authenticated by hashing its own entries and comparing the result with its
+entry in the parent tile, up to a right-edge tile. The reader MUST NOT use the trusted
+root as input to that authentication. A stock RFC 6962 consistency verifier does so when
 the trusted size is a power of two, and then cannot separate invalid tiles from
 inconsistent history. The reader reads standard
 `tile/<level>/<tile>[.p/<width>]` resources with fixed height 8: a full tile has
