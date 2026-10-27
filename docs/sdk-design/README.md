@@ -29,7 +29,7 @@ The documents are organized by SDK responsibility:
 | Document | Scope |
 |---|---|
 | [01-core-identity-manager.md](01-core-identity-manager.md) | DNSid protocol implementation: TXT records, JWKS, domain verification, status checks, DNSSEC, lifecycle logs, cache, key provider. |
-| [02-rfc9421-http-message-signatures.md](02-rfc9421-http-message-signatures.md) | RFC 9421 HTTP Message Signatures profile using DNSid identity and JWKS discovery. |
+| [02-rfc9421-http-message-signatures.md](02-rfc9421-http-message-signatures.md) | RFC 9421 request signing and opt-in `Accept-Signature` response authentication using DNSid identity and JWKS discovery. |
 | [03-jose-jwt-jws.md](03-jose-jwt-jws.md) | JOSE profile for JWT and JWS helpers using DNSid identity and key discovery. |
 | [05-transport-and-registry.md](05-transport-and-registry.md) | SDK-managed HTTPS transport and registry control-plane workflows. |
 | [06-log-bindings.md](06-log-bindings.md) | Shared `Log`, `LogReader`, `LogRegistry`, `DomainLog`, and lifecycle-event contracts. |
@@ -179,6 +179,15 @@ existing field instead of replacing it; see
 [03: HTTP Bearer Transport](03-jose-jwt-jws.md#http-bearer-transport).
 SDK documentation MUST NOT claim that every DNSid application profile avoids
 `Authorization` or that bearer tokens authenticate HTTP method, URI, or content.
+
+Request signing alone does not provide mutual DNSid authentication. The opt-in
+[negotiated response profile](02-rfc9421-http-message-signatures.md#dnsid-negotiated-response-profile)
+adds client `Accept-Signature` preparation, server response signing, and mandatory
+client verification against a locally expected DNSid domain and a fresh request
+challenge. An enabled client rejects missing or invalid signatures, including on
+HTTP error responses. HTTPS remains required; response authentication happens
+after request data is sent. These are design requirements, not claims that the
+SDK implementation baselines already provide negotiation or response verification.
 
 ## Verification Resource Budgets
 

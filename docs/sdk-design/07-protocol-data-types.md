@@ -778,5 +778,6 @@ END
 Application-profile data types such as
 [`JWTOptions`](03-jose-jwt-jws.md#public-surface),
 [`HttpSigningOptions`](02-rfc9421-http-message-signatures.md#dnsid-request-profile),
+[`ResponseSignatureOptions`](02-rfc9421-http-message-signatures.md#scope-and-public-surface),
 and `SignatureParams` are owned by their profile documents unless they become
 shared across multiple profiles.

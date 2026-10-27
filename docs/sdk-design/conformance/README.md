@@ -22,6 +22,47 @@ signature over an incorrect base is still non-interoperable, so all SDKs must
 first produce the same base or fail closed on the same unsupported component
 semantics.
 
+### Negotiated response authentication
+
+The [negotiated response profile](../02-rfc9421-http-message-signatures.md#dnsid-negotiated-response-profile)
+requires SDK-native tests for the following behaviors. The existing
+`http-message-signatures.json` base-construction vectors do not test negotiation
+or establish response-authentication support. This checklist is normative test
+scope, not a new executable suite or an implementation coverage claim.
+
+Use real profile entrypoints and cryptographically valid signed responses for
+verification-boundary cases. Inject DNSid resolver, clock, transport, and key
+provider behavior where needed; a scenario flag must not supply the verdict.
+
+| Scenario | Required result |
+|---|---|
+| Response option absent | Existing request-only behavior; no added negotiation or response verification. |
+| Response option enabled | One RFC 8941 `Accept-Signature` member with the ordered required components, including `"signature-input";req` and `"signature";req`, and any selected additions, bare time flags, and a fresh base64url challenge; outgoing request signature covers `accept-signature`. |
+| Invalid expected domain, non-HTTPS target, or preexisting negotiation header | `ArgumentError` before network work; no replacement of caller policy. |
+| Repeated sends or explicit retry of the same logical operation | New challenge and request signature per attempt. |
+| Caller mutates options or request objects after the signed client prepares a send | In-flight expected domain, challenge, and request context remain unchanged; standalone helpers document the caller's snapshot responsibility. |
+| Server helper sees no negotiation | Response unchanged; no key-provider call, including with a verification-only profile. |
+| Valid negotiation with a non-default label, reordered components, additional supported fields, or equivalent true flags | Sign under that label and with the complete requested component list/order; flags become integer timestamps and nonce is copied exactly. |
+| Additional metadata coverage such as `content-type` | Missing requested fields cause signing failure; changed or omitted coverage causes client rejection. Uncovered metadata is never described as authenticated. |
+| Malformed fields, duplicate labels/parameters/components, wrong types, noncanonical or short nonce, unsupported components/constraints, or multiple members | Reject the complete negotiation; no partial signature or unsigned-success fallback. |
+| Ordinary content, supplied empty content, HEAD, 204, and 304 responses | Correct SHA-256 digest over actual content or the semantically empty sequence, plus covered `no-store`; preserve bytes and cleanup. |
+| Unavailable ordinary response content or incompatible content-decoding transport | Reject rather than substitute empty or decoded bytes. |
+| Requested label collides with an existing signature member | Reject without replacing it; unrelated signature labels remain preserved. |
+| Signing key changes, provider fails, or body exceeds bounds | Error before committing response changes; no unsigned-success fallback. |
+| Valid request-bound response from the expected domain | Standalone verifier returns verified identity; enabled client returns the intact response only after verification. |
+| Unsigned response, wrong/missing requested label, missing coverage, reordered coverage, or wrong nonce | Reject even if an unrelated or otherwise cryptographically valid signature exists. |
+| Modified response status/content/cache field, or originating request method/authority/target/negotiation/signature-input/signature | Reject; request-derived components use the retained originating request, not response-supplied metadata. |
+| Gateway copies the original method, URL, and negotiation into a differently signed request with changed content or caller identity, then relays the expected service's valid signed response | Client rejects against its retained original request signature fields, even though the response domain and challenge match. |
+| Missing/invalid timestamps or algorithm, expired/future signature, mismatched key metadata, or non-current operational key | Reject under configured freshness and key policy. |
+| Valid signature from another DNSid domain | Reject before DNSid lookup of that untrusted domain; an accepted entity alone cannot replace the expected agent. |
+| DNSid status/lifecycle/acceptance failure, including cache-hit denial | Reject with existing classification; no TLS-only or unrestricted fallback. |
+| `fl=mtls` with missing, wrong, or previous-connection peer evidence | Reject; the actual current server peer is required, including cache hits. |
+| Signed HTTP error or redirect | Verify before returning; never follow a redirect automatically or hide an unsigned error behind status handling. |
+| Underlying transport attempts an automatic redirect or replay/retry | Enabled client prevents it; explicit caller attempts require fresh preparation. |
+| Informational response, protocol upgrade, or tunnel establishment | Do not report successful negotiated response authentication. |
+| Oversized negotiation/signature/content, exhausted deadline, or cancellation | Fail within finite bounds; close owned resources and expose no authenticated content. |
+| Response cache reuse or omitted signed `no-store` | Never reuse a prior response for a new challenge; reject missing required cache policy. |
+
 ## Web Bot Auth
 
 [`web-bot-auth.json`](web-bot-auth.json) targets the DNSid WBA profile in
