@@ -439,12 +439,16 @@ Identify those by a 1xx status or a successful CONNECT; an `Upgrade` field on an
 ordinary final response is an advertisement, not an upgrade, and is not rejected.
 
 Bindings whose native server model streams responses through a writer, such as
-Go `http.Handler` or Python ASGI, MUST provide middleware that buffers the
-finalized response within the content bound, calls `SignRequestedHttpResponse`
-before any header is sent, and passes requests without `Accept-Signature`
-through unbuffered. On a signing failure or an exceeded bound, the middleware
-sends a 500 response without the application's content or headers; it never
-sends the unsigned application response.
+Go `http.Handler`, Python ASGI, and TypeScript `node:http` (Express, Connect),
+MUST provide middleware that buffers the finalized response within the content
+bound, calls `SignRequestedHttpResponse` before any header is sent, and passes
+requests without `Accept-Signature` through unbuffered. On a signing failure,
+an exceeded bound, or a handler request to flush headers early (streaming, such
+as server-sent events), the middleware sends a 500 response without the
+application's content or headers; it never sends the unsigned application
+response. Server models that cannot hold the response before sending, such as
+Python WSGI, are out of scope; applications there call the helper with a fully
+built response.
 
 This helper does not authenticate the caller, authorize an operation, or prove
 that application processing succeeded. Server applications still verify signed
