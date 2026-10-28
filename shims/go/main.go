@@ -85,6 +85,9 @@ type request struct {
 	Options                                       wbaSigningOptions  `json:"options"`
 	LocalKu                                       string             `json:"localKu"`
 	SigningKeyChange                              *fixtureKey        `json:"signingKeyChange"`
+	Response                                      fixtureResponse    `json:"response"`
+	ExpectedDomain                                string             `json:"expectedDomain"`
+	AdditionalComponents                          []fixtureComponent `json:"additionalComponents"`
 }
 
 type fixtureKeyProvider struct {
@@ -270,6 +273,8 @@ func handle(req request) map[string]any {
 	switch req.Op {
 	case "wba_sign", "wba_verify_request":
 		return handleWBA(req)
+	case "negotiated_response_base", "negotiated_response_prepare", "negotiated_response_sign":
+		return handleNegotiated(req)
 	case "sdk_conformance":
 		metadata := dnsid.SDKConformance()
 		metadata.VerificationProfiles["changed"] = "changed"

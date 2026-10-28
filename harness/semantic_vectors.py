@@ -123,6 +123,8 @@ def load_semantic_suites() -> list[dict]:
     loaded.add("c2sp-event-identity.json")
     # WBA signing/verification cases are loaded by wba_vectors.py.
     loaded.add("web-bot-auth.json")
+    # Negotiated response cases are loaded by negotiated_vectors.py.
+    loaded.add("negotiated-response-signatures.json")
     available = {path.name for path in CONFORMANCE_DIR.glob("*.json")}
     if loaded != available:
         raise ValueError(f"unhandled conformance vectors: {sorted(available - loaded)}")

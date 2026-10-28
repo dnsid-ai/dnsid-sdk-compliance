@@ -85,6 +85,8 @@ class PyAdapter:
             op = req["op"]
             if op in {"wba_sign", "wba_verify_request"}:
                 return self._wba(req)
+            if op.startswith("negotiated_response_"):
+                return self._negotiated(req)
             if op == "http_signature_base":
                 try:
                     from dnsid.http_signatures import _build_signature_base
@@ -153,6 +155,56 @@ class PyAdapter:
             return {"ok": False, "error": type(exc).__name__, "message": str(exc)}
         except Exception as exc:  # noqa: BLE001
             return {"ok": False, "error": "AdapterError", "message": f"{type(exc).__name__}: {exc}"}
+
+    @staticmethod
+    def _negotiated(req: dict) -> dict:
+        import base64
+        import json
+
+        from dnsid import http_signatures
+        from dnsid.exceptions import DNSidError
+        from dnsid.models import HttpRequest, HttpSigningOptions, SignatureParams
+
+        if not hasattr(http_signatures.HttpSignatureProfile, "sign_requested_http_response"):
+            return {"ok": False, "error": "CapabilityMissing", "capability": "negotiated_response_signatures", "message": "SDK has no negotiated response APIs"}
+        from dnsid.models import ResponseSignatureOptions
+
+        def body(value):
+            return None if value is None else base64.b64decode(value, validate=True)
+
+        def component(value: dict) -> str:
+            params = "".join(
+                ";" + name if param is True else f";{name}={json.dumps(param)}"
+                for name, param in (value.get("params") or {}).items()
+            )
+            return json.dumps(value["name"]) + params
+
+        raw = req["request"]
+        request = HttpRequest(raw["method"], raw["url"], dict(raw["headers"]), body(raw.get("bodyBase64")))
+        fixture = req.get("response")
+        response = fixture and HttpRequest("", "", dict(fixture["headers"]), body(fixture.get("bodyBase64")), status=fixture["status"])
+        profile = http_signatures.HttpSignatureProfile(None, FixtureKeyProvider(req["key"]), req["domain"])
+        try:
+            if req["op"] == "negotiated_response_base":
+                params = SignatureParams.parse_dictionary(req["signature_input"])[req["label"]]
+                base = http_signatures._build_signature_base(response, params, request_context=request)
+                return {"ok": True, "value": base.decode()}
+            if req["op"] == "negotiated_response_prepare":
+                opts = HttpSigningOptions(response_signature=ResponseSignatureOptions(
+                    req["expectedDomain"], [component(c) for c in req.get("additionalComponents") or []],
+                ))
+                if req.get("label"):
+                    opts.label = req["label"]
+                profile.create_signed_http_request(request, opts)
+                return {"ok": True, "headers": {k.lower(): v for k, v in request.headers.items()}}
+            signed = profile.sign_requested_http_response(request, response)
+            return {"ok": True, "response": {
+                "status": signed.status,
+                "headers": {k.lower(): v for k, v in signed.headers.items()},
+                "bodyBase64": base64.b64encode(signed.body or b"").decode(),
+            }}
+        except (DNSidError, KeyError) as exc:
+            return {"ok": False, "error": "ConformanceError", "message": str(exc)}
 
     @staticmethod
     def _wba(req: dict) -> dict:

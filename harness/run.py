@@ -24,6 +24,8 @@ import yaml
 
 from py_adapter import PyAdapter
 from semantic_vectors import load_semantic_suites
+from negotiated_vectors import CAPABILITY as NEGOTIATED_CAPABILITY
+from negotiated_vectors import check_prepare_output, check_sign_output, load_negotiated_suite
 from wba_vectors import check_signed_output, load_wba_suite
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -206,6 +208,8 @@ def evaluate_result(case: dict, sdk: str, actual: dict) -> tuple:
         "message": "SDK has signing/directory serving only",
     }:
         return ("MISSING", [], actual["message"], actual)
+    if actual.get("error") == "CapabilityMissing" and actual.get("capability") == NEGOTIATED_CAPABILITY:
+        return ("MISSING", [], actual.get("message"), actual)
     problems = compare(expected, actual)
     if case["op"] == "c2sp_checkpoint_vector":
         # Taxonomy gaps must not hide acceptance, state changes, or lost injected causes.
@@ -246,7 +250,7 @@ def run(args) -> int:
     sdk_names = [s for s in ("go", "ts", "py") if s in args.sdks]
     adapters = build_adapters(set(sdk_names))
     suites = load_fixtures(Path(args.fixtures), args.filter)
-    semantic = [*load_semantic_suites(), load_wba_suite()]
+    semantic = [*load_semantic_suites(), load_wba_suite(), load_negotiated_suite()]
     if args.filter:
         semantic = [
             {**suite, "cases": [case for case in suite["cases"] if args.filter in case["id"]]}
@@ -280,6 +284,10 @@ def run(args) -> int:
                 actual = results[name][idx]
                 if case["op"] == "wba_sign":
                     actual = check_signed_output(case["input"], actual, started, finished)
+                elif case["op"] == "negotiated_response_sign":
+                    actual = check_sign_output(case["input"], actual, started, finished)
+                elif case["op"] == "negotiated_response_prepare":
+                    actual = check_prepare_output(case["input"], actual)
                 cells[name] = evaluate_result(case, name, actual)
             rows.append((suite["suite"], case, cells))
             idx += 1
@@ -332,7 +340,8 @@ def render_report(sdk_names, suites, rows) -> str:
     lines.append("`PASS` = matched expected behavior. `REJ` = record version not supported by this SDK;")
     lines.append("the SDK correctly rejected it as unsupported (fail-closed). `XFAIL` = known bug, the")
     lines.append("fixture encodes the spec-correct behavior and the SDK is known not to meet it yet.")
-    lines.append("`FAIL` = unexpected mismatch, see details. `MISSING` = no integrated WBA verifier;")
+    lines.append("`FAIL` = unexpected mismatch, see details. `MISSING` = no integrated WBA verifier or")
+    lines.append("negotiated response API;")
     lines.append("the case did not execute and is not compliant. Missing capabilities do not fail the run.")
     lines.append("")
 
@@ -369,6 +378,7 @@ def render_report(sdk_names, suites, rows) -> str:
 
     if any(c["MISSING"] for c in counts.values()):
         lines.extend(["## Missing capabilities", "", "WBA request/directory verification is not shipped in the tested signing-only bindings.",
+                      "Negotiated response vectors report MISSING for SDKs without the negotiated response APIs.",
                       "Positive and negative verifier vectors remain unexecuted. Integrate native verifier adapters",
                       "when each SDK ships verification; these results are not end-to-end WBA conformance.", ""])
 
