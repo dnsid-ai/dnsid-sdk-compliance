@@ -56,7 +56,7 @@ provider behavior where needed; a scenario flag must not supply the verdict.
 | Ordinary content, supplied empty content, HEAD, 204, 205, and 304 responses | Correct SHA-256 digest over actual content or the semantically empty sequence, plus covered `no-store`; preserve bytes and cleanup. A signer ignores content supplied with a no-content response object; a verifier rejects content bytes delivered with one. |
 | Signer and verifier configured with different `maxAge` values | Interoperate: the response lifetime is always 60 seconds. A received lifetime above 60 seconds or not above 0 rejects. |
 | Intermediary adds its own request signature under another label before the server signs | Client verifies; the response covers only the client's `key`-selected members. |
-| Unrelated response signature member with a decimal or missing timestamp | Does not affect selection or verification of the requested label. |
+| Unrelated response signature member without timestamps or with an unsupported algorithm | Does not affect selection or verification of the requested label. |
 | Final response carries an `Upgrade` advertisement field | Not treated as a protocol upgrade. |
 | Unavailable ordinary response content or incompatible content-decoding transport | Reject rather than substitute empty or decoded bytes. |
 | Requested label collides with an existing signature member | Reject without replacing it; unrelated signature labels remain preserved. |

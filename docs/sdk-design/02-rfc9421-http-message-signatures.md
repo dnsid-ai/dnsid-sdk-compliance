@@ -473,8 +473,8 @@ invalid-local-options error. Missing local signing configuration is `ArgumentErr
    `now > expires + clockSkew` using the local configuration. Require `alg`
    and the compound `keyid`; its normalized domain MUST equal local
    `expectedDomain` before any DNSid lookup based on received metadata. These
-   parameter checks apply only to the requested label; unrelated members need
-   only be well-formed Structured Field members.
+   parameter checks apply only to the requested label; unrelated members are
+   subject only to the existing parsing rules.
 4. Call `VerifyDomain(expectedDomain, peerCert)` with the current application
    connection's trusted server certificate when supplied. Enforce status,
    lifecycle binding, freshness, and configured entity acceptance on every
