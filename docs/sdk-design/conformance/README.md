@@ -25,10 +25,17 @@ semantics.
 ### Negotiated response authentication
 
 The [negotiated response profile](../02-rfc9421-http-message-signatures.md#dnsid-negotiated-response-profile)
-requires SDK-native tests for the following behaviors. The existing
-`http-message-signatures.json` base-construction vectors do not test negotiation
-or establish response-authentication support. This checklist is normative test
-scope, not a new executable suite or an implementation coverage claim.
+requires SDK-native tests for the following behaviors. This checklist is
+normative test scope, not an implementation coverage claim.
+[`negotiated-response-signatures.json`](negotiated-response-signatures.json)
+adds shared executable vectors for the interoperability-sensitive subset:
+client `Accept-Signature` serialization, server negotiation acceptance and
+rejection, no-content digests, the fixed response lifetime, and exact response
+signature bases with request-bound `;req;key` components. The harness checks
+SDK-signed responses with an independent signature-base builder and the fixture
+Ed25519 key. Prepared nonces are random, so `prepareCases` compare the header
+with its nonce replaced by `<nonce>` and check the nonce shape separately.
+SDKs without the negotiated response APIs report `CapabilityMissing`.
 
 Use real profile entrypoints and cryptographically valid signed responses for
 verification-boundary cases. Inject DNSid resolver, clock, transport, and key
@@ -37,15 +44,20 @@ provider behavior where needed; a scenario flag must not supply the verdict.
 | Scenario | Required result |
 |---|---|
 | Response option absent | Existing request-only behavior; no added negotiation or response verification. |
-| Response option enabled | One RFC 8941 `Accept-Signature` member with the ordered required components, including `"signature-input";req` and `"signature";req`, and any selected additions, bare time flags, and a fresh base64url challenge; outgoing request signature covers `accept-signature`. |
+| Response option enabled | One RFC 8941 `Accept-Signature` member with the ordered required components, including `"signature-input";req;key="<L>"` and `"signature";req;key="<L>"` for request label `<L>`, and any selected additions, bare time flags, and a fresh base64url challenge; outgoing request signature covers `accept-signature`. |
 | Invalid expected domain, non-HTTPS target, or preexisting negotiation header | `ArgumentError` before network work; no replacement of caller policy. |
+| Key provider fails after negotiation was validated | Error; the caller's request is unchanged and can be prepared again. |
 | Repeated sends or explicit retry of the same logical operation | New challenge and request signature per attempt. |
 | Caller mutates options or request objects after the signed client prepares a send | In-flight expected domain, challenge, and request context remain unchanged; standalone helpers document the caller's snapshot responsibility. |
 | Server helper sees no negotiation | Response unchanged; no key-provider call, including with a verification-only profile. |
 | Valid negotiation with a non-default label, reordered components, additional supported fields, or equivalent true flags | Sign under that label and with the complete requested component list/order; flags become integer timestamps and nonce is copied exactly. |
 | Additional metadata coverage such as `content-type` | Missing requested fields cause signing failure; changed or omitted coverage causes client rejection. Uncovered metadata is never described as authenticated. |
 | Malformed fields, duplicate labels/parameters/components, wrong types, noncanonical or short nonce, unsupported components/constraints, or multiple members | Reject the complete negotiation; no partial signature or unsigned-success fallback. |
-| Ordinary content, supplied empty content, HEAD, 204, and 304 responses | Correct SHA-256 digest over actual content or the semantically empty sequence, plus covered `no-store`; preserve bytes and cleanup. |
+| Ordinary content, supplied empty content, HEAD, 204, 205, and 304 responses | Correct SHA-256 digest over actual content or the semantically empty sequence, plus covered `no-store`; preserve bytes and cleanup. A signer ignores content supplied with a no-content response object; a verifier rejects content bytes delivered with one. |
+| Signer and verifier configured with different `maxAge` values | Interoperate: the response lifetime is always 60 seconds. A received lifetime above 60 seconds or not above 0 rejects. |
+| Intermediary adds its own request signature under another label before the server signs | Client verifies; the response covers only the client's `key`-selected members. |
+| Unrelated response signature member without timestamps or with an unsupported algorithm | Does not affect selection or verification of the requested label. |
+| Final response carries an `Upgrade` advertisement field | Not treated as a protocol upgrade. |
 | Unavailable ordinary response content or incompatible content-decoding transport | Reject rather than substitute empty or decoded bytes. |
 | Requested label collides with an existing signature member | Reject without replacing it; unrelated signature labels remain preserved. |
 | Signing key changes, provider fails, or body exceeds bounds | Error before committing response changes; no unsigned-success fallback. |
@@ -58,7 +70,10 @@ provider behavior where needed; a scenario flag must not supply the verdict.
 | DNSid status/lifecycle/acceptance failure, including cache-hit denial | Reject with existing classification; no TLS-only or unrestricted fallback. |
 | `fl=mtls` with missing, wrong, or previous-connection peer evidence | Reject; the actual current server peer is required, including cache hits. |
 | Signed HTTP error or redirect | Verify before returning; never follow a redirect automatically or hide an unsigned error behind status handling. |
-| Underlying transport attempts an automatic redirect or replay/retry | Enabled client prevents it; explicit caller attempts require fresh preparation. |
+| Underlying transport attempts an automatic redirect, authentication resend, or new send after a response | Enabled client prevents it; explicit caller attempts require fresh preparation. Pooled connections, HTTP/2, and resends of the identical prepared request before any response remain permitted. |
+| Caller-supplied transport decodes content, serves a cached response, or rewrites covered fields | Verification fails; never a success. |
+| Response with non-identity `Content-Encoding` that is not covered | SDK client does not decode it: it returns verified bytes undecoded or rejects. It advertises only identity coding unless `content-encoding` coverage was requested. |
+| Server middleware (writer-based server models) | Requests without negotiation pass through unbuffered; negotiated responses are buffered, signed before headers are sent, and replaced by a 500 without application content or headers on failure. |
 | Informational response, protocol upgrade, or tunnel establishment | Do not report successful negotiated response authentication. |
 | Oversized negotiation/signature/content, exhausted deadline, or cancellation | Fail within finite bounds; close owned resources and expose no authenticated content. |
 | Response cache reuse or omitted signed `no-store` | Never reuse a prior response for a new challenge; reject missing required cache policy. |

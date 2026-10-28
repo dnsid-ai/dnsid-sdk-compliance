@@ -148,12 +148,50 @@ async function handleWba(req) {
   return { ok: true, message: output };
 }
 
+const negotiatedMissing = { ok: false, error: 'CapabilityMissing', capability: 'negotiated_response_signatures', message: 'SDK has no negotiated response APIs' };
+const fixtureBody = (value) => (value === null || value === undefined ? null : Buffer.from(value, 'base64'));
+
+async function negotiated(req) {
+  const Profile = httpSignatures?.HttpSignaturesProfile;
+  if (typeof Profile?.prototype?.signRequestedHttpResponse !== 'function') return negotiatedMissing;
+  const key = fixtureKeyProvider(req.key);
+  const profile = new Profile({ domain: req.domain, keyProvider: key.provider, identityResolver: {} });
+  const request = new Request(req.request.url, {
+    method: req.request.method, headers: req.request.headers, body: fixtureBody(req.request.bodyBase64),
+  });
+  const responseOf = (fixture) => new Response(fixtureBody(fixture.bodyBase64), { status: fixture.status, headers: fixture.headers });
+  try {
+    if (req.op === 'negotiated_response_base') {
+      const params = httpSignatures.parseSignatureInput(req.signature_input).get(req.label);
+      if (!params) throw new Error(`signature label ${req.label} not found`);
+      const base = httpSignatures.buildSignatureInput({ message: responseOf(req.response), request }, params);
+      return { ok: true, value: new TextDecoder().decode(base) };
+    }
+    if (req.op === 'negotiated_response_prepare') {
+      const signed = await profile.createSignedHttpRequest(request, {
+        ...(req.label ? { label: req.label } : {}),
+        responseSignature: { expectedDomain: req.expectedDomain, additionalComponents: (req.additionalComponents ?? []).map(c => ({ name: c.name, params: c.params ?? {} })) },
+      });
+      return { ok: true, headers: Object.fromEntries(signed.headers) };
+    }
+    const signed = await profile.signRequestedHttpResponse(request, responseOf(req.response));
+    return { ok: true, response: { status: signed.status, headers: Object.fromEntries(signed.headers), bodyBase64: Buffer.from(await signed.arrayBuffer()).toString('base64') } };
+  } catch (error) {
+    if (!isNativeError(error) && !(error instanceof Error && error.message.startsWith('signature label'))) throw error;
+    return { ok: false, error: 'ConformanceError', message: String(error?.message ?? error) };
+  }
+}
+
 async function handle(req) {
   try {
     switch (req.op) {
       case 'wba_sign':
       case 'wba_verify_request':
         return await handleWba(req);
+      case 'negotiated_response_base':
+      case 'negotiated_response_prepare':
+      case 'negotiated_response_sign':
+        return await negotiated(req);
       case 'http_signature_base': {
         try {
           if (!httpSignatures) throw new Error('HTTP signatures package is not built');

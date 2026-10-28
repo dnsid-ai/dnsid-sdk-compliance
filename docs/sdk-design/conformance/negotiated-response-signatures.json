@@ -1,0 +1,751 @@
+{
+  "schemaVersion": 1,
+  "description": "Negotiated DNSid response signatures: client Accept-Signature preparation, server negotiation and signing, and response signature bases.",
+  "domain": "service.example",
+  "key": {
+    "kty": "OKP",
+    "crv": "Ed25519",
+    "x": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+    "kid": "fixture-ku",
+    "seed": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"
+  },
+  "requests": {
+    "default": {
+      "method": "POST",
+      "url": "https://service.example/v1/items?x=1",
+      "headers": {
+        "accept-signature": "sig1=(\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"content-digest\" \"cache-control\");created;expires;nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\"",
+        "signature-input": "sig1=(\"@method\" \"@authority\" \"@target-uri\" \"accept-signature\");created=1700000000;keyid=\"client.example#c1\";alg=\"ed25519\";nonce=\"cmVxdWVzdC1ub25jZQ\"",
+        "signature": "sig1=:EREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREQ==:"
+      }
+    },
+    "proxied": {
+      "method": "POST",
+      "url": "https://service.example/v1/items?x=1",
+      "headers": {
+        "accept-signature": "sig1=(\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"content-digest\" \"cache-control\");created;expires;nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\"",
+        "signature-input": "sig1=(\"@method\" \"@authority\" \"@target-uri\" \"accept-signature\");created=1700000000;keyid=\"client.example#c1\";alg=\"ed25519\";nonce=\"cmVxdWVzdC1ub25jZQ\", proxy=(\"@method\" \"@authority\" \"signature\";key=\"sig1\");created=1700000001;keyid=\"gateway.example#g1\";alg=\"ed25519\"",
+        "signature": "sig1=:EREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREQ==:, proxy=:IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIg==:"
+      }
+    },
+    "customLabels": {
+      "method": "GET",
+      "url": "https://service.example/v1/items/7",
+      "headers": {
+        "accept-signature": "resp=(\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"client\" \"signature\";req;key=\"client\" \"content-digest\" \"cache-control\" \"content-type\");created;expires;nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\"",
+        "signature-input": "client=(\"@method\" \"@authority\" \"@target-uri\" \"accept-signature\");created=1700000000;keyid=\"client.example#c1\";alg=\"ed25519\";nonce=\"cmVxdWVzdC1ub25jZQ\"",
+        "signature": "client=:EREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREQ==:"
+      }
+    },
+    "head": {
+      "method": "HEAD",
+      "url": "https://service.example/v1/items?x=1",
+      "headers": {
+        "accept-signature": "sig1=(\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"content-digest\" \"cache-control\");created;expires;nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\"",
+        "signature-input": "sig1=(\"@method\" \"@authority\" \"@target-uri\" \"accept-signature\");created=1700000000;keyid=\"client.example#c1\";alg=\"ed25519\";nonce=\"cmVxdWVzdC1ub25jZQ\"",
+        "signature": "sig1=:EREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREQ==:"
+      }
+    }
+  },
+  "baseCases": [
+    {
+      "id": "negotiated-base-default",
+      "description": "Required response components bind the client's sig1 request members.",
+      "request": "default",
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json",
+          "content-digest": "sha-256=:o8kOO3RI0j2erOvQ6/FcrhAOIfmyxojz+dI47c0m1n8=:",
+          "cache-control": "max-age=60, no-store"
+        }
+      },
+      "label": "sig1",
+      "signatureInput": "sig1=(\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"content-digest\" \"cache-control\");created=1700000001;expires=1700000061;keyid=\"service.example#fixture-ku\";alg=\"ed25519\";nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\"",
+      "expectedBase": "\"@status\": 200\n\"@method\";req: POST\n\"@authority\";req: service.example\n\"@target-uri\";req: https://service.example/v1/items?x=1\n\"accept-signature\";req: sig1=(\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"content-digest\" \"cache-control\");created;expires;nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\"\n\"signature-input\";req;key=\"sig1\": (\"@method\" \"@authority\" \"@target-uri\" \"accept-signature\");created=1700000000;keyid=\"client.example#c1\";alg=\"ed25519\";nonce=\"cmVxdWVzdC1ub25jZQ\"\n\"signature\";req;key=\"sig1\": :EREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREQ==:\n\"content-digest\": sha-256=:o8kOO3RI0j2erOvQ6/FcrhAOIfmyxojz+dI47c0m1n8=:\n\"cache-control\": max-age=60, no-store\n\"@signature-params\": (\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"content-digest\" \"cache-control\");created=1700000001;expires=1700000061;keyid=\"service.example#fixture-ku\";alg=\"ed25519\";nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\""
+    },
+    {
+      "id": "negotiated-base-proxied-request",
+      "description": "An intermediary's extra request signature label does not change the key-selected request members.",
+      "request": "proxied",
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json",
+          "content-digest": "sha-256=:o8kOO3RI0j2erOvQ6/FcrhAOIfmyxojz+dI47c0m1n8=:",
+          "cache-control": "max-age=60, no-store"
+        }
+      },
+      "label": "sig1",
+      "signatureInput": "sig1=(\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"content-digest\" \"cache-control\");created=1700000001;expires=1700000061;keyid=\"service.example#fixture-ku\";alg=\"ed25519\";nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\"",
+      "expectedBase": "\"@status\": 200\n\"@method\";req: POST\n\"@authority\";req: service.example\n\"@target-uri\";req: https://service.example/v1/items?x=1\n\"accept-signature\";req: sig1=(\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"content-digest\" \"cache-control\");created;expires;nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\"\n\"signature-input\";req;key=\"sig1\": (\"@method\" \"@authority\" \"@target-uri\" \"accept-signature\");created=1700000000;keyid=\"client.example#c1\";alg=\"ed25519\";nonce=\"cmVxdWVzdC1ub25jZQ\"\n\"signature\";req;key=\"sig1\": :EREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREQ==:\n\"content-digest\": sha-256=:o8kOO3RI0j2erOvQ6/FcrhAOIfmyxojz+dI47c0m1n8=:\n\"cache-control\": max-age=60, no-store\n\"@signature-params\": (\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"content-digest\" \"cache-control\");created=1700000001;expires=1700000061;keyid=\"service.example#fixture-ku\";alg=\"ed25519\";nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\""
+    },
+    {
+      "id": "negotiated-base-custom-labels",
+      "description": "Non-default response and request labels with additional content-type coverage.",
+      "request": "customLabels",
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json",
+          "content-digest": "sha-256=:o8kOO3RI0j2erOvQ6/FcrhAOIfmyxojz+dI47c0m1n8=:",
+          "cache-control": "max-age=60, no-store"
+        }
+      },
+      "label": "resp",
+      "signatureInput": "resp=(\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"client\" \"signature\";req;key=\"client\" \"content-digest\" \"cache-control\" \"content-type\");created=1700000001;expires=1700000061;keyid=\"service.example#fixture-ku\";alg=\"ed25519\";nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\"",
+      "expectedBase": "\"@status\": 200\n\"@method\";req: GET\n\"@authority\";req: service.example\n\"@target-uri\";req: https://service.example/v1/items/7\n\"accept-signature\";req: resp=(\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"client\" \"signature\";req;key=\"client\" \"content-digest\" \"cache-control\" \"content-type\");created;expires;nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\"\n\"signature-input\";req;key=\"client\": (\"@method\" \"@authority\" \"@target-uri\" \"accept-signature\");created=1700000000;keyid=\"client.example#c1\";alg=\"ed25519\";nonce=\"cmVxdWVzdC1ub25jZQ\"\n\"signature\";req;key=\"client\": :EREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREQ==:\n\"content-digest\": sha-256=:o8kOO3RI0j2erOvQ6/FcrhAOIfmyxojz+dI47c0m1n8=:\n\"cache-control\": max-age=60, no-store\n\"content-type\": application/json\n\"@signature-params\": (\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"client\" \"signature\";req;key=\"client\" \"content-digest\" \"cache-control\" \"content-type\");created=1700000001;expires=1700000061;keyid=\"service.example#fixture-ku\";alg=\"ed25519\";nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\""
+    },
+    {
+      "id": "negotiated-base-not-modified",
+      "description": "A 304 response to HEAD digests the empty sequence.",
+      "request": "head",
+      "response": {
+        "status": 304,
+        "headers": {
+          "content-digest": "sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:",
+          "cache-control": "no-store"
+        }
+      },
+      "label": "sig1",
+      "signatureInput": "sig1=(\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"content-digest\" \"cache-control\");created=1700000001;expires=1700000061;keyid=\"service.example#fixture-ku\";alg=\"ed25519\";nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\"",
+      "expectedBase": "\"@status\": 304\n\"@method\";req: HEAD\n\"@authority\";req: service.example\n\"@target-uri\";req: https://service.example/v1/items?x=1\n\"accept-signature\";req: sig1=(\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"content-digest\" \"cache-control\");created;expires;nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\"\n\"signature-input\";req;key=\"sig1\": (\"@method\" \"@authority\" \"@target-uri\" \"accept-signature\");created=1700000000;keyid=\"client.example#c1\";alg=\"ed25519\";nonce=\"cmVxdWVzdC1ub25jZQ\"\n\"signature\";req;key=\"sig1\": :EREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREQ==:\n\"content-digest\": sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:\n\"cache-control\": no-store\n\"@signature-params\": (\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"content-digest\" \"cache-control\");created=1700000001;expires=1700000061;keyid=\"service.example#fixture-ku\";alg=\"ed25519\";nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\""
+    },
+    {
+      "id": "negotiated-base-missing-request-member",
+      "description": "A key-selected request member that the originating request lacks rejects.",
+      "request": "default",
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json",
+          "content-digest": "sha-256=:o8kOO3RI0j2erOvQ6/FcrhAOIfmyxojz+dI47c0m1n8=:",
+          "cache-control": "max-age=60, no-store"
+        }
+      },
+      "label": "sig1",
+      "signatureInput": "sig1=(\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"absent\" \"signature\";req;key=\"absent\" \"content-digest\" \"cache-control\");created=1700000001;expires=1700000061;keyid=\"service.example#fixture-ku\";alg=\"ed25519\";nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\"",
+      "expectedError": "selected request dictionary member is absent"
+    }
+  ],
+  "prepareCases": [
+    {
+      "id": "negotiated-prepare-default",
+      "description": "Default negotiation serializes the ordered required components and covers accept-signature.",
+      "input": {
+        "request": {
+          "method": "GET",
+          "url": "https://service.example/v1/items",
+          "headers": {}
+        },
+        "expectedDomain": "service.example"
+      },
+      "expected": {
+        "acceptSignature": "sig1=(\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"content-digest\" \"cache-control\");created;expires;nonce=\"<nonce>\"",
+        "requestComponents": [
+          "\"@authority\"",
+          "\"@method\"",
+          "\"@target-uri\"",
+          "\"accept-signature\""
+        ]
+      }
+    },
+    {
+      "id": "negotiated-prepare-custom-label-additions",
+      "description": "The request label selects the key parameter; additions follow in caller order.",
+      "input": {
+        "request": {
+          "method": "GET",
+          "url": "https://service.example/v1/items",
+          "headers": {}
+        },
+        "label": "client",
+        "expectedDomain": "service.example",
+        "additionalComponents": [
+          {
+            "name": "content-type"
+          },
+          {
+            "name": "x-trace",
+            "params": {}
+          }
+        ]
+      },
+      "expected": {
+        "acceptSignature": "sig1=(\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"client\" \"signature\";req;key=\"client\" \"content-digest\" \"cache-control\" \"content-type\" \"x-trace\");created;expires;nonce=\"<nonce>\"",
+        "requestComponents": [
+          "\"@authority\"",
+          "\"@method\"",
+          "\"@target-uri\"",
+          "\"accept-signature\""
+        ]
+      }
+    },
+    {
+      "id": "negotiated-prepare-reject-http",
+      "description": "A non-HTTPS target rejects before signing.",
+      "input": {
+        "request": {
+          "method": "GET",
+          "url": "http://service.example/v1/items",
+          "headers": {}
+        },
+        "expectedDomain": "service.example"
+      },
+      "expected": {
+        "error": true
+      }
+    },
+    {
+      "id": "negotiated-prepare-reject-existing-negotiation",
+      "description": "A caller-supplied Accept-Signature is not replaced.",
+      "input": {
+        "request": {
+          "method": "GET",
+          "url": "https://service.example/v1/items",
+          "headers": {
+            "accept-signature": "x=(\"@status\")"
+          }
+        },
+        "expectedDomain": "service.example"
+      },
+      "expected": {
+        "error": true
+      }
+    },
+    {
+      "id": "negotiated-prepare-reject-invalid-domain",
+      "description": "An invalid expected domain rejects.",
+      "input": {
+        "request": {
+          "method": "GET",
+          "url": "https://service.example/v1/items",
+          "headers": {}
+        },
+        "expectedDomain": "not a domain"
+      },
+      "expected": {
+        "error": true
+      }
+    },
+    {
+      "id": "negotiated-prepare-reject-self-covering-signature",
+      "description": "The response cannot cover its own Signature field.",
+      "input": {
+        "request": {
+          "method": "GET",
+          "url": "https://service.example/v1/items",
+          "headers": {}
+        },
+        "expectedDomain": "service.example",
+        "additionalComponents": [
+          {
+            "name": "signature"
+          }
+        ]
+      },
+      "expected": {
+        "error": true
+      }
+    },
+    {
+      "id": "negotiated-prepare-reject-derived-without-req",
+      "description": "Request-derived additions require req.",
+      "input": {
+        "request": {
+          "method": "GET",
+          "url": "https://service.example/v1/items",
+          "headers": {}
+        },
+        "expectedDomain": "service.example",
+        "additionalComponents": [
+          {
+            "name": "@query"
+          }
+        ]
+      },
+      "expected": {
+        "error": true
+      }
+    }
+  ],
+  "signingCases": [
+    {
+      "id": "negotiated-sign-default",
+      "description": "Sign with the requested label, list, nonce, fixed 60-second lifetime, digest, and appended no-store.",
+      "input": {
+        "request": "default",
+        "response": {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json",
+            "cache-control": "max-age=60"
+          },
+          "bodyBase64": "eyJpZCI6N30="
+        }
+      },
+      "expected": {
+        "label": "sig1",
+        "components": "\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"content-digest\" \"cache-control\"",
+        "nonce": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+        "contentDigest": "sha-256=:o8kOO3RI0j2erOvQ6/FcrhAOIfmyxojz+dI47c0m1n8=:",
+        "cacheControl": "max-age=60, no-store"
+      }
+    },
+    {
+      "id": "negotiated-sign-proxied-request",
+      "description": "An extra intermediary request signature does not prevent signing.",
+      "input": {
+        "request": "proxied",
+        "response": {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json"
+          },
+          "bodyBase64": "eyJpZCI6N30="
+        }
+      },
+      "expected": {
+        "label": "sig1",
+        "components": "\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"content-digest\" \"cache-control\"",
+        "nonce": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+        "contentDigest": "sha-256=:o8kOO3RI0j2erOvQ6/FcrhAOIfmyxojz+dI47c0m1n8=:",
+        "cacheControl": "no-store"
+      }
+    },
+    {
+      "id": "negotiated-sign-custom-labels",
+      "description": "Non-default labels and requested content-type coverage.",
+      "input": {
+        "request": "customLabels",
+        "response": {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json"
+          },
+          "bodyBase64": "eyJpZCI6N30="
+        }
+      },
+      "expected": {
+        "label": "resp",
+        "components": "\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"client\" \"signature\";req;key=\"client\" \"content-digest\" \"cache-control\" \"content-type\"",
+        "nonce": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+        "contentDigest": "sha-256=:o8kOO3RI0j2erOvQ6/FcrhAOIfmyxojz+dI47c0m1n8=:",
+        "cacheControl": "no-store"
+      }
+    },
+    {
+      "id": "negotiated-sign-reordered-components",
+      "description": "The requested component order is preserved.",
+      "input": {
+        "request": "default",
+        "acceptSignature": "sig1=(\"@method\";req \"@status\" \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"cache-control\" \"content-digest\");created;expires;nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\"",
+        "response": {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json"
+          },
+          "bodyBase64": "eyJpZCI6N30="
+        }
+      },
+      "expected": {
+        "label": "sig1",
+        "components": "\"@method\";req \"@status\" \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"cache-control\" \"content-digest\"",
+        "nonce": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+        "contentDigest": "sha-256=:o8kOO3RI0j2erOvQ6/FcrhAOIfmyxojz+dI47c0m1n8=:",
+        "cacheControl": "no-store"
+      }
+    },
+    {
+      "id": "negotiated-sign-explicit-true-flags",
+      "description": "Equivalent explicit Boolean true flags are accepted.",
+      "input": {
+        "request": "default",
+        "acceptSignature": "sig1=(\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"content-digest\" \"cache-control\");created=?1;expires=?1;nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\"",
+        "response": {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json"
+          },
+          "bodyBase64": "eyJpZCI6N30="
+        }
+      },
+      "expected": {
+        "label": "sig1",
+        "components": "\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"content-digest\" \"cache-control\"",
+        "nonce": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+        "contentDigest": "sha-256=:o8kOO3RI0j2erOvQ6/FcrhAOIfmyxojz+dI47c0m1n8=:",
+        "cacheControl": "no-store"
+      }
+    },
+    {
+      "id": "negotiated-sign-upgrade-advertisement",
+      "description": "An Upgrade field on a final response is not a protocol upgrade.",
+      "input": {
+        "request": "default",
+        "response": {
+          "status": 200,
+          "headers": {
+            "upgrade": "h2"
+          },
+          "bodyBase64": "eyJpZCI6N30="
+        }
+      },
+      "expected": {
+        "label": "sig1",
+        "components": "\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"content-digest\" \"cache-control\"",
+        "nonce": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+        "contentDigest": "sha-256=:o8kOO3RI0j2erOvQ6/FcrhAOIfmyxojz+dI47c0m1n8=:",
+        "cacheControl": "no-store"
+      }
+    },
+    {
+      "id": "negotiated-sign-empty-content",
+      "description": "Supplied empty content digests the empty sequence.",
+      "input": {
+        "request": "default",
+        "response": {
+          "status": 200,
+          "headers": {},
+          "bodyBase64": ""
+        }
+      },
+      "expected": {
+        "label": "sig1",
+        "components": "\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"content-digest\" \"cache-control\"",
+        "nonce": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+        "contentDigest": "sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:",
+        "cacheControl": "no-store"
+      }
+    },
+    {
+      "id": "negotiated-sign-head-ignores-content",
+      "description": "A HEAD response digests the empty sequence and ignores supplied content.",
+      "input": {
+        "request": "head",
+        "response": {
+          "status": 200,
+          "headers": {},
+          "bodyBase64": "eyJpZCI6N30="
+        }
+      },
+      "expected": {
+        "label": "sig1",
+        "components": "\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"content-digest\" \"cache-control\"",
+        "nonce": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+        "contentDigest": "sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:",
+        "cacheControl": "no-store",
+        "noContent": true
+      }
+    },
+    {
+      "id": "negotiated-sign-204",
+      "description": "204 digests the empty sequence.",
+      "input": {
+        "request": "default",
+        "response": {
+          "status": 204,
+          "headers": {},
+          "bodyBase64": null
+        }
+      },
+      "expected": {
+        "label": "sig1",
+        "components": "\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"content-digest\" \"cache-control\"",
+        "nonce": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+        "contentDigest": "sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:",
+        "cacheControl": "no-store",
+        "noContent": true
+      }
+    },
+    {
+      "id": "negotiated-sign-205",
+      "description": "205 digests the empty sequence.",
+      "input": {
+        "request": "default",
+        "response": {
+          "status": 205,
+          "headers": {},
+          "bodyBase64": null
+        }
+      },
+      "expected": {
+        "label": "sig1",
+        "components": "\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"content-digest\" \"cache-control\"",
+        "nonce": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+        "contentDigest": "sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:",
+        "cacheControl": "no-store",
+        "noContent": true
+      }
+    },
+    {
+      "id": "negotiated-sign-304",
+      "description": "304 digests the empty sequence.",
+      "input": {
+        "request": "default",
+        "response": {
+          "status": 304,
+          "headers": {},
+          "bodyBase64": null
+        }
+      },
+      "expected": {
+        "label": "sig1",
+        "components": "\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"content-digest\" \"cache-control\"",
+        "nonce": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+        "contentDigest": "sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:",
+        "cacheControl": "no-store",
+        "noContent": true
+      }
+    },
+    {
+      "id": "negotiated-sign-reject-unavailable-content",
+      "description": "Unavailable ordinary content is not empty content.",
+      "input": {
+        "request": "default",
+        "response": {
+          "status": 200,
+          "headers": {},
+          "bodyBase64": null
+        }
+      },
+      "expected": {
+        "error": true
+      }
+    },
+    {
+      "id": "negotiated-sign-reject-unkeyed-request-signature",
+      "description": "Whole-field request signature coverage is not the profile.",
+      "input": {
+        "request": "default",
+        "acceptSignature": "sig1=(\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req \"signature\";req \"content-digest\" \"cache-control\");created;expires;nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\"",
+        "response": {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json"
+          },
+          "bodyBase64": "eyJpZCI6N30="
+        }
+      },
+      "expected": {
+        "error": true
+      }
+    },
+    {
+      "id": "negotiated-sign-reject-mismatched-keys",
+      "description": "Signature-Input and Signature members must use the same key.",
+      "input": {
+        "request": "default",
+        "acceptSignature": "sig1=(\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"other\" \"content-digest\" \"cache-control\");created;expires;nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\"",
+        "response": {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json"
+          },
+          "bodyBase64": "eyJpZCI6N30="
+        }
+      },
+      "expected": {
+        "error": true
+      }
+    },
+    {
+      "id": "negotiated-sign-reject-absent-member",
+      "description": "The selected request member must exist.",
+      "input": {
+        "request": "default",
+        "acceptSignature": "sig1=(\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"absent\" \"signature\";req;key=\"absent\" \"content-digest\" \"cache-control\");created;expires;nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\"",
+        "response": {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json"
+          },
+          "bodyBase64": "eyJpZCI6N30="
+        }
+      },
+      "expected": {
+        "error": true
+      }
+    },
+    {
+      "id": "negotiated-sign-reject-duplicate-label",
+      "description": "Duplicate dictionary labels reject.",
+      "input": {
+        "request": "default",
+        "acceptSignature": "sig1=(\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"content-digest\" \"cache-control\");created;expires;nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\", sig1=(\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"content-digest\" \"cache-control\");created;expires;nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\"",
+        "response": {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json"
+          },
+          "bodyBase64": "eyJpZCI6N30="
+        }
+      },
+      "expected": {
+        "error": true
+      }
+    },
+    {
+      "id": "negotiated-sign-reject-multiple-members",
+      "description": "Multi-member negotiation rejects.",
+      "input": {
+        "request": "default",
+        "acceptSignature": "sig1=(\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"content-digest\" \"cache-control\");created;expires;nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\", sig2=(\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"content-digest\" \"cache-control\");created;expires;nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\"",
+        "response": {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json"
+          },
+          "bodyBase64": "eyJpZCI6N30="
+        }
+      },
+      "expected": {
+        "error": true
+      }
+    },
+    {
+      "id": "negotiated-sign-reject-short-nonce",
+      "description": "A nonce shorter than 32 bytes rejects.",
+      "input": {
+        "request": "default",
+        "acceptSignature": "sig1=(\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"content-digest\" \"cache-control\");created;expires;nonce=\"AAECAwQFBgcICQoLDA0ODx\"",
+        "response": {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json"
+          },
+          "bodyBase64": "eyJpZCI6N30="
+        }
+      },
+      "expected": {
+        "error": true
+      }
+    },
+    {
+      "id": "negotiated-sign-reject-noncanonical-nonce",
+      "description": "A nonce with nonzero trailing bits rejects.",
+      "input": {
+        "request": "default",
+        "acceptSignature": "sig1=(\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"content-digest\" \"cache-control\");created;expires;nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh9\"",
+        "response": {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json"
+          },
+          "bodyBase64": "eyJpZCI6N30="
+        }
+      },
+      "expected": {
+        "error": true
+      }
+    },
+    {
+      "id": "negotiated-sign-reject-keyid-constraint",
+      "description": "Unsupported request parameters reject.",
+      "input": {
+        "request": "default",
+        "acceptSignature": "sig1=(\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"content-digest\" \"cache-control\");created;expires;nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\";keyid=\"x\"",
+        "response": {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json"
+          },
+          "bodyBase64": "eyJpZCI6N30="
+        }
+      },
+      "expected": {
+        "error": true
+      }
+    },
+    {
+      "id": "negotiated-sign-reject-created-value",
+      "description": "A timestamp value instead of a flag rejects.",
+      "input": {
+        "request": "default",
+        "acceptSignature": "sig1=(\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"content-digest\" \"cache-control\");created=1;expires;nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\"",
+        "response": {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json"
+          },
+          "bodyBase64": "eyJpZCI6N30="
+        }
+      },
+      "expected": {
+        "error": true
+      }
+    },
+    {
+      "id": "negotiated-sign-reject-duplicate-component",
+      "description": "Duplicate components reject.",
+      "input": {
+        "request": "default",
+        "acceptSignature": "sig1=(\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"content-digest\" \"cache-control\" \"cache-control\");created;expires;nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\"",
+        "response": {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json"
+          },
+          "bodyBase64": "eyJpZCI6N30="
+        }
+      },
+      "expected": {
+        "error": true
+      }
+    },
+    {
+      "id": "negotiated-sign-reject-missing-cache-control",
+      "description": "Omitted required coverage rejects.",
+      "input": {
+        "request": "default",
+        "acceptSignature": "sig1=(\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"content-digest\");created;expires;nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\"",
+        "response": {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json"
+          },
+          "bodyBase64": "eyJpZCI6N30="
+        }
+      },
+      "expected": {
+        "error": true
+      }
+    },
+    {
+      "id": "negotiated-sign-reject-missing-requested-field",
+      "description": "A requested field absent from the response rejects.",
+      "input": {
+        "request": "default",
+        "acceptSignature": "sig1=(\"@status\" \"@method\";req \"@authority\";req \"@target-uri\";req \"accept-signature\";req \"signature-input\";req;key=\"sig1\" \"signature\";req;key=\"sig1\" \"content-digest\" \"cache-control\" \"x-absent\");created;expires;nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\"",
+        "response": {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json"
+          },
+          "bodyBase64": "eyJpZCI6N30="
+        }
+      },
+      "expected": {
+        "error": true
+      }
+    },
+    {
+      "id": "negotiated-sign-reject-label-collision",
+      "description": "An existing response member with the requested label rejects.",
+      "input": {
+        "request": "default",
+        "response": {
+          "status": 200,
+          "headers": {
+            "signature-input": "sig1=(\"@status\");created=1",
+            "signature": "sig1=:EREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREQ==:"
+          },
+          "bodyBase64": "eyJpZCI6N30="
+        }
+      },
+      "expected": {
+        "error": true
+      }
+    }
+  ]
+}
