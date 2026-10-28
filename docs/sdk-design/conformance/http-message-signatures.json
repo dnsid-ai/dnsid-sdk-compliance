@@ -163,6 +163,19 @@
       "signatureInput": "sig1=(\"example-dict\";sf);created=1",
       "label": "sig1",
       "expectedError": "unsupported component parameter"
+    },
+    {
+      "id": "httpsig-base-target-uri-empty-path",
+      "description": "An empty https path derives @target-uri and @path with \"/\", matching the request target on the wire.",
+      "specRef": "RFC 9421 sections 2.2.2 and 2.2.6; RFC 9110 section 4.2.3",
+      "request": {
+        "method": "POST",
+        "url": "https://api.example",
+        "headers": {}
+      },
+      "signatureInput": "sig1=(\"@target-uri\" \"@path\");created=1",
+      "label": "sig1",
+      "expectedBase": "\"@target-uri\": https://api.example/\n\"@path\": /\n\"@signature-params\": (\"@target-uri\" \"@path\");created=1"
     }
   ]
 }
