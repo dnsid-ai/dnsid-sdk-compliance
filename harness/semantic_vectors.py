@@ -8,6 +8,7 @@ from pathlib import Path
 
 import consistency_vectors
 import context_chain
+import migration_vectors
 import nested_revocation
 import selection_enumeration
 
@@ -107,6 +108,7 @@ def load_semantic_suites() -> list[dict]:
         _generated("c2sp-nested-revocation", nested_revocation, "C2SP tlog method sections 5, 7-8: unknown signed fields"),
         _generated("c2sp-context-chain", context_chain, "C2SP tlog method sections 5, 7, 13.2: signed context and chain"),
         {"suite": "c2sp-consistency-proofs", "path": "harness/consistency_vectors.py", "cases": consistency_vectors.load_cases()},
+        {"suite": "c2sp-migration-chains", "path": "harness/migration_vectors.py", "cases": migration_vectors.load_cases()},
         {
             "suite": "c2sp-managed-trust-selection",
             "path": "docs/sdk-design/conformance/c2sp-managed-trust-selection.json",

@@ -210,6 +210,9 @@ async function handle(req) {
       case 'lifecycle_vector': return await lifecycleVector(req);
       case 'c2sp_checkpoint_vector': return await verifyCheckpoint(req.checkpointCase, c2sp, sdk);
       case 'c2sp_lifecycle_vector': return await c2spLifecycleVector(req);
+      // The reader takes only a caller-written verifyMigration callback: no exact-cutoff
+      // read, cycle detection or depth limit (design 11 "Destination-Only Migration").
+      case 'c2sp_migration_vector': return { ok: false, error: 'CapabilityMissing', capability: 'c2sp_migration_recursion', message: 'no built-in recursive migration verification' };
       case 'c2sp_managed_trust_select': {
         try {
           if (!c2sp) throw new Error('C2SP package is not built');

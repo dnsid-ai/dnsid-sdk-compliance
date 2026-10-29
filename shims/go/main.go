@@ -56,6 +56,7 @@ type fixtureKey struct {
 
 type request struct {
 	CheckpointCase                                json.RawMessage `json:"checkpointCase"`
+	MigrationCase                                 json.RawMessage `json:"migrationCase"`
 	Op                                            string          `json:"op"`
 	Raw                                           string          `json:"raw"`
 	IdentityFQDN                                  string          `json:"identity_fqdn"`
@@ -317,6 +318,8 @@ func handle(req request) map[string]any {
 		return handleCheckpointCase(req.CheckpointCase)
 	case "c2sp_lifecycle_vector":
 		return handleC2spLifecycleVector(req)
+	case "c2sp_migration_vector":
+		return handleMigrationCase(req.MigrationCase)
 	case "c2sp_managed_trust_select":
 		registry, err := c2sptlog.NewDnsidManagedVerificationRegistry(context.Background(), c2sptlog.DnsidManagedVerificationConfig{})
 		if err == nil {

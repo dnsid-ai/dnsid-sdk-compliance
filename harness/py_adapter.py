@@ -109,6 +109,10 @@ class PyAdapter:
                 return verify_python(req["checkpointCase"])
             if op == "c2sp_lifecycle_vector":
                 return self._c2sp_lifecycle_vector(req)
+            if op == "c2sp_migration_vector":
+                from migration_adapter import verify_python as verify_migration
+
+                return verify_migration(req["migrationCase"])
             if op == "c2sp_managed_trust_select":
                 return self._c2sp_managed_trust_select(req)
             if op == "sdk_conformance":
