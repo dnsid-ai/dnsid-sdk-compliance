@@ -64,7 +64,7 @@ def package_case(template, entries):
     checkpoint = f"{text.splitlines()[0]}\n{len(entries)}\n".encode() + base64.b64encode(tree(leaves)) + b"\n"
     cosignature = f"cosignature/v1\ntime {int.from_bytes(timestamp, 'big')}\n".encode() + checkpoint
     signed = checkpoint + b"\n"
-    signed += ("— log.example " + base64.b64encode(log_signature[:4] + edsign(4, checkpoint)).decode() + "\n").encode()
+    signed += (f"— {log_line.split()[1]} " + base64.b64encode(log_signature[:4] + edsign(4, checkpoint)).decode() + "\n").encode()
     signed += ("— witness.example " + base64.b64encode(witness_signature[:4] + timestamp + edsign(5, cosignature)).decode() + "\n").encode()
     result["checkpoint"] = signed.decode()
     if result.get("checkpointAccepted") is False:

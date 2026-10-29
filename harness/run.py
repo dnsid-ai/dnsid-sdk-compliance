@@ -208,9 +208,12 @@ def evaluate_result(case: dict, sdk: str, actual: dict) -> tuple:
         "message": "SDK has signing/directory serving only",
     }:
         return ("MISSING", [], actual["message"], actual)
-    if actual.get("error") == "CapabilityMissing" and actual.get("capability") == NEGOTIATED_CAPABILITY:
+    if actual.get("error") == "CapabilityMissing" and actual.get("capability") in {NEGOTIATED_CAPABILITY, "c2sp_migration_recursion"}:
         return ("MISSING", [], actual.get("message"), actual)
     problems = compare(expected, actual)
+    # A finite parser budget may reject evidence; it must not ignore it.
+    if case.get("fail_closed_allowed") and actual.get("ok") is False and actual.get("error") == "LifecycleError":
+        problems = []
     if case["op"] == "c2sp_checkpoint_vector":
         # Taxonomy gaps must not hide acceptance, state changes, or lost injected causes.
         invariants = {key: value for key, value in expected.items()
@@ -340,8 +343,8 @@ def render_report(sdk_names, suites, rows) -> str:
     lines.append("`PASS` = matched expected behavior. `REJ` = record version not supported by this SDK;")
     lines.append("the SDK correctly rejected it as unsupported (fail-closed). `XFAIL` = known bug, the")
     lines.append("fixture encodes the spec-correct behavior and the SDK is known not to meet it yet.")
-    lines.append("`FAIL` = unexpected mismatch, see details. `MISSING` = no integrated WBA verifier or")
-    lines.append("negotiated response API;")
+    lines.append("`FAIL` = unexpected mismatch, see details. `MISSING` = no integrated WBA verifier,")
+    lines.append("negotiated response API or built-in recursive migration verification;")
     lines.append("the case did not execute and is not compliant. Missing capabilities do not fail the run.")
     lines.append("")
 
@@ -379,6 +382,7 @@ def render_report(sdk_names, suites, rows) -> str:
     if any(c["MISSING"] for c in counts.values()):
         lines.extend(["## Missing capabilities", "", "WBA request/directory verification is not shipped in the tested signing-only bindings.",
                       "Negotiated response vectors report MISSING for SDKs without the negotiated response APIs.",
+                      "Migration-chain vectors report MISSING for SDKs whose reader cannot verify prior logs itself.",
                       "Positive and negative verifier vectors remain unexecuted. Integrate native verifier adapters",
                       "when each SDK ships verification; these results are not end-to-end WBA conformance.", ""])
 

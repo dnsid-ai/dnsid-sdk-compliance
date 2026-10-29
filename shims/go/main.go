@@ -56,6 +56,7 @@ type fixtureKey struct {
 
 type request struct {
 	CheckpointCase                                json.RawMessage `json:"checkpointCase"`
+	MigrationCase                                 json.RawMessage `json:"migrationCase"`
 	Op                                            string          `json:"op"`
 	Raw                                           string          `json:"raw"`
 	IdentityFQDN                                  string          `json:"identity_fqdn"`
@@ -317,6 +318,8 @@ func handle(req request) map[string]any {
 		return handleCheckpointCase(req.CheckpointCase)
 	case "c2sp_lifecycle_vector":
 		return handleC2spLifecycleVector(req)
+	case "c2sp_migration_vector":
+		return handleMigrationCase(req.MigrationCase)
 	case "c2sp_managed_trust_select":
 		registry, err := c2sptlog.NewDnsidManagedVerificationRegistry(context.Background(), c2sptlog.DnsidManagedVerificationConfig{})
 		if err == nil {
@@ -575,6 +578,8 @@ func migrationVerifierOption(req request) (c2sptlog.Option, error) {
 	}), nil
 }
 
+func eventKey(parts ...string) string { return strings.Join(parts, "\x00") }
+
 func handleC2spLifecycleVector(req request) map[string]any {
 	policy, err := c2sptlog.ParsePolicy([]byte(req.Policy))
 	if err != nil {
@@ -585,8 +590,10 @@ func handleC2spLifecycleVector(req request) map[string]any {
 		policy.MaxCheckpointAge = 24 * time.Hour
 	}
 	entries := make([]c2sptlog.ProvenEntry, 0, len(req.Entries))
-	effectByTime := map[int64]string{}
-	for _, item := range req.Entries {
+	// LogEvent has no log index, so applied events are matched to candidates in log
+	// order by type and signature values (which tell copies and forgeries apart).
+	candidateKeys := make([]string, len(req.Entries))
+	for i, item := range req.Entries {
 		entry, err := base64.RawURLEncoding.DecodeString(item.Entry)
 		if err != nil {
 			return lifecycleErrJSON(err)
@@ -596,11 +603,12 @@ func handleC2spLifecycleVector(req request) map[string]any {
 			return lifecycleErrJSON(err)
 		}
 		entries = append(entries, c2sptlog.ProvenEntry{Index: item.Index, Entry: entry, Proof: proof})
-		var object map[string]any
+		var object struct {
+			Type string                          `json:"type"`
+			Sigs map[string]struct{ Sig string } `json:"sigs"`
+		}
 		if json.Unmarshal(entry, &object) == nil {
-			if ts, ok := object["ts"].(float64); ok {
-				effectByTime[int64(ts)] = item.EffectID
-			}
+			candidateKeys[i] = eventKey(object.Type, object.Sigs["ae"].Sig, object.Sigs["op"].Sig, object.Sigs["prev_op"].Sig, object.Sigs["new_op"].Sig)
 		}
 	}
 	if len(entries) == 0 {
@@ -656,22 +664,24 @@ func handleC2spLifecycleVector(req request) map[string]any {
 		return out
 	}
 	applied := make([]string, 0, len(events))
+	used := map[int]bool{}
+	next := 0
 	for _, event := range events {
-		if id := effectByTime[event.Timestamp.Unix()]; id != "" {
-			applied = append(applied, id)
+		key := eventKey(string(event.Type), event.InitialEntitySignature, event.InitialOperationalSignature, event.PreviousOperationalSignature, event.NewOperationalSignature)
+		// Stitched prior-history events match no candidate and are skipped.
+		for i := next; i < len(req.Entries); i++ {
+			if candidateKeys[i] == key {
+				applied = append(applied, req.Entries[i].EffectID)
+				used[i], next = true, i+1
+				break
+			}
 		}
 	}
 	ignored := []int{}
-	used := map[string]int{}
-	for _, id := range applied {
-		used[id]++
-	}
-	for i, item := range req.Entries {
-		if used[item.EffectID] > 0 {
-			used[item.EffectID]--
-			continue
+	for i := range req.Entries {
+		if !used[i] {
+			ignored = append(ignored, i)
 		}
-		ignored = append(ignored, i)
 	}
 	out := map[string]any{"ok": true, "appliedEffectIds": applied, "ignoredCandidateIndexes": ignored}
 	if req.PriorHistoryVerified != nil && *req.PriorHistoryVerified {

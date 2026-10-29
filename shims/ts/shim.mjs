@@ -210,6 +210,7 @@ async function handle(req) {
       case 'lifecycle_vector': return await lifecycleVector(req);
       case 'c2sp_checkpoint_vector': return await verifyCheckpoint(req.checkpointCase, c2sp, sdk);
       case 'c2sp_lifecycle_vector': return await c2spLifecycleVector(req);
+      case 'c2sp_migration_vector': return await c2spMigrationVector(req.migrationCase);
       case 'c2sp_managed_trust_select': {
         try {
           if (!c2sp) throw new Error('C2SP package is not built');
@@ -344,6 +345,42 @@ async function lifecycleVector(req) {
     }
     return { ok: false, error: 'LifecycleError', message: String(e?.message ?? e), errorCategory: e?.errorCategory, ...(failingEventIndex === undefined ? {} : { failingEventIndex }) };
   }
+}
+
+async function c2spMigrationVector(req) {
+  const readers = new Map();
+  for (const [index, log] of req.logs.entries()) {
+    readers.set(log.lr, new c2sp.C2spTlogReader(log.lr, {
+      policy: c2sp.parseC2spPolicyFile(log.policy),
+      entityKey: req.entityJwk,
+      // Fixture clocks are historical; freshness is covered by separate vectors.
+      checkpointMaxAge: 10 ** 13,
+      migrationLimits: index === req.target && req.maxDepth ? { maxDepth: req.maxDepth } : undefined,
+      migrationReaderFactory: lr => readers.get(lr),
+      streamSource: { load: async () => ({
+        checkpoint: c2sp.parseCheckpoint(log.checkpoint), complete: true,
+        entries: log.entries.map(item => ({ index: item.index, bytes: Buffer.from(item.entry, 'base64url') })),
+      }) },
+    }));
+  }
+  const lr = req.logs[req.target].lr;
+  const target = readers.get(lr);
+  let events;
+  try { events = await target.rebuildHistory(req.domain); }
+  catch (error) {
+    if (!isNativeError(error)) throw error;
+    return { ok: false, error: 'LifecycleError', message: error.message };
+  }
+  const out = { ok: true, eventCount: events.length };
+  try { out.keyTimestamp = Math.floor((await target.keyTimestamp(req.domain, req.operationalThumbprint)).getTime() / 1000); }
+  catch (error) { if (!isNativeError(error)) throw error; out.keyTimestamp = `error: ${error.message}`; }
+  try { out.loggedState = (await target.verifyNonRevocation(req.domain, new Date(req.at * 1000))).loggedState; }
+  catch (error) { if (!isNativeError(error)) throw error; out.loggedState = `error: ${error.message}`; }
+  try { await target.verifyNonRevocation(req.domain, new Date(req.beforeGenesis * 1000)); out.beforeGenesisRejected = false; }
+  catch (error) { if (!isNativeError(error)) throw error; out.beforeGenesisRejected = true; }
+  try { out.cutoffEventCount = (await target.rebuildHistoryThrough(req.domain, `${lr}@0`)).priorHistory.length; }
+  catch (error) { if (!isNativeError(error)) throw error; out.cutoffEventCount = `error: ${error.message}`; }
+  return out;
 }
 
 async function c2spLifecycleVector(req) {
