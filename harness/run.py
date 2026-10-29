@@ -211,6 +211,9 @@ def evaluate_result(case: dict, sdk: str, actual: dict) -> tuple:
     if actual.get("error") == "CapabilityMissing" and actual.get("capability") == NEGOTIATED_CAPABILITY:
         return ("MISSING", [], actual.get("message"), actual)
     problems = compare(expected, actual)
+    # A finite parser budget may reject evidence; it must not ignore it.
+    if case.get("fail_closed_allowed") and actual.get("ok") is False and actual.get("error") == "LifecycleError":
+        problems = []
     if case["op"] == "c2sp_checkpoint_vector":
         # Taxonomy gaps must not hide acceptance, state changes, or lost injected causes.
         invariants = {key: value for key, value in expected.items()

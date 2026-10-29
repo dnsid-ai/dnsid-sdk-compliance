@@ -6,6 +6,7 @@ import hashlib
 import json
 from pathlib import Path
 
+from nested_revocation import load_cases as load_nested
 from selection_enumeration import load_cases as load_enumeration
 
 
@@ -113,6 +114,23 @@ def load_semantic_suites() -> list[dict]:
                     "expect": _expect(case["expected"]),
                 }
                 for case in load_enumeration()
+            ],
+        },
+        {
+            "suite": "c2sp-nested-revocation",
+            "path": "harness/nested_revocation.py",
+            "cases": [
+                {
+                    "id": case["id"],
+                    "description": f"REVOCATION with an unknown extension nested {case['depth']} deep",
+                    "spec_ref": "C2SP tlog method sections 7-8: unknown signed fields",
+                    "op": "c2sp_lifecycle_vector",
+                    "input": case["evidence"],
+                    "expect": {"ok": True, "appliedEffectIds": ["issuance-1", "revocation-nested"], "identityState": "REVOKED"},
+                    "fail_closed_allowed": True,
+                    "sdk": case["sdk"],
+                }
+                for case in load_nested()
             ],
         },
         {
