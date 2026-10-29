@@ -17,8 +17,6 @@ DEPTHS = (0, 1, 8, 32, 63, 64, 65, 128, 256, 2000, 10000, 20000)
 # The SDK reports the identity ACTIVE: the parser hits a recursion limit and the
 # revocation is dropped as noise. Thresholds depend on stack size.
 KNOWN_BUGS = {
-    "py": ("json.loads RecursionError is treated as candidate noise (stream_verifier.py)", 2000),
-    "ts": ("parseJsonNoDuplicateMembers rethrows a stack-overflow RangeError as malformed JSON (canonical.ts)", 10000),
 }
 
 

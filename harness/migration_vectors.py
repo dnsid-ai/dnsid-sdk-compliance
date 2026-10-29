@@ -93,5 +93,13 @@ def load_cases():
     add("two-hop-over-depth-limit-fails", [(a, [genesis]), (b, [to_b]), (c, [to_c])], 2, fail, max_depth=1)
     add("source-revocation-after-cutoff-is-not-imported", [(a, [genesis, revoked]), (b, [to_b])], 1, active(2))
     add("from-revoked-history-fails", [(a, [genesis, revoked]), (b, [migration(a, 1, b, now - 3600)])], 1, fail)
+    # C2SP section 13.2: an unauthenticated MIGRATION is noise and must not block a later genesis,
+    # whether or not its previous log can be resolved (the Go DEV-004 pattern).
+    genesis_b = _signed(dict(payload(issuance), **context(b), ts=first_at), {"ae": "entity-1", "op": "operational-1"})
+    for label, source in (("resolvable", a), ("unresolvable", c)):
+        forged = migration(source, 0, b, now - 3600)
+        forged["sigs"]["ae"]["sig"] = "AA"
+        add(f"unauthenticated-migration-with-{label}-source-is-ignored", [(a, [genesis]), (b, [forged, genesis_b])], 1,
+            {"ok": True, "eventCount": 1, "keyTimestamp": first_at, "loggedState": "ACTIVE"})
     add("cycle-fails", [(b, [migration(c, 0, b, now - 3600)]), (c, [migration(b, 0, c, now - 1800)])], 0, fail)
     return cases
