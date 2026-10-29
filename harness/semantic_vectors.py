@@ -6,8 +6,9 @@ import hashlib
 import json
 from pathlib import Path
 
-from nested_revocation import load_cases as load_nested
-from selection_enumeration import load_cases as load_enumeration
+import context_chain
+import nested_revocation
+import selection_enumeration
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -101,38 +102,9 @@ def load_semantic_suites() -> list[dict]:
                 for case in selection["cases"]
             ],
         },
-        {
-            "suite": "c2sp-selection-enumeration",
-            "path": "harness/selection_enumeration.py",
-            "cases": [
-                {
-                    "id": case["id"],
-                    "description": " ".join(case["candidates"]),
-                    "spec_ref": "C2SP tlog method d5a65d06f76eff4db81e50f8767a600d2ca7fc2a: candidate selection",
-                    "op": "c2sp_lifecycle_vector",
-                    "input": case["evidence"],
-                    "expect": _expect(case["expected"]),
-                }
-                for case in load_enumeration()
-            ],
-        },
-        {
-            "suite": "c2sp-nested-revocation",
-            "path": "harness/nested_revocation.py",
-            "cases": [
-                {
-                    "id": case["id"],
-                    "description": f"REVOCATION with an unknown extension nested {case['depth']} deep",
-                    "spec_ref": "C2SP tlog method sections 7-8: unknown signed fields",
-                    "op": "c2sp_lifecycle_vector",
-                    "input": case["evidence"],
-                    "expect": {"ok": True, "appliedEffectIds": ["issuance-1", "revocation-nested"], "identityState": "REVOKED"},
-                    "fail_closed_allowed": True,
-                    "sdk": case["sdk"],
-                }
-                for case in load_nested()
-            ],
-        },
+        _generated("c2sp-selection-enumeration", selection_enumeration, "C2SP tlog method section 13: candidate selection"),
+        _generated("c2sp-nested-revocation", nested_revocation, "C2SP tlog method sections 5, 7-8: unknown signed fields"),
+        _generated("c2sp-context-chain", context_chain, "C2SP tlog method sections 5, 7, 13.2: signed context and chain"),
         {
             "suite": "c2sp-managed-trust-selection",
             "path": "docs/sdk-design/conformance/c2sp-managed-trust-selection.json",
@@ -164,6 +136,20 @@ def load_semantic_suites() -> list[dict]:
     if loaded != available:
         raise ValueError(f"unhandled conformance vectors: {sorted(available - loaded)}")
     return suites
+
+
+def _generated(suite: str, module, spec_ref: str) -> dict:
+    """Signed lifecycle cases built in memory by a harness module."""
+    return {
+        "suite": suite,
+        "path": f"harness/{module.__name__}.py",
+        "cases": [
+            {"id": case["id"], "description": case.get("description", case["id"]), "spec_ref": spec_ref,
+             "op": "c2sp_lifecycle_vector", "input": case["evidence"], "expect": _expect(case["expected"]),
+             **{key: case[key] for key in ("sdk", "fail_closed_allowed") if key in case}}
+            for case in module.load_cases()
+        ],
+    }
 
 
 def _expect(value: dict) -> dict:

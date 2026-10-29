@@ -95,7 +95,7 @@ def load_cases():
         for word in itertools.product(alphabet, repeat=length):
             names = [c[0] for c in word]
             case = package_case(template, [(canonical(c[1]), c[2], True) for c in word])
-            cases.append({"id": "enum-" + "-".join(names), "candidates": names,
+            cases.append({"id": "enum-" + "-".join(names), "description": " ".join(names),
                           "evidence": case, "expected": expect(word)})
     assert len(cases) == 399
     return cases

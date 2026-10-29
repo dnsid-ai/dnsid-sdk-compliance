@@ -36,6 +36,9 @@ def load_cases():
         assert len(raw) < 65536
         evidence = package_case(template, [(canonical(issuance), "issuance-1", True), (raw, "revocation-nested", True)])
         bugs = {sdk: {"known_bug": why} for sdk, (why, at) in KNOWN_BUGS.items() if depth >= at}
-        cases.append({"id": f"nested-extension-depth-{depth}-revocation", "depth": depth, "evidence": evidence, "sdk": bugs})
+        cases.append({"id": f"nested-extension-depth-{depth}-revocation", "evidence": evidence, "sdk": bugs,
+                      "description": f"REVOCATION with an unknown extension nested {depth} deep",
+                      "expected": {"valid": True, "appliedEffectIds": ["issuance-1", "revocation-nested"], "identityState": "REVOKED"},
+                      "fail_closed_allowed": True})
     return cases
 
