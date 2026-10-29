@@ -6,6 +6,8 @@ import hashlib
 import json
 from pathlib import Path
 
+from selection_enumeration import load_cases as load_enumeration
+
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFORMANCE_DIR = ROOT / "docs" / "sdk-design" / "conformance"
@@ -99,6 +101,21 @@ def load_semantic_suites() -> list[dict]:
             ],
         },
         {
+            "suite": "c2sp-selection-enumeration",
+            "path": "harness/selection_enumeration.py",
+            "cases": [
+                {
+                    "id": case["id"],
+                    "description": " ".join(case["candidates"]),
+                    "spec_ref": "C2SP tlog method d5a65d06f76eff4db81e50f8767a600d2ca7fc2a: candidate selection",
+                    "op": "c2sp_lifecycle_vector",
+                    "input": case["evidence"],
+                    "expect": _expect(case["expected"]),
+                }
+                for case in load_enumeration()
+            ],
+        },
+        {
             "suite": "c2sp-managed-trust-selection",
             "path": "docs/sdk-design/conformance/c2sp-managed-trust-selection.json",
             "cases": [
@@ -118,7 +135,7 @@ def load_semantic_suites() -> list[dict]:
             ],
         },
     ]
-    loaded = {Path(suite["path"]).name for suite in suites}
+    loaded = {Path(suite["path"]).name for suite in suites if suite["path"].startswith("docs/")}
     # Hash primitives run separately in c2sp_event_identity_check.py, not SDK adapters.
     loaded.add("c2sp-event-identity.json")
     # WBA signing/verification cases are loaded by wba_vectors.py.
