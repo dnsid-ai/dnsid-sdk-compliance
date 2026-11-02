@@ -374,6 +374,26 @@ without importing an SDK (requires `cryptography >= 43`):
 .venv/bin/python harness/generate_c2sp_fixtures.py --check
 ```
 
+`fixtures/c2sp-stream-bundle-v2.json` holds the `dnsid-c2sp-stream-bundle@v2`
+vectors for method revision `972f5f19222e0a55e3ee8f8be28dd087764c144e`
+(§12.1 and §20). It reuses the logical-v1 entries and checkpoint, and adds a
+stream-head statement signed by the disposable seed `0x06` key
+`bundle.example+b0fef33a`. The file contains:
+
+- `bundle`, `statement`, and `expected`: the golden bundle, its statement text,
+  and the replay result, including `head_event_id`;
+- `valid_variants`: a re-encoded bundle, a bundle that uses a later identical
+  copy, and a bundle with an ignored invalid-signature copy;
+- `negative_vectors`: complete bundles that every verifier must reject, each
+  with a `reason`. They cover the §20 list, non-canonical base64 in checkpoint
+  and statement signature lines and root hashes, and an `lr` longer than 1024
+  bytes. The `reason` text is not a normative error string;
+- `statement_vector`: the §20 statement, reproduced from seed `0x07`; and
+- `reference_vectors`: `lr` values at and above the 1024-byte limit.
+
+The v1 bundle fixtures, the checkpoint-continuity suite, and the
+writer/verifier matrix still use v1 bundles until the SDKs move to v2.
+
 All embedded keys are public disposable test keys, never deployment trust roots.
 The normal selection suite does not replace the portable bundle matrix.
 

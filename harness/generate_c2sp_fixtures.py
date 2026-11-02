@@ -368,11 +368,228 @@ def generate_checkpoints():
             yaml.safe_dump(dict(suite="c2sp-checkpoint-continuity", cases=cases), sort_keys=False, allow_unicode=True)}
 
 
+BUNDLE_V2 = ROOT / "fixtures/c2sp-stream-bundle-v2.json"
+BUNDLE_V2_REVISION = "972f5f19222e0a55e3ee8f8be28dd087764c144e"
+STREAM_HEAD_TYPE = "dnsid-c2sp-stream-head@v1"
+
+
+def note_key_hash(name, public, alg=1):
+    return hashlib.sha256(name.encode() + b"\n" + bytes([alg]) + public).digest()[:4]
+
+
+def ed_public(seed):
+    from cryptography.hazmat.primitives import serialization
+    key = Ed25519PrivateKey.from_private_bytes(bytes([seed]) * 32).public_key()
+    return key.public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+
+
+def sign_note(text, name, seed):
+    """Return signed-note bytes for text with one Ed25519 signature line."""
+    signature = note_key_hash(name, ed_public(seed)) + edsign(seed, text)
+    return text + b"\n" + f"— {name} ".encode() + base64.b64encode(signature) + b"\n"
+
+
+def statement(lr, size, root, head, expires):
+    return (f"{STREAM_HEAD_TYPE}\nlr {lr}\ncheckpoint {size} {base64.b64encode(root).decode()}\n"
+            f"head {head}\nexpires {expires}\n").encode()
+
+
+def noncanonical_b64(value):
+    """Set an unused low bit in the final base64 character; lenient decoders accept it."""
+    alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+    data = value.rstrip("=")
+    bumped = data[:-1] + alphabet[alphabet.index(data[-1]) | 1]
+    assert bumped != data and base64.b64decode(bumped + value[len(data):]) == base64.b64decode(value)
+    return bumped + value[len(data):]
+
+
+def check_spec_statement_vector():
+    """Method §20 stream-head statement vector, reproduced from its seed."""
+    text = statement("c2sp-tlog:testnet:https://testnet.dnsid.example/log#Q2hWbW5Ta0x5R0JtM3B0dw", 3,
+                     base64.b64decode("H3aq5vryyX/jMIrSuLhjl/64vwD/yvpOfXUxGjzC5Ns="),
+                     "J-odfRVwktq5YRgXEesz663r5AYJbYgT6qhwmfnyjxQ", 1782432000)
+    name = "indexer.testnet.dnsid.example"
+    signed = sign_note(text, name, 7)
+    assert signed.endswith(b"\n\xe2\x80\x94 indexer.testnet.dnsid.example fV1V63KXqsFYpXw0AAh/oI+Dyrzz2T7V8vxOdWmxdLBBqsZeW8uF20a1qfkJSOgnCXyXaWyegBfmly00wsIFdohXeQQ=\n")
+    verifier_key = f"{name}+{note_key_hash(name, ed_public(7)).hex()}+" + base64.b64encode(b"\1" + ed_public(7)).decode()
+    assert verifier_key == "indexer.testnet.dnsid.example+7d5d55eb+AepKbGPinFIKvvVQexMuxfmVR3auvr57kkIe6mkURtIs"
+    return dict(seed=b64(bytes([7]) * 32), verifier_key=verifier_key, text=text.decode(), signed_note=signed.decode())
+
+
+def generate_bundle_v2():
+    """dnsid-c2sp-stream-bundle@v2 vectors (method §12.1, §20) from the logical-v1 entries."""
+    source = json.loads(generate_bundle()[ROOT / "fixtures/c2sp-stream-bundle-logical-v1.json"])
+    v1 = json.loads(source["bundle"])
+    template = {"checkpoint": unb64(v1["checkpoint"]).decode()}
+    issuance, rotation = [unb64(item["entry"]) for item in v1["events"]]
+    trust = source["trust"]
+    lr, now = v1["lr"], trust["now"]
+    witness_time = int.from_bytes(base64.b64decode(template["checkpoint"].splitlines()[-1].split()[-1])[4:12], "big")
+    max_expires = witness_time + trust["max_bundle_lifetime_ms"] // 1000
+    head = event_id(json.loads(rotation))
+
+    noise = json.loads(rotation)
+    signature = bytearray(unb64(noise["sigs"]["new_op"]["sig"]))
+    signature[0] ^= 1
+    noise["sigs"]["new_op"]["sig"] = b64(bytes(signature))
+    fork = json.loads(rotation)
+    fork["dnsid_test_variant"] = "fork"
+    for item in fork["sigs"].values():
+        item["sig"] = b64(edsign(SEEDS[item["kid"]], canonical(payload(fork))))
+    noise, fork = canonical(noise), canonical(fork)
+    assert event_id(json.loads(fork)) != head and event_id(json.loads(noise)) == head
+
+    def tree_evidence(raw_entries):
+        packaged = package_case(template, [(entry, "unused", True) for entry in raw_entries])
+        leaves = [hashlib.sha256(b"\0" + entry).digest() for entry in raw_entries]
+        events = [dict(index=i, entry=b64(entry), proof=b64(b"".join(audit_path(leaves, i)))) for i, entry in enumerate(raw_entries)]
+        return packaged["checkpoint"].encode(), events, tree(leaves)
+
+    def bundle(checkpoint, events, tree_root, tree_size, *, head_note=None, **fields):
+        text = statement(fields.get("lr", lr), fields.get("size", tree_size), fields.get("root", tree_root),
+                         fields.get("head", head), fields.get("expires", v1["expires"]))
+        note = head_note if head_note is not None else sign_note(text, "bundle.example", 6)
+        return {"v": 2, "type": "dnsid-c2sp-stream-bundle", "head": b64(note), "checkpoint": b64(checkpoint), "events": events}
+
+    main_checkpoint, main_events, main_root = tree_evidence([issuance, rotation])
+    assert main_checkpoint.decode() == template["checkpoint"]
+    golden = bundle(main_checkpoint, main_events, main_root, 2)
+    golden_text = statement(lr, 2, main_root, head, v1["expires"])
+
+    def variant(**changes):
+        result = copy.deepcopy(golden)
+        result.update(changes)
+        return result
+
+    def with_note(text, name="bundle.example", seed=6):
+        return variant(head=b64(sign_note(text, name, seed)))
+
+    def text_edit(old, new):
+        edited = golden_text.replace(old.encode(), new.encode(), 1)
+        assert edited != golden_text
+        return with_note(edited)
+
+    def checkpoint_text(body):
+        # Sign arbitrary checkpoint text with the fixture log and witness keys.
+        packaged = package_case(template, [(issuance, "unused", True), (rotation, "unused", True)])
+        signed = packaged["checkpoint"].encode()
+        lines = signed.decode().split("\n\n")[1].strip().splitlines()
+        log_prefix = base64.b64decode(lines[0].split()[-1])[:4]
+        witness_prefix = base64.b64decode(lines[1].split()[-1])[:12]
+        cosigned = f"cosignature/v1\ntime {witness_time}\n".encode() + body
+        result = body + b"\n"
+        result += f"— {lines[0].split()[1]} ".encode() + base64.b64encode(log_prefix + edsign(4, body)) + b"\n"
+        result += b"\xe2\x80\x94 witness.example " + base64.b64encode(witness_prefix + edsign(5, cosigned)) + b"\n"
+        return result
+
+    main_body = template["checkpoint"].split("\n\n")[0].encode() + b"\n"
+    assert checkpoint_text(main_body) == main_checkpoint
+    root_line = base64.b64encode(main_root).decode()
+    log_line = main_checkpoint.decode().split("\n\n")[1].splitlines()[0]
+
+    copy_checkpoint, copy_events, copy_root = tree_evidence([issuance, rotation, rotation, noise])
+    order_checkpoint, order_events, order_root = tree_evidence([issuance, rotation, issuance])
+    fork_checkpoint, fork_events, fork_root = tree_evidence([issuance, rotation, fork])
+
+    def events_edit(position, **fields):
+        events = copy.deepcopy(main_events)
+        events[position].update(fields)
+        return variant(events=events)
+
+    bad_noise_proof = copy.deepcopy([copy_events[0], copy_events[1], copy_events[3]])
+    proof = bytearray(unb64(bad_noise_proof[2]["proof"]))
+    proof[0] ^= 1
+    bad_noise_proof[2]["proof"] = b64(bytes(proof))
+    long_lr = lr.split("#")[0] + "#" + "a" * (1025 - len(lr.split("#")[0]) - 1)
+    assert len(long_lr) == 1025
+
+    valid = [
+        dict(name="reencoded", reason="member order and whitespace do not affect a v2 bundle",
+             bundle=json.dumps(dict(reversed(list(golden.items()))), indent=2)),
+        dict(name="later-copy", reason="the chosen KEY_ROTATION occurrence is a later identical copy at index 2",
+             bundle=canonical(bundle(copy_checkpoint, [copy_events[0], copy_events[2]], copy_root, 4)).decode()),
+        dict(name="ignored-noise", reason="an invalid-signature copy with a valid inclusion proof is ignored",
+             bundle=canonical(bundle(copy_checkpoint, [copy_events[0], copy_events[1], copy_events[3]], copy_root, 4)).decode()),
+    ]
+    duplicate = canonical(golden).decode().replace('{"checkpoint"', '{"v":2,"checkpoint"', 1)
+    negative = [
+        ("head-padded", "padded base64url", variant(head=golden["head"] + "=")),
+        ("head-malformed", "malformed base64url", variant(head=golden["head"][:-1] + "!")),
+        ("checkpoint-padded", "padded base64url", variant(checkpoint=golden["checkpoint"] + "=")),
+        ("entry-padded", "padded base64url", events_edit(0, entry=main_events[0]["entry"] + "=")),
+        ("repeated-member", "repeated member", duplicate),
+        ("missing-member", "missing member", {k: v for k, v in golden.items() if k != "events"}),
+        ("additional-member", "additional member", variant(fqdn=v1["fqdn"])),
+        ("version-1-value", "v other than 2", variant(v=1)),
+        ("version-1-bundle", "version 1 bundle", source["bundle"]),
+        ("wrong-type", "wrong type", variant(type="dnsid-c2sp-stream-index")),
+        ("unaccepted-key", "statement signed only by an unaccepted key", with_note(golden_text, "bundle.example", 9)),
+        ("log-key", "statement signed only by the log key", with_note(golden_text, "log.example", 4)),
+        ("witness-key", "statement signed only by the witness key", with_note(golden_text, "witness.example", 5)),
+        ("head-signature-noncanonical", "non-canonical base64 in the statement signature line",
+         variant(head=b64(sign_note(golden_text, "bundle.example", 6).replace(
+             sign_note(golden_text, "bundle.example", 6).split(b" ")[-1].strip(),
+             noncanonical_b64(sign_note(golden_text, "bundle.example", 6).split(b" ")[-1].strip().decode()).encode())))),
+        ("statement-extra-line", "additional statement line", with_note(golden_text + b"extra\n")),
+        ("statement-missing-line", "missing statement line", text_edit(f"expires {v1['expires']}\n", "")),
+        ("statement-reordered", "reordered statement lines", text_edit(f"head {head}\nexpires {v1['expires']}\n", f"expires {v1['expires']}\nhead {head}\n")),
+        ("statement-leading-zero", "leading zero", text_edit("checkpoint 2 ", "checkpoint 02 ")),
+        ("statement-extra-space", "additional space", text_edit("lr ", "lr  ")),
+        ("statement-wrong-type", "unsupported statement type", text_edit(STREAM_HEAD_TYPE, "dnsid-c2sp-stream-head@v2")),
+        ("statement-root-noncanonical", "non-canonical statement root hash", text_edit(root_line, noncanonical_b64(root_line))),
+        ("statement-lr-too-long", "lr longer than 1024 bytes", bundle(main_checkpoint, main_events, main_root, 2, lr=long_lr)),
+        ("statement-lr-mismatch", "statement lr does not match", bundle(main_checkpoint, main_events, main_root, 2, lr=lr.split("#")[0] + "#b3RoZXI")),
+        ("statement-size-mismatch", "statement tree size does not match", bundle(main_checkpoint, main_events, main_root, 2, size=3)),
+        ("statement-root-mismatch", "statement root hash does not match", bundle(main_checkpoint, main_events, main_root, 2, root=bytes(32))),
+        ("omitted-final-event", "replayed head differs from the statement head", variant(events=main_events[:1])),
+        ("omitted-middle-event", "omitted ISSUANCE", variant(events=main_events[1:])),
+        ("copy-after-successor", "chosen ISSUANCE copy has a greater index than its successor",
+         bundle(order_checkpoint, [order_events[1], order_events[2]], order_root, 3)),
+        ("entry-mismatch", "entry does not match its proof", events_edit(0, entry=main_events[1]["entry"])),
+        ("proof-mismatch", "proof does not match its entry", events_edit(0, proof=main_events[1]["proof"])),
+        ("proof-length", "proof length not a multiple of 32", events_edit(0, proof=b64(bytes(31)))),
+        ("index-out-of-order", "index out of order", variant(events=[main_events[1], main_events[0]])),
+        ("index-duplicate", "duplicate index", events_edit(1, index=0)),
+        ("index-beyond-tree", "index not less than the tree size", events_edit(1, index=2)),
+        ("ignored-entry-invalid-proof", "invalid proof on an otherwise ignored entry",
+         bundle(copy_checkpoint, bad_noise_proof, copy_root, 4)),
+        ("authenticated-conflict", "authenticated KEY_ROTATION fork",
+         bundle(fork_checkpoint, fork_events, fork_root, 3)),
+        ("expired", "statement expired", bundle(main_checkpoint, main_events, main_root, 2, expires=now)),
+        ("beyond-lifetime", "expires beyond the maximum bundle lifetime", bundle(main_checkpoint, main_events, main_root, 2, expires=max_expires + 1)),
+        ("checkpoint-root-noncanonical", "non-canonical base64 in the checkpoint root hash",
+         variant(checkpoint=b64(checkpoint_text(main_body.replace(root_line.encode(), noncanonical_b64(root_line).encode()))))),
+        ("checkpoint-size-leading-zero", "leading zero in the checkpoint tree size",
+         variant(checkpoint=b64(checkpoint_text(main_body.replace(b"\n2\n", b"\n02\n"))))),
+        ("checkpoint-signature-noncanonical", "non-canonical base64 in a checkpoint signature line",
+         variant(checkpoint=b64(main_checkpoint.replace(log_line.split()[-1].encode(), noncanonical_b64(log_line.split()[-1]).encode())))),
+    ]
+    vector = {
+        "format": "dnsid-c2sp-stream-bundle@v2",
+        "method_revision": BUNDLE_V2_REVISION,
+        "source": "harness/generate_c2sp_fixtures.py; public disposable keys only",
+        "policy": source["policy"],
+        "trust": trust,
+        "expected": {**source["expected"], "head_event_id": head},
+        "statement": golden_text.decode(),
+        "bundle": canonical(golden).decode(),
+        "valid_variants": valid,
+        "negative_vectors": [dict(name=name, reason=reason, bundle=value if isinstance(value, str) else canonical(value).decode())
+                             for name, reason, value in negative],
+        "statement_vector": check_spec_statement_vector(),
+        "reference_vectors": [
+            dict(lr=lr.split("#")[0] + "#" + "a" * (1024 - len(lr.split("#")[0]) - 1), valid=True, reason="lr of exactly 1024 bytes"),
+            dict(lr=long_lr, valid=False, reason="lr longer than 1024 bytes"),
+        ],
+    }
+    return {BUNDLE_V2: json.dumps(vector, indent=2, ensure_ascii=False) + "\n"}
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
-    outputs = {OUTPUT: generate_selection(), **generate_bundle(), **generate_checkpoints()}
+    outputs = {OUTPUT: generate_selection(), **generate_bundle(), **generate_checkpoints(), **generate_bundle_v2()}
     for path, generated in outputs.items():
         if args.check:
             assert path.read_text() == generated, f"regenerate {path.name}"
