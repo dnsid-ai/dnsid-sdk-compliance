@@ -2,8 +2,9 @@
 
 This document incorporates the breaking pre-1.0 correction to `c2sp-tlog`:
 logical event identity and predecessor chaining exclude signatures. The method
-name, envelope `v:1`, and bundle `@v1` remain unchanged; there is no second
-method or old-format fallback. Deploy corrected readers, writers, monitors, and
+name and envelope `v:1` remain unchanged; there is no second method or
+old-format fallback. The stapled stream bundle is
+`dnsid-c2sp-stream-bundle@v2`, and SDKs MUST NOT accept version 1 bundles. Deploy corrected readers, writers, monitors, and
 bundle producers together and retire incompatible clients. Preserve existing
 streams whose complete histories verify under the corrected contract, including
 already-conforming public ISSUANCE-only histories; no re-signing or reference
@@ -21,14 +22,16 @@ This document defines the language-agnostic SDK design for the DNSid
 `LogEvent` model.
 
 The authoritative DNSid wire contract is the
-C2SP TLog Method Specification at revision `d5a65d06f76eff4db81e50f8767a600d2ca7fc2a` (`log-method-extensions/c2sp-tlog-log-method.md` in the DNSid specification repository).
+C2SP TLog Method Specification at revision `972f5f19222e0a55e3ee8f8be28dd087764c144e` (`log-method-extensions/c2sp-tlog-log-method.md` in the DNSid specification repository).
 This immutable source includes reference syntax, event mappings, and the complete
 bundle schema/signature/freshness rules. The SDK mapping
 below does not replace that method specification. The focused corrected-contract
 checks are documented under [conformance](conformance/README.md#c2sp-event-identity).
 Earlier signed `fixtures/c2sp-*.json` and cross-SDK matrix results predate this
 correction and are not evidence of compliance with it; their replacement and
-full SDK integration validation are required before release. Implementations MUST also follow the exact C2SP
+full SDK integration validation are required before release. The
+`dnsid-c2sp-stream-bundle@v1` fixtures are historical files and are not
+evidence of v2 bundle compliance. Implementations MUST also follow the exact C2SP
 specification versions pinned by the DNSid Log Method Registry — those base
 specifications are public at [c2sp.org](https://c2sp.org). The SDK design below
 defines how those protocol requirements are exposed safely and consistently
@@ -59,14 +62,21 @@ private keys, or application-layer signatures.
 
 The exact dependency pins from method §1.1 are:
 
-- [tlog-checkpoint@v1.0.0](https://c2sp.org/tlog-checkpoint@v1.0.0)
-- [tlog-tiles@v0.1.0](https://c2sp.org/tlog-tiles@v0.1.0)
-- [tlog-proof at `ab17a74116563005f908b9167e6421cc929a5c2b`](https://github.com/C2SP/C2SP/blob/ab17a74116563005f908b9167e6421cc929a5c2b/tlog-proof.md)
-- [tlog-policy at `1896a5aea5559b3203d275d0206d872f59348cf5`](https://github.com/C2SP/C2SP/blob/1896a5aea5559b3203d275d0206d872f59348cf5/tlog-policy.md)
-- [tlog-witness@v1.0.0](https://c2sp.org/tlog-witness@v1.0.0)
-- [tlog-cosignature@v1.0.1](https://c2sp.org/tlog-cosignature@v1.0.1)
-- [tlog-mirror at `d0fe789122c75b903bfc1680b0b8b8dc570f0db3`](https://github.com/C2SP/C2SP/blob/d0fe789122c75b903bfc1680b0b8b8dc570f0db3/tlog-mirror.md)
-- [signed-note@v1.0.0](https://c2sp.org/signed-note@v1.0.0)
+- [tlog-checkpoint@v1.1.0](https://c2sp.org/tlog-checkpoint@v1.1.0)
+- [tlog-tiles@v1.0.0](https://c2sp.org/tlog-tiles@v1.0.0)
+- [tlog-proof at `0fb2b5543ec04c7909dd58f00691c76dbebe4c6a`](https://github.com/C2SP/C2SP/blob/0fb2b5543ec04c7909dd58f00691c76dbebe4c6a/tlog-proof.md)
+- [tlog-policy at `9787c327021255dc0c273a7d0e957e420256f5f8`](https://github.com/C2SP/C2SP/blob/9787c327021255dc0c273a7d0e957e420256f5f8/tlog-policy.md)
+- [tlog-witness@v1.1.0](https://c2sp.org/tlog-witness@v1.1.0)
+- [tlog-cosignature@v1.1.0](https://c2sp.org/tlog-cosignature@v1.1.0)
+- [tlog-mirror@v0.1.0](https://c2sp.org/tlog-mirror@v0.1.0)
+- [signed-note@v1.1.0](https://c2sp.org/signed-note@v1.1.0)
+
+SDK verifiers MUST support the Ed25519 log signature and the Ed25519 checkpoint
+cosignature. ML-DSA-44 cosignature support is optional; a witness that signs
+only with ML-DSA-44 does not count toward a quorum in an SDK that does not
+support it. Signed-note and checkpoint decoders MUST reject non-canonical
+base64 in signature lines and root hashes, as `signed-note@v1.1.0` and
+`tlog-checkpoint@v1.1.0` require.
 
 Production SDK releases MUST identify the exact versions they implement. They
 MUST NOT silently reinterpret entries, checkpoints, proofs, policies, or
@@ -83,7 +93,10 @@ c2sp-tlog:<scope>:<log-prefix>#<stream-id>
 
 The parser follows the method specification exactly, including splitting the
 remainder at the final raw `#`, canonical URL validation, scope validation, and
-checkpoint-origin derivation. It returns a bound reference:
+checkpoint-origin derivation. It rejects a complete `lr` longer than 1024 bytes
+after percent-encoding, and a derived origin that is not a valid
+`tlog-cosignature` log origin (empty, longer than 255 bytes, or containing a
+Unicode space, `+`, or a control character). It returns a bound reference:
 
 ```
 TYPE C2spTlogReference
@@ -105,10 +118,12 @@ verified; `streamId` is not an authorization boundary.
 The opaque stream ID is protocol machinery, not a human-facing discovery key.
 Deployments SHOULD expose a stable FQDN-based lookup for the current portable
 bundle, such as `GET /streams/<fqdn>`. For the standard SDK bundle source, the
-URL is exactly `{log-prefix}/streams/{url-path-escaped-normalized-fqdn}?format=bundle`,
+URL is exactly `{log-prefix}/streams/{url-path-escaped-normalized-fqdn}?format=bundle-v2`,
 derived only after `sg` authenticates the complete `lr`. It is never derived
 from registry configuration or an unauthenticated record. Replacing a
-terminated identity changes the signed bundle's `lr`, but not that lookup URL.
+terminated identity changes the `lr` in the signed stream-head statement, but
+not that lookup URL. SDKs MUST NOT request the version 1 `?format=bundle`
+resource.
 The resolver selects the current identity instance from authoritative state and
 MUST NOT merge events from an older stream that reused the same FQDN. Historical
 lookup by opaque stream ID is deployment-specific.
@@ -669,7 +684,8 @@ GET <log-prefix>/tile/entries/<bundle>[.p/<width>]
 ```
 
 An SDK source fetches checkpoints, tiles, and entry bundles with bounded
-responses, safe redirects, and deployment-appropriate authentication. Entry
+responses and deployment-appropriate authentication. `tlog-tiles@v1.0.0`
+forbids redirect responses for these resources, so the source rejects them. Entry
 bundles are sequences of big-endian uint16 length-prefixed entries and are
 verified against corresponding level-zero tile hashes before their contents are
 trusted.
@@ -825,7 +841,7 @@ timestamp-based checks fail closed.
 
 Stream completeness and checkpoint consistency are separate requirements. A
 stream bundle establishes the accepted complete lifecycle for one identity
-through its checkpoint; its signature and event inclusion proofs do not prove
+through its checkpoint; its stream-head statement and event inclusion proofs do not prove
 that the checkpoint extends previously trusted global-log history. Witness
 quorum verification does not remove the reader's consistency requirement.
 
@@ -1006,31 +1022,55 @@ a complete verified view through the current key but does not become current
 protocol status. Supported
 completeness modes are those defined by the method specification, including
 full scan, trusted or monitored index, committed index, mirror/archive, and a
-verified `dnsid-c2sp-stream-bundle@v1`. An untrusted index plus individual
+verified `dnsid-c2sp-stream-bundle@v2`. An untrusted index plus individual
 inclusion proofs is not sufficient to prove absence of a later event.
 
-A completeness assertion covers the first fully valid occurrence of each
-logical event and every authenticated conflict under the authority rules below.
-Later copies and unauthenticated noise may be omitted, but neither signed
-forks nor the first fully valid occurrence may be omitted to change the result
-or ordering. Scanners and trusted-index bundles must agree.
+A scan examines the first fully valid occurrence of each logical event and
+every authenticated conflict under the authority rules below. Later copies and
+unauthenticated noise may be omitted, but neither signed forks nor the first
+fully valid occurrence may be omitted to change the result or ordering. A
+verified stream bundle instead relies on its signed stream-head statement. It
+carries one fully valid occurrence of each applied event, with each chosen
+occurrence at a greater index than its predecessor's, and that occurrence MAY
+be a later copy. The statement asserts that no authenticated conflict exists.
+Scanners and bundles must produce the same logical history.
 
-A `dnsid-c2sp-stream-bundle@v1` parser preserves and validates its signed
-`fqdn`, `lr`, checkpoint, policy hash, complete-through tree size,
-completeness mode, event entries and proofs, computed logged state, expiry, and
-bundle signature. The reader requires the expected normalized FQDN and exact
-complete `lr`; values selected by the bundle itself are not sufficient.
-Accepted bundle verifier keys and the policy document are supplied independently
-of the log origin and bundle. The discovery object
+A `dnsid-c2sp-stream-bundle@v2` parser accepts exactly the members `v`, `type`,
+`head`, `checkpoint`, and `events`, and rejects any other `v`, including
+version 1 bundles. The bundle JSON need not be JCS; a re-encoded or
+reassembled bundle verifies the same way. Only `head` is signed by the indexer.
+The reader:
+
+1. opens `head` as a signed note with the accepted bundle verifier keys, and
+   ignores signatures by unknown keys as signed-note specifies;
+2. parses the `dnsid-c2sp-stream-head@v1` statement strictly: exact lines and
+   order, one space between fields, and canonical decimal integers with no
+   leading zeros and no value above `9007199254740991`;
+3. requires the statement `lr` to equal the exact complete `lr` selected for
+   the FQDN under verification;
+4. verifies the checkpoint under the accepted policy, requires its origin to
+   match `lr`, and requires its tree size and root hash to equal the statement
+   values;
+5. verifies every supplied inclusion proof, also for entries that the
+   candidate rules ignore;
+6. replays the entries under the candidate rules below and requires a
+   non-empty history for the expected FQDN, with no authenticated conflict,
+   whose last applied logical event ID equals the statement head; and
+7. rejects the bundle as fresh evidence when the statement `expires` is not
+   later than the current time, when checkpoint freshness fails, or when
+   `expires` exceeds `checkpointFreshnessTime` by more than
+   `maxBundleLifetime`.
+
+Values selected by the bundle itself are not sufficient. The complete-through
+size is the checkpoint tree size, and the signer is the key whose signed-note
+signature verified. Accepted bundle verifier keys and the policy document are
+supplied independently of the log origin and bundle. The discovery object
 `{log-prefix}/dnsid-bundle-signer`, when present, is never a trust anchor.
 Multiple accepted bundle verifier keys MAY overlap during a coordinated signer
-rotation. Accepting the bundle signer and its asserted completeness mode is a
-local policy decision; the reader still verifies the checkpoint and witness
-quorum, every supplied C2SP proof, and lifecycle signatures/chain under the
-candidate rules below, plus computed state, freshness, and signed expiry.
-`state.event_count` counts applied logical events, not entry copies. The wire
-summary is `state.logged_state`; SDKs expose it as `loggedState`, never as
-protocol status.
+rotation; one valid signature by an accepted key is sufficient. Accepting a
+stream-head signer for `trusted-index` completeness is a local policy decision.
+The bundle carries no state summary. SDKs derive the logged state from the
+replay and expose it as `loggedState`, never as protocol status.
 
 The reader applies logical events in first fully verified occurrence order,
 never sorting by `seq` or `ts`. Before returning stitched history to the shared
@@ -1095,7 +1135,7 @@ witness keys, accountable-entity keys, and operational keys are separate roles.
 ## Trust Profiles
 
 A DNSid C2SP trust profile is versioned, independently distributed JSON that
-binds one exact log scope and prefix to its C2SP policy and accepted stream-bundle
+binds one exact log scope and prefix to its C2SP policy and accepted stream-head
 signers:
 
 ```json
@@ -1113,8 +1153,11 @@ canonical rules as an `lr`; the policy MUST parse as the pinned C2SP policy
 revision and its log key name MUST equal the checkpoint origin derived from
 `log_prefix`; `bundle_verifier_keys` contains one or more signed-note Ed25519
 verifier-key strings whose underlying public keys are distinct from each other
-and from every checkpoint log or witness key. Their signed-note key IDs MUST
-also be unique within the profile so a bundle `kid` selects exactly one key.
+and from every checkpoint log or witness key. Their key names MUST differ from
+every origin and witness name in the policy. Their signed-note key IDs MUST
+also be unique within the profile so a statement signature line selects exactly
+one key. The member name is kept from earlier profiles; the keys verify
+stream-head statements.
 Unknown versions, members, duplicate JSON members, duplicate keys or key IDs,
 malformed policy or keys, overlapping key roles, and mismatched origins fail
 closed. Runtime limits, freshness, fallback, and checkpoint persistence are
@@ -1500,8 +1543,15 @@ Each SDK implementation provides tests for:
 - different leaf hashes with equal logical IDs, unchanged key age/sequence on
   replay, signed extension/timestamp differences, historical-key forks, and
   genuinely new post-terminal conflicts;
-- first-occurrence completeness and logical event counts agreeing between
-  scanners and bundles, with invalid supplied proofs still fatal;
+- logical history agreeing between scanners and bundles, including bundles
+  that carry a later valid copy, with invalid supplied proofs still fatal;
+- the stream bundle vectors of method §20: the stream-head statement vector,
+  re-encoded bundles, rejection of version 1 bundles, strict statement parsing,
+  statements signed only by unaccepted, log, or witness keys, statement `lr`,
+  tree size, or root mismatch, omitted or misordered events, an included
+  authenticated conflict, and expired or over-lifetime statements;
+- rejection of an `lr` longer than 1024 bytes and of non-canonical base64 in
+  checkpoint signature lines and root hashes;
 - exact signed migration cutoffs, valid later-copy cutoffs, recursive/cyclic or
   unavailable source history, and destination MIGRATION predecessor IDs;
 - all signer-role success and failure cases;
@@ -1529,7 +1579,7 @@ Each SDK implementation provides tests for:
   non-revocation when freshness is absent or stale;
 - factory-to-`IdentityManager` verification from raw standard C2SP resources;
 - factory-to-`IdentityManager` verification through the authenticated
-  `{log-prefix}/streams/{fqdn}?format=bundle` endpoint, including exact FQDN and
+  `{log-prefix}/streams/{fqdn}?format=bundle-v2` endpoint, including exact FQDN and
   `lr` binding, signer rotation overlap, required-bundle mode, bounded reads,
   permitted availability fallback, hash-tile advancement in preferred- and
   required-bundle modes, the lower-level custom-reader missing-capability
@@ -1538,7 +1588,8 @@ Each SDK implementation provides tests for:
 - trust-profile conformance covering exact scope/prefix binding, multiple
   bundle verifier keys for rotation, caller-supplied profiles, and rejection of
   unknown or duplicate members, malformed or colliding keys, bundle/checkpoint
-  key-role overlap, and policy-origin mismatch;
+  key-role overlap, bundle key names equal to a policy origin or witness name,
+  and policy-origin mismatch;
 - managed-catalog selection covering exact development and production
   selectors, wrong scopes, unknown and deceptive prefixes, and malformed or
   noncanonical references; and

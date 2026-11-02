@@ -316,8 +316,9 @@ consistency proofs, bundles, migration, networking, or SDK method dispatch.
 Those integration requirements remain in the method and SDK design. The focused check
 is separate from SDK selection and matrix results and does not increase recorded
 SDK conformance counts or imply released support for the corrected contract.
-The method, envelope, and bundle version labels are unchanged; older results
-cannot establish conformance to the changed semantics.
+The method and envelope version labels are unchanged, and the stream bundle is
+now `dnsid-c2sp-stream-bundle@v2`; older results cannot establish conformance
+to the changed semantics.
 
 ## C2SP managed trust selection
 
