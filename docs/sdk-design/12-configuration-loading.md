@@ -390,7 +390,9 @@ verify` reads; there are no SDK-local aliases.
 ### Google Cloud KMS Lifecycle Acceptance Cases
 
 These cases use the shared KeyProvider and managed-rotation contracts; they do
-not require a new persistence mechanism.
+not require a new persistence mechanism. Pending-key publication and crash-resume
+cases exercise the existing managed-rotation orchestration; they do not require
+the provider package to implement that orchestration.
 
 | Case | Mode | Required caller-observable result |
 |---|---|---|

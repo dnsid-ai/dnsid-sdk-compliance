@@ -1083,9 +1083,10 @@ signing through `SignKey(kid, payload)`. The bounded pending-key publication in
 make the pending key active or add it to `ListKeyIds()`.
 
 `Activate` and `Supersede` govern local signing eligibility. `Supersede(kid)`
-prevents further signing with that key and excludes it from live publication;
-it MUST NOT disable, destroy, or schedule destruction of a cloud key version.
-Cloud retirement is a separate operator action. Superseding a retained previous
+prevents further signing with that key and excludes it from live publication.
+For the Google Cloud KMS provider, `Supersede(kid)` MUST NOT disable, destroy, or
+schedule destruction of the corresponding `CryptoKeyVersion`. Google Cloud KMS
+version retirement is a separate operator action. Superseding a retained previous
 key after activating its successor MUST NOT clear the successor's active state.
 
 ---
