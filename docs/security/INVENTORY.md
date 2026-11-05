@@ -65,6 +65,28 @@ key material or tokens.
 KMS providers are recommended for production. Same posture as `ssh-keygen` without a passphrase, `gcloud`, `aws`
 CLI credential files.
 
+## Managed registration design (not shipped coverage)
+
+The [Foundry create/active design](../sdk-design/13-managed-registration.md) adds
+opt-in authenticated onboarding, named Live create/proof, and prepared issuance
+calls. These requirements do not claim current implementation or deployment.
+
+- Registry requests transmit the organization credential, exact account handle,
+  public JWK, replay key, and required proof/countersignature. The handle name is
+  registry metadata, not DNS or public-log content. Credentials never accompany
+  the separate public DNS/JWKS/status/log verification requests.
+- Owner-only durable recovery stores retain registry/org/name, provider locators,
+  initial public key, identity/domain, proof/prepared submission bytes, outcomes,
+  publication fields, and accepted-evidence retrieval facts. They contain no
+  credential or private key. Private material remains in the selected provider.
+- History must remain addressable across retries and later name reuse. Runtime
+  handle state is only an observation, not permanent ACTIVE evidence. Recovery
+  retention/backups and ephemeral-storage limits must be documented by each binding;
+  the process-lifetime-only retention statement above does not cover this new store.
+- Setup can generate a key inside the configured provider after persisting intent.
+  Cloud credentials follow that provider's ambient chain. Loading configuration
+  alone does not generate keys or create identities.
+
 ## In-memory caches
 
 | Cache | Contents | Lifetime | Persistence |

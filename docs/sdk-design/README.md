@@ -39,11 +39,15 @@ The documents are organized by SDK responsibility:
 | [10-web-bot-auth.md](10-web-bot-auth.md) | Web Bot Auth request signing and verification, with signed-directory serving and verification, using RFC 9421 primitives and DNSid identity binding. |
 | [11-c2sp-tlog-binding.md](11-c2sp-tlog-binding.md) | C2SP transparency-log binding: references, envelopes, split signing, prepared submission, tiled-log verification, policy, witnesses, and completeness. |
 | [12-configuration-loading.md](12-configuration-loading.md) | Configuration sources: environment variable schema, deployment file, merge rule, and convenience constructors. Loaders parse; constructors default. |
-| [13-managed-registration.md](13-managed-registration.md) | Named managed setup, durable recovery, and public readiness checks. |
+| [13-managed-registration.md](13-managed-registration.md) | Foundry Create/Active handle, named Live/pool registration, durable proof/issuance recovery, CLI contract, and public readiness. |
 | [conformance/](conformance/) | Language-neutral RFC 9421 signature-base, lifecycle reducer, snapshot, and binding-selection vectors shared by SDK implementations. |
 
 Hosted-registry work is tracked in
 [Managed Registration Server Requirements](../managed-registration-server-requirements.md).
+The Foundry design follows [E5](https://github.com/Identity-Digital/known-foundry/issues/5)
+and the in-flight E2 server contract; it is not a claim that automatic named
+registration is available on current deployed servers. Product decisions remain
+listed in [08](08-open-questions.md#foundry-server-contract-decisions).
 
 ## Configuration
 
@@ -291,10 +295,10 @@ DNSid core does not depend on any application authentication profile.
   -> 05 RegistryClient and TransportConfig
   -> 11 log-trust factories
 
-13 managed registration
-  -> 12 loaded configuration and construction
-  -> 05 registry workflows and publication
-  -> 11 managed issuance implementation
+13 Foundry Create/Active
+  -> 12 loaded configuration and provider selection
+  -> 05 named Live/proof workflows and publication
+  -> 11 resumable managed issuance
   -> shared key and durable storage interfaces
 ```
 

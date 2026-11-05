@@ -79,6 +79,23 @@ SDK exposes but cannot make for them.
 | C6 | **Compromised CI / release pipeline** | Poisoned artifact with a valid-looking release | All actions SHA-pinned (readiness ❌ otherwise); reusable workflows `on: pull_request` so forks get no secrets; GitHub-hosted runners; SBOM generated in-pipeline; **ts: npm trusted publisher allows `stage publish` only — CI stages, a maintainer approves with 2FA (`npm stage approve`), so repo + CI compromise alone cannot make a package live** | go/py: repo + CI compromise together could still publish — go signing deferred |
 | C7 | **Secrets in history** | Credential leak on publish | gitleaks full history in readiness, clean on all repos | Full history published (verified clean) |
 
+### Managed registration design (not shipped coverage)
+
+The [Foundry design](../sdk-design/13-managed-registration.md) adds explicit
+create/active calls and durable recovery. These are required mitigations, not
+claims that the released SDKs or current server implement them. The registry is
+trusted for allocation and entity-signed publication; public completion still
+requires independently verified identity, current provider-key binding and log
+trust. It is not merely an untrusted evidence reader on this setup path.
+
+| Threat | Required mitigation | Residual / owner |
+|---|---|---|
+| One compromised host uses a setup credential against other agents | Keep credentials outside deployment/recovery data; prefer expiry; reject redirects; use credential-free public clients | Current organization keys have broad privileges. Name/create-bound scopes belong to E4/security; expiry alone is not scoping. |
+| Registry substitutes an operational key or wrong-tenant identity | Compare authenticated organization and saved identity before mutations; validate prepared signatures; verify signed current ku matches the provider or a log-authorized successor before enabling signing | A compromised registry/entity signer can still misrepresent identities to other parties; pinning that signer does not remove this trust. |
+| Concurrent startup, lost responses, or cache expiry creates another identity | Durable key intent and shared-locator discovery, exact-byte proof/issuance recovery, atomic server name/operation ownership, and history beyond cache expiry | Local-only stores do not make hosts share a key. E2/E6 integration proof and backup/operator key custody are required. |
+| Invalid countersignature poisons a shared submission key | Server validates required signatures before durable admission; clients verify accepted history rather than accepting a losing-byte receipt | Server acceptance gate, not an SDK-only fix. |
+| Crafted exact name or modified recovery file changes bindings | Digest/encode paths, escape diagnostics, owner-only atomic files, validate phase/schema/bindings, no secrets/private keys in recovery documents | Same-user/root compromise remains outside the file boundary; unverified state never authorizes replacement or signing. |
+
 ### D. Why a fork cannot inherit trust
 
 A DNSid identity is established by three things the software does not contain: control of the DNS zone

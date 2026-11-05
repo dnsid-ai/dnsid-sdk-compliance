@@ -261,11 +261,8 @@ FUNCTION AwaitRegistryManagedPublication(registryClient: RegistryClient) -> Publ
 
   LOOP
     registration = registryClient.GetRegistration(config.identity.domain)
-    IF registration.registryStatus IN ["REJECTED", "CANCELLED", "REVOKED", "RETIRED"] THEN
-      RAISE RegistryWorkflowError(registration, resumable=false)
-    END
-    IF registration.registryStatus == "ERROR" THEN
-      RAISE RegistryWorkflowError(registration, resumable=true)
+    IF registration.registryStatus IN ["REJECTED", "CANCELLED", "ERROR", "REVOKED", "RETIRED"] THEN
+      RAISE RegistryWorkflowError(registration)
     END
     IF registration.registryStatus == "READY" AND registration.dnsPublished THEN
       BREAK
@@ -364,25 +361,21 @@ history.
 
 ### Consumer Managed Setup
 
-[13: Managed Registration](13-managed-registration.md) defines the consumer-facing
-composition of registration, durable recovery, managed issuance, publication,
-and public readiness checks. Bindings provide a file-backed recovery store and
-SDK-owned registry integration and retries; consumers do not implement a recovery
-adapter.
-This workflow sits above the following low-level client; it does not change
-endpoint wire behavior or registry ownership of lifecycle convergence.
+[13: Managed Registration](13-managed-registration.md) defines Foundry `Create(name)`
+and its handle: immutable `domain`, observed protocol `state`, `Active`, and `Sign`.
+Create establishes a durable pending identity; Active drives required client
+proof/issuance and checks public readiness. SDK-owned provider/store/registry
+composition sits above the low-level methods below. Consumers do not implement
+recovery callbacks.
 
-Automatic creation recovery requires permanent server-side idempotency and
-organization-scoped name uniqueness below. Setup resolves its organization ID
-from configuration or authenticated account discovery; the server validates the
-derived request key against its actual authenticated organization. Named setup uses
-`name`, `public_key`, and `Idempotency-Key`; explicit replacement
-also carries `replaces`, the previous immutable identity ID. Authenticated onboarding
-MUST advertise `dnsid-managed-registration-v1` in `managed_registration` before the
-SDK enables automatic managed creation or recovery. This capability covers the
-[server requirements](../managed-registration-server-requirements.md), including
-permanent replay and atomic name claims. A consumer acknowledgement flag does not
-establish server support.
+The Foundry adapter currently uses named caller-key Live/pool provisioning, never
+ordinary selector-free sandbox creation. It requires tested durable name/operation
+semantics beyond replay-cache retention; see the
+[server release gates](../managed-registration-server-requirements.md#acceptance-checks).
+A hash derivation version is not an onboarding capability. No
+`managed_registration` wire field is assumed; machine-readable compatibility and
+generation/replacement intent remain E2/E5 decisions. Keep ordinary registry
+defaults and bounded replay behavior unchanged.
 
 ### RegistryClient
 
@@ -421,7 +414,7 @@ RegistryClient.RegisterAgent(input: AgentRegistrationInput,
   // If supplied, send idempotencyKey as the Idempotency-Key header, not JSON.
   // Preserve creation facts before reading authenticated agent detail to obtain
   // publicationAuthority. See PublicationConfig and Registration Replay and Recovery.
-  // This low-level call is not the complete register-and-verify workflow in 13.
+  // Foundry Create/Active in 13 uses RegisterLiveAgent instead of this ordinary flow.
 
 RegistryClient.GetOrganizationOnboarding() -> OrganizationOnboardingResponse
   // GET {baseUrl}/api/v1/org/onboarding with an organization API key or admin session.
@@ -544,21 +537,17 @@ Private keys stay in customer-controlled providers. Persistence, signing pause,
 acceptance/publication checks, activation, and restart follow the core
 [rotation contract](01-core-identity-manager.md#operational-key-rotation).
 
-#### Key-Specific Managed Operational Endpoints
+#### Managed Operational Endpoints
 
-Hosted products may return key-specific URLs under the
-[SR-9 hosting convention](../managed-registration-server-requirements.md#key-specific-operational-endpoints-sr-9),
-not a protocol path rule. SDKs consume registry-established `kuUrl` and signed TXT
-`ku`, never synthesize URLs from aliases, thumbprints, registry URL, or agent name.
-Host/cardinality constraints remain profile-owned. Changed `ku` follows the core
-rotation publication checks; the registry holds its entity key.
+SDKs consume registry-established `kuUrl` and entity-signed TXT `ku`; they never
+synthesize paths from a name, thumbprint, provider alias, or registry hostname.
+Host/cardinality constraints remain profile-owned. Fresh verification uses signed
+current `ku`; historical verification uses accepted log evidence, not an old-URL
+fallback. Rotation follows the current [core contract](01-core-identity-manager.md#operational-key-rotation).
 
-Fresh verification uses signed current `ku`; historical verification uses log
-evidence. Retained old URLs are not current-key fallback. The key-specific hosting
-contract keeps one key at each URL; cached old TXT can still select the old endpoint
-within the bounded retention window. Rotation coordinators, including self-managed
-publishers, follow [core retention rules](01-core-identity-manager.md#operational-key-rotation).
-Retention does not authorize new signing with a superseded key or bypass lifecycle checks.
+Key-specific URL conventions, old-URL retention and hosted terminal serving are
+E7/E8 product work, not prerequisites added to initial Foundry create. This design
+does not mandate a new hosted path or overlapping live keys.
 
 Registry implementations MAY expose additional setup and publication methods,
 including verification and registry-managed TXT publication.
@@ -597,13 +586,14 @@ checks or authorize replacement. Setup validates these fields:
 | Setup value | Wire field | Validation |
 |---|---|---|
 | Stable organization ID | `org_id` | Nonempty account ID; compare configured/saved values byte-exact without reformatting. |
-| Managed registration contract | `managed_registration` | Array of supported contract identifiers; automatic managed setup requires `dnsid-managed-registration-v1`. |
 | Expected governance ID | `governance_domain` | Valid domain; compare any configured/saved GI. |
 | Live governance proof | `gi.domain`, `gi.state`, `gi.gate_authorized` | GI object present, matching domain, state `verified`, and `gate_authorized` equal to `true`: the registry confirms acceptable governance-domain proof for this organization. |
 | Entity-key delegation | `ek.status` | Must be `verified` before discovery supplies ready setup bindings. |
 
 Absent/pending proofs are not verified. `entityKeyUrl` is not returned and must
-remain configured; CNAME instructions are not a JWKS URL or trust root.
+remain configured; CNAME instructions are not a JWKS URL or trust root. Preserve
+503 when onboarding is unavailable and authorization errors when access is denied.
+This account read alone does not establish named-create support.
 [Server evidence](../managed-registration-server-requirements.md#existing-account-binding-discovery)
 tracks API-key access and availability separately.
 
@@ -618,9 +608,8 @@ idiomatic public names and serialize the exact JSON wire names shown.
 | `governanceDomain` | `governance_domain` | string | no | Expected accountable governance identifier (`gi`). With no `domain`, also selects an authorized root as described below. It is not an arbitrary signer override. |
 | `rootDomain` | `root_domain` | string | no | Active delegated zone owned by the caller's organization under which the registry assigns a name. Not a zone ID. May be combined with `governanceDomain`. |
 | `publicKeyJwk` | `public_key` | JWK | conditional | Public signing key required whenever the registry assigns the name or manages the identity. Optional for a self-managed exact domain whose JWKS is verified externally. Private JWK members are forbidden. |
-| `name` | `name` | string | conditional | Required by named managed setup (13); optional for low-level unnamed creation. Organization-scoped agent handle and display name; apply [13's exact normalization](13-managed-registration.md#name-normalization) before hashing or comparison. Not published in DNS or the log. |
+| `name` | `name` | string | no | Ordinary registry metadata; at most 255 characters after trimming, not published in DNS. Foundry's required exact name belongs to the separate named Live workflow; ordinary trimming/fingerprint rules stay unchanged. |
 | `capabilitiesUrl` | `capabilities_url` | string | no | HTTPS capabilities-document URL to publish as `cu`. |
-| `replaces` | `replaces` | string | no | Previous immutable identity ID; required only for explicit named replacement after a terminal state. |
 
 New registration omits legacy selector defaults. Existing entry points may
 retain `environment`, `tier`, `managed`, and `zone_id`: the server maps supported
@@ -655,50 +644,46 @@ returns 400 `BAD_REQUEST`, an unauthorized GI returns 403
 
 ##### Named Managed Registration
 
-For keyed named managed requests, enforce one nonterminal identity per authenticated
-organization/name, including pending creation. Apply [13's normalization](13-managed-registration.md#name-normalization)
-and [registry-state rules](13-managed-registration.md#registry-states); `ERROR` retains
-the name and remains recoverable. These name-claim rules do not apply to low-level
-unnamed creation. Names are tenant-isolated handles, not public domains or immutable IDs.
+[Foundry create/active](13-managed-registration.md) uses the named caller-key Live
+path below, not ordinary `RegisterAgent`. The in-flight server contract is tracked
+in [E2 #45–#48](../managed-registration-server-requirements.md#evidence-and-ownership).
+Names are exact and case-sensitive under [13's rules](13-managed-registration.md#name-normalization);
+pending identities, ERROR, CANCELLED and REJECTED retain ownership. Do not apply
+these workflow rules to existing ordinary registration/status-wait APIs.
 
-Named requests require a public key and
-[derived registration key](13-managed-registration.md#organization-and-creation-replay).
-Validate it against authenticated organization ID, normalized name, and submitted
-key thumbprint before allocation; mismatched configured organization must not create
-in the credential's actual organization or disclose another tenant's identity.
+Matching organization/name/key requests resolve one durable identity/operation.
+A supplied wrong key is distinct from a missing key: the in-flight named Live
+spelling is HTTP 409 `KEY_MISMATCH`. Preserve the actual HTTP status/code for all
+other failures, including Live `IDEMPOTENCY_CONFLICT` versus ordinary
+`IDEMPOTENCY_MISMATCH`; do not introduce `NAME_CONFLICT` or `IDENTITY_TERMINAL`
+as presumed server wire codes. SDK terminal/workflow errors may carry local typed
+categories without inventing a server response.
 
-Matching name/key/complete input opens the same identity, including concurrent
-hosts. A different unrotated key or conflicting input fails without mutation/allocation.
-Authorized rotation preserves name/identity; completed setup opens the saved
-immutable identity and verifies its current key without another issuance.
+The SDK derives its registration key from organization, exact name, and initial
+key thumbprint. This is client replay metadata, not authentication or a new server
+hash-validation requirement. Server authorization and atomic identity/domain/handoff
+must hold independently. Configured organization mismatches fail before client
+mutation, and authenticated server operations must remain tenant-isolated.
 
-After `REJECTED`, `CANCELLED`, `REVOKED`, or `RETIRED`, explicit replacement requires
-`replaces` equal to the current terminal holder's immutable ID and a fresh key, never
-an initial or rotated key of that identity. A fresh key alone does not authorize
-replacement. Atomically reassign the name to a new immutable ID/domain/log stream
-and retain terminal history. Old request-key replay takes precedence over allocation
-and never changes the current name holder.
+Durable operation/history bindings survive replay-cache expiry. The server may use
+a bounded cache, but expiry, cleanup, or deletion must not turn a delayed request
+into a new identity. Retain known immutable ID/domain and resume via authenticated
+reads. A retry still awaiting an allocated domain returns a recoverable outcome,
+not a guessed domain or permission to allocate elsewhere.
 
-Named failures use the following status/code pairs. Organization-binding rejection
-and occupied-name rejection have the same public error shape and disclose no foreign
-identity. Known own-organization terminal errors retain the original identity facts.
-
-| Failure | HTTP status / code |
-|---|---|
-| Derived organization binding mismatch; occupied name with another key; missing/stale replacement intent | 409 `NAME_CONFLICT` |
-| Changed input under a bound replay key | 422 `IDEMPOTENCY_MISMATCH` |
-| Original identity terminal or permanently unavailable on replay | 410 `IDENTITY_TERMINAL` |
-
-A workflow `ERROR` is resumable, not `IDENTITY_TERMINAL`; return the retained identity
-and workflow state. Preserve preceding validation, authorization, or infrastructure errors.
+Revoke/retire permits intentional same-name replacement on a fresh domain/log stream;
+the old domain remains assigned and serves terminal history in Foundry V1. Exact
+generation/replacement intent and historical request lookup remain E2 decisions.
+There is no agreed `replaces` wire field. Until those checks pass, the facade returns
+a typed terminal error instead of automatically replacing. ERROR, CANCELLED, REJECTED,
+soft deletion, missing keys and timeouts do not authorize SDK replacement.
 
 ##### Registration Replay and Recovery
 
-Unnamed ordinary creation permits an omitted or caller-selected `Idempotency-Key`;
-[managed setup](13-managed-registration.md#organization-and-creation-replay) derives
-its keys. Send keys as transport metadata and retry with the same complete input,
-including legacy selectors. Never automatically retry an unknown creation without
-a key or substitute an assigned domain as request input.
+Ordinary creation permits an omitted `Idempotency-Key`. Retry-safe callers supply
+one as transport metadata; retries MUST retain the same key and complete request,
+including legacy selectors. SDKs MUST NOT automatically retry an unknown creation
+outcome without a key or use an assigned domain as replacement request input.
 
 Preserve the immutable ID, domain, publication configuration, and returned OIDC
 issuer before a follow-up read. A timeout, invalid response, failed detail read,
@@ -706,23 +691,15 @@ or `MANAGED_GOVERNANCE_UNAVAILABLE` response can leave an identity already creat
 Errors retain the request/key and any known creation facts, not a claim that no
 agent exists.
 
-Atomically commit the organization-scoped key claim, complete request fingerprint,
-and one immutable registration before returning success. Concurrent matching calls
-must not allocate losing identities. Same low-level key strings in different
-organizations are independent and disclose nothing across tenants; credential
-replacement within one organization preserves the operation.
-
-Retain the binding/tombstone permanently through inactivity, root deactivation,
-terminal state, and deletion. Identical retries return the original identity without
-new root resolution; an unavailable original returns a terminal error, never replacement.
-Changed input cannot mutate/allocate; preserve 422 `IDEMPOTENCY_MISMATCH` or any
-preceding validation/authorization/infrastructure error and the original key.
-
-Publication configuration may be recomputed: stale or unverified managed
-governance returns 409 `MANAGED_GOVERNANCE_UNAVAILABLE`, so successful replay is
-not unconditional. SDKs do not silently replace saved publication configuration
-or trust policy. These creation guarantees are registry requirements, not DNSid
-protocol rules, and do not alter the separate Live workflow.
+Idempotency claims are scoped to the authenticated organization. Within retention,
+identical keyed retries address the original identity without resolving a new
+root, even after zone deactivation. Publication configuration is
+recomputed: stale or unverified managed governance returns 409
+`MANAGED_GOVERNANCE_UNAVAILABLE`, so successful replay is not unconditional.
+SDKs do not allocate another identity or silently replace saved publication
+configuration or trust policy. Changed input can return 422
+`IDEMPOTENCY_MISMATCH` or a preceding validation/authorization/infrastructure
+error; preserve the actual error and original key.
 
 #### LiveAgentRegistrationInput
 
@@ -731,7 +708,7 @@ type prevents generic registration fields from creating ambiguous modes.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `name` | string | no | Human-readable registry metadata. |
+| `name` | string | conditional | Optional for low-level Live calls; required by Foundry Create, with exact case-sensitive comparison under 13. |
 | `publicKeyJwk` | Ed25519 JWK | yes | One `OKP`/`Ed25519` public signing key using `alg="EdDSA"`. Private JWK members are forbidden. |
 | `environment` | `"production"` | no | Omit or set to `production`. |
 | `capabilitiesUrl` | string | no | HTTPS capabilities-document URL to publish as `cu`. |
@@ -744,9 +721,10 @@ Managed Live registration is a separate operation, even though it uses the same
 HTTP route. It requires a public key, an omitted domain and zone, and either an
 omitted environment or `environment="production"`. It also requires an
 `Idempotency-Key` and returns HTTP 202 `LiveProvisioningResponse`, not the HTTP
-201 `AgentRegistration` shape. The returned `requestId` is retained for every
-retry and proof operation. The base64url-decoded `challengeMessage` is the exact
-byte sequence signed by the registered private key. Parsing it for routing or
+201 `AgentRegistration` shape. The returned `requestId` must equal the caller's
+Idempotency-Key and is retained for every retry and proof operation. The server's
+internal canonical operation ID may differ; the SDK does not substitute or derive
+it. The base64url-decoded `challengeMessage` is the exact byte sequence signed by the registered private key. Parsing it for routing or
 validation MUST NOT change the bytes that are signed.
 
 The server retains a legacy local Live mode selected by `tier="live"` and
@@ -851,9 +829,10 @@ protocol state for display or polling, but that mapping is not an
 also requires the actual time of the most recent protocol transition and, for
 `REVOKED`, its reason. In particular, SDKs MUST NOT fabricate
 `lastTransitionAt`, and publication readiness does not by itself prove protocol
-`ACTIVE` state. Polling helpers MUST apply [13's registry-state rules](13-managed-registration.md#registry-states):
-`REJECTED`, `CANCELLED`, `REVOKED`, and `RETIRED` are terminal; `ERROR` returns a
-resumable workflow error rather than waiting until timeout.
+`ACTIVE` state. Polling helpers still treat REVOKED and RETIRED as terminal;
+existing registry-status wait helpers otherwise retain their current semantics.
+Foundry `Active` separately applies [13's workflow outcomes](13-managed-registration.md#registry-states)
+and public evidence checks, including retained name ownership after CANCELLED/REJECTED.
 
 #### PublicationConfig
 
@@ -896,8 +875,8 @@ governance persistence also require server integration tests, not SDK coordinati
 | Authenticated read or mutation returns a redirect, including to the same origin | Reject; no request or credential reaches the redirect target. |
 | Invalid response or root/admission failure | Fail closed, preserve known creation facts and server errors, and make no fallback request. |
 | Supported existing selectors and managed Live | Preserve existing request behavior; Live still returns 202 provisioning, not ordinary 201 registration. |
-| Keyed replay, including stale GI or changed input | Preserve enough frozen input to reconstruct unresolved creation and its derived key; retain known identity and governance/mismatch errors without replacement allocation. |
-| Named creation and permanent replay | [Server acceptance checks](../managed-registration-server-requirements.md#acceptance-checks) establish tenant isolation, atomic convergence, permanent bindings, and fresh-key replacement. |
+| Keyed ordinary replay, including stale GI or changed input | Preserve the original request/key and known identity; retain governance/mismatch errors without replacement allocation. |
+| Foundry named Live create and durable operation recovery | [Server acceptance checks](../managed-registration-server-requirements.md#acceptance-checks) establish tenant isolation, atomic convergence and replay-expiry safety. Replacement is separately gated. |
 | Timeout or post-creation failure | Retain known facts for recovery; never imply that failure proves no identity exists. |
 
 #### PublishedRecord

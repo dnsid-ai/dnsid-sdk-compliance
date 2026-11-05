@@ -599,9 +599,8 @@ recoverable. An SDK MUST NOT turn an unclassified failure into a fresh rotation
 or issuance attempt.
 
 Preparation state includes an expiry and the reserved prior-stream revision.
-An expired preparation may be atomically replaced only when durable server state
-establishes it never entered submission or was rejected before any append, with
-no frozen admission or possible commitment. `submitting`, `indeterminate`, and
+Only an expired preparation that is durably known never to have entered
+submission may be atomically replaced. `submitting`, `indeterminate`, and
 `accepted` records are never reclaimed or regenerated.
 Concurrent stream advancement causes a deterministic stale-preparation error
 rather than silent chain-field replacement. The assigned index and final event

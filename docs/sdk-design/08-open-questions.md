@@ -2,13 +2,32 @@
 
 This document tracks SDK design questions that are not yet resolved.
 
-There are no unresolved shared protocol/lifecycle design questions at this time.
+The Foundry product decisions below do not change the shared protocol reducer or
+verification profiles. Current design and server evidence are in
+[13](13-managed-registration.md) and the
+[server requirements](../managed-registration-server-requirements.md).
 
 ## Managed Registration Configuration
 
-Decide how to remove duplication between `input.governanceDomain` (routing) and
-`registration.governanceId` (expected accountability) while retaining independent
-publication validation. For now both remain; contradictions fail before creation.
+Foundry Create uses named caller-key Live/pool provisioning. Its configured GI is
+an independently validated expectation, not a routing selector; it does not accept
+ordinary `input.governanceDomain`/root selectors. Ordinary registration retains 05's
+existing selector rules. This removes the former duplication from the Foundry API.
+
+## Foundry Server Contract Decisions
+
+| Decision | Owner / required outcome |
+|---|---|
+| Intentional same-name replacement versus delayed old create, including soft deletion and replay-cache expiry | E2 #45/#47: agree generation/intent and historical lookup before enabling replacement; no assumed `replaces` wire field. |
+| Missing/expired proof or signature, ERROR and failed provisioning | E2 #46: agree customer-action/recovery and name/resource retention. Removing the proof challenge does not remove ISSUANCE countersigning. |
+| Accepted/replay responses without domain/publication fields; machine-readable compatibility | E2 #47 / E5: expose sufficient immutable facts/authenticated recovery and agree negotiation. No presumed onboarding capability field. |
+| Foundry-specific routing when sharing a deployment with other Live organizations | Product / E2: current adapter uses Live; introduce a distinct selector only if different rules require it. |
+| Final error/fingerprint matrix and credential revocation remedies | E2 / E4: retain distinct missing-key, mismatch and revoked categories; in-flight wrong-key response is 409 KEY_MISMATCH. |
+| Atomic first-key discovery, provider algorithms and multi-region same-cloud keys | E6: prove shared-locator convergence or require an existing key; hashes cannot merge independently generated keys. |
+| Quotas/rates, cleanup, public hosting and terminal/rotation retention | E2 / ABU-1 / E7 / E8: settle product policies and pass integration acceptance; SDKs consume returned/signed URLs. |
+
+Source issues and release gates are linked in the server requirements. Their open
+PRs are implementation direction, not evidence of merged or deployed support.
 
 ## Resolved Questions
 

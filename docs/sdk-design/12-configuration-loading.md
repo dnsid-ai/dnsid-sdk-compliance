@@ -245,9 +245,10 @@ For managed setup, a file can add:
 ```
 
 This is illustrative, not a service preset. The key must support the profile's
-algorithm. To request this GI, also supply `input.governanceDomain = "acme.example"`;
-expectations alone do not route creation or approve counterparties. Credentials,
-state-store locations, and runtime dependencies remain separately supplied.
+algorithm and the current caller-key Live adapter's Ed25519 requirement. For
+Foundry Create, GI is an independently checked expectation, not a root selector;
+the named Live server path owns allocation. Ordinary registration selectors remain
+in 05. Credentials, state-store locations, and runtime dependencies stay separate.
 
 The file loader MUST reject unknown members and mistyped values, and SHOULD
 reject duplicate members where the platform parser makes that available.
@@ -359,12 +360,16 @@ when `registryUrl` is absent.
 
 ## Managed Setup Composition
 
-[Managed setup](13-managed-registration.md) consumes merged `LoadedConfig` plus
-separate credentials/storage. Bindings MUST support file loading with the same
-setup/trust rules as environment/code sources. Build its registry client from
+[Foundry Create/Active](13-managed-registration.md) consumes merged `LoadedConfig`
+plus separate credentials and a default or injected durable store. Its configured
+facade supplies the one-argument Create entry point; it uses the same composition
+for explicit injection and CLI calls. Bindings MUST support file loading with the
+same setup/trust rules as environment/code sources. Build the registry client from
 `loaded.registry`, explicit credentials, and effective transport settings; do not
-re-read environment configuration. Discovery/registration are workflow effects,
-never loader or `Construct` side effects.
+re-read the environment. Resolve account/trust bindings before generation. The
+current adapter uses named caller-key Live/pool creation, not ordinary registration
+or GI-to-root translation. Discovery, generation and registration are workflow
+effects, never loader or `Construct` side effects.
 
 ## Convenience Constructors
 
@@ -437,12 +442,8 @@ verify` reads; there are no SDK-local aliases.
 | Construction uses local key files | Emit the production-safety warning. |
 | Existing identity changes provider/key through configuration alone | Binding error; explicit authorized rotation required, never implicit import or key replacement. |
 | File/code supplies `registration` | Preserve only supplied setup fields; identity-manager construction does not infer identity or acceptance from them. |
-| Deployment file selects an available cloud provider and existing key | Same provider/key as explicit configuration; credentials remain outside deployment/recovery data. |
-| Selected provider package is absent or not linked | ArgumentError with install/build remedy before account discovery or mutations; no file fallback. |
-| Caller injects a provider while file selects an unavailable provider | Injected provider wins; displaced provider package is not loaded. |
-| Invalid/conflicting key selection or unsupported algorithm; concurrent generation | Reject invalid settings before mutation; replicas recover one key or require an existing reference. |
 | Managed setup uses local key files | Emit the production-safety warning; private key files remain separate from recovery data. |
-| Existing identity changes provider/key through configuration alone | Binding error; explicit authorized rotation required, never implicit import or key replacement. |
+| Foundry setup supplies expected GI but no ordinary selectors | Use named Live/pool creation; verify GI independently without sandbox or root fallback. |
 | Same merged config reaches setup from file or environment plus code overlay | Same registry endpoint, transport, explicit trust, and setup behavior; no environment re-read overrides a file. |
 | Invalid `dnsid` config together with a `policyUrl` | Construction fails with `ArgumentError` without fetching the policy. |
 | Any constructor invoked with environment variables or files present | Constructor reads neither. |
