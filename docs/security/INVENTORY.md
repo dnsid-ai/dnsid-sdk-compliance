@@ -68,25 +68,18 @@ CLI credential files.
 ## Managed registration design (not shipped coverage)
 
 The [Foundry create/active design](../sdk-design/13-managed-registration.md) adds
-opt-in authenticated onboarding, named Live create/proof, and prepared issuance
-calls. These requirements do not claim current implementation or deployment.
+these data flows. They are design requirements, not shipped coverage.
 
-- Registry requests transmit the organization credential, exact account handle,
-  public JWK, replay key, and required proof/countersignature. The handle name is
-  registry metadata, not DNS or public-log content. Credentials never accompany
-  the separate public DNS/JWKS/status/log verification requests.
-- Owner-only durable recovery stores retain registry/org/name, non-secret provider references,
-  initial public key, identity/domain, proof/prepared submission bytes, outcomes,
-  publication fields, and accepted-evidence retrieval facts. They contain no
-  credential or private key. Private material remains in the selected provider.
-- History must remain addressable across retries and later name reuse. Runtime
-  handle state is only an observation, not permanent ACTIVE evidence. Recovery
-  retention/backups and ephemeral-storage limits must be documented by each binding;
-  the process-lifetime-only retention statement above does not cover this new store.
-- Setup consumes the configured provider's signing key; provider initialization,
-  key distribution and replica recovery are outside this facade. Existing provider
-  lifecycle APIs are unchanged. Cloud credentials follow the provider's ambient
-  chain. Loading configuration alone does not generate keys or create identities.
+- Registry requests carry the organization credential, account name, public JWK,
+  replay key, proof signature, and ISSUANCE countersignature. The name is not
+  published. Public DNS, JWKS, status, and log requests carry no credentials.
+- Owner-only recovery files hold registry/org/name, provider references, public
+  keys, identity and domain, proof and submission bytes, outcomes, and publication
+  fields. They hold no credentials or private keys. Bindings document retention,
+  backups, and the limits of container-local storage.
+- `Create` can ask the provider to provision a key (`EnsureSigningKey()`); private
+  material stays in the provider. Loading configuration alone creates no keys or
+  identities.
 
 ## In-memory caches
 

@@ -362,20 +362,9 @@ history.
 ### Consumer Managed Setup
 
 [13: Managed Registration](13-managed-registration.md) defines Foundry `Create(name)`
-and its handle: immutable `domain`, observed protocol `state`, `Active`, and `Sign`.
-Create establishes a durable pending identity; Active drives required client
-proof/issuance and checks public readiness. SDK-owned provider/store/registry
-composition sits above the low-level methods below. Consumers do not implement
-recovery callbacks.
-
-The Foundry adapter currently uses named caller-key Live/pool provisioning, never
-ordinary selector-free sandbox creation. It requires tested durable name/operation
-semantics beyond replay-cache retention; see the
-[server release gates](../managed-registration-server-requirements.md#acceptance-checks).
-A hash derivation version is not an onboarding capability. No
-`managed_registration` wire field is assumed; machine-readable compatibility and
-generation/replacement intent remain E2/E5 decisions. Keep ordinary registry
-defaults and bounded replay behavior unchanged.
+and its handle. It is built on the low-level methods below and uses named caller-key
+Live registration, never sandbox creation. Ordinary registry defaults and replay
+behavior stay unchanged.
 
 ### RegistryClient
 
@@ -590,12 +579,10 @@ checks or authorize replacement. Setup validates these fields:
 | Live governance proof | `gi.domain`, `gi.state`, `gi.gate_authorized` | GI object present, matching domain, state `verified`, and `gate_authorized` equal to `true`: the registry confirms acceptable governance-domain proof for this organization. |
 | Entity-key delegation | `ek.status` | Must be `verified` before discovery supplies ready setup bindings. |
 
-Absent/pending proofs are not verified. `entityKeyUrl` is not returned and must
-remain configured; CNAME instructions are not a JWKS URL or trust root. Preserve
-503 when onboarding is unavailable and authorization errors when access is denied.
-This account read alone does not establish named-create support.
-[Server evidence](../managed-registration-server-requirements.md#existing-account-binding-discovery)
-tracks API-key access and availability separately.
+Absent or pending proofs are not verified. Onboarding does not return the entity
+key URL; managed setup reads it from `PublicationConfig.ekUrl`. Preserve 503 when
+onboarding is unavailable and authorization errors when access is denied. This read
+alone does not show that the server supports named create.
 
 #### AgentRegistrationInput
 
@@ -645,38 +632,16 @@ returns 400 `BAD_REQUEST`, an unauthorized GI returns 403
 ##### Named Managed Registration
 
 [Foundry create/active](13-managed-registration.md) uses the named caller-key Live
-path below, not ordinary `RegisterAgent`. The in-flight server contract is tracked
-in [E2 #45–#48](../managed-registration-server-requirements.md#evidence-and-ownership).
-Names are exact and case-sensitive under [13's rules](13-managed-registration.md#name-normalization);
-pending identities, ERROR, CANCELLED and REJECTED retain ownership. Do not apply
-these workflow rules to existing ordinary registration/status-wait APIs.
+path below, not ordinary `RegisterAgent`. Names are exact and case-sensitive under
+[13's rules](13-managed-registration.md#name-normalization). Pending, ERROR,
+CANCELLED, and REJECTED identities keep name ownership. These rules do not apply
+to ordinary registration or status-wait APIs.
 
-Matching organization/name/key requests resolve one durable identity/operation.
-A supplied wrong key is distinct from a missing key: the in-flight named Live
-spelling is HTTP 409 `KEY_MISMATCH`. Preserve the actual HTTP status/code for all
-other failures, including Live `IDEMPOTENCY_CONFLICT` versus ordinary
-`IDEMPOTENCY_MISMATCH`; do not introduce `NAME_CONFLICT` or `IDENTITY_TERMINAL`
-as presumed server wire codes. SDK terminal/workflow errors may carry local typed
-categories without inventing a server response.
-
-The SDK derives its registration key from organization, exact name, and initial
-key thumbprint. This is client replay metadata, not authentication or a new server
-hash-validation requirement. Server authorization and atomic identity/domain/handoff
-must hold independently. Configured organization mismatches fail before client
-mutation, and authenticated server operations must remain tenant-isolated.
-
-Durable operation/history bindings survive replay-cache expiry. The server may use
-a bounded cache, but expiry, cleanup, or deletion must not turn a delayed request
-into a new identity. Retain known immutable ID/domain and resume via authenticated
-reads. A retry still awaiting an allocated domain returns a recoverable outcome,
-not a guessed domain or permission to allocate elsewhere.
-
-Revoke/retire permits intentional same-name replacement on a fresh domain/log stream;
-the old domain remains assigned and serves terminal history in Foundry V1. Exact
-generation/replacement intent and historical request lookup remain E2 decisions.
-There is no agreed `replaces` wire field. Until those checks pass, the facade returns
-a typed terminal error instead of automatically replacing. ERROR, CANCELLED, REJECTED,
-soft deletion, missing keys and timeouts do not authorize SDK replacement.
+A wrong supplied key returns HTTP 409 `KEY_MISMATCH` (in-flight server contract).
+Keep all other HTTP statuses and codes as returned, including Live
+`IDEMPOTENCY_CONFLICT` and ordinary `IDEMPOTENCY_MISMATCH`. SDK-local error
+categories do not imply new server codes. Server behavior that the SDK assumes is
+listed in the [server requirements](../managed-registration-server-requirements.md).
 
 ##### Registration Replay and Recovery
 

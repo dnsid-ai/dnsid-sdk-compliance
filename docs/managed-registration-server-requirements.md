@@ -1,32 +1,26 @@
 # Managed Registration Server Requirements
 
-Server dependencies for [Foundry create/active](sdk-design/13-managed-registration.md)
-and [named registration](sdk-design/05-transport-and-registry.md#named-managed-registration).
-The server contract belongs to [E2](https://github.com/Identity-Digital/known-foundry/issues/2)
-and its SCEN/SPEC/TEST artifacts; this document records SDK requirements and gaps,
-not a second server specification or a claim of deployed support.
+Server behavior that [Foundry create/active](sdk-design/13-managed-registration.md)
+depends on. The server contract belongs to
+[E2](https://github.com/Identity-Digital/known-foundry/issues/2) and its SCEN, SPEC,
+and TEST artifacts. This document records what the SDK assumes and what is still
+open. It is not a server specification and does not claim deployed support.
 
 ## Evidence and Ownership
 
 Reviewed 2026-11-05:
 
-| Source | Evidence / status |
+| Source | Status |
 |---|---|
-| Server main `966e62ebbc87ad4ee88205c85ea505ce08edfe79` | Ordinary PostgreSQL replay rows expire after 24 hours. This is not sufficient for automatic named recovery. |
-| [Server PR #3150](https://github.com/Identity-Digital/dnsid/pull/3150), `6c01536a603362140d426beac3f9a1186e88c7e2` | Open, unmerged. Named Live ownership starts with a pending Agent row; exact case-sensitive names; unique organization/name index; CANCELLED/REJECTED/ERROR retain ownership, while revoke/retire/soft deletion release the index slot. |
-| [Server PR #3304](https://github.com/Identity-Digital/dnsid/pull/3304), `bd4a27a1d5b23767e4807944d10382bbba605897` | Open, unmerged. Caller-key Live SDK compatibility: HTTP 202 replay, caller Idempotency-Key as request_id, distinct 409 KEY_MISMATCH, and replay-cache-expiry tests. These are not integrated acceptance claims. |
-| [#45](https://github.com/Identity-Digital/known-foundry/issues/45) | Atomic identity/domain assignment and durable handoff, including matching return-existing paths. |
-| [#46](https://github.com/Identity-Digital/known-foundry/issues/46) | Durable proof/issuance workflow and recovery, without manufacturing a customer countersignature. |
-| [#47](https://github.com/Identity-Digital/known-foundry/issues/47) | Create/readiness/error responses and operation/generation semantics. |
-| [#48](https://github.com/Identity-Digital/known-foundry/issues/48) | Integrated interruption/concurrency proof. |
+| Server main `966e62eb` | Ordinary replay rows expire after 24 hours. Not enough for named recovery. |
+| [PR #3150](https://github.com/Identity-Digital/dnsid/pull/3150) `6c01536a` | Open. Named Live ownership with a pending Agent row; exact, case-sensitive names; unique organization/name index. CANCELLED, REJECTED, and ERROR keep ownership; revoke, retire, and soft deletion release it. |
+| [PR #3304](https://github.com/Identity-Digital/dnsid/pull/3304) `bd4a27a1` | Open. Caller-key Live: HTTP 202 replay, `request_id` equal to the caller's Idempotency-Key, 409 `KEY_MISMATCH` against the key pinned at create, replay-expiry tests. |
+| [#45](https://github.com/Identity-Digital/known-foundry/issues/45)–[#48](https://github.com/Identity-Digital/known-foundry/issues/48) | Atomic assignment, durable workflow, create/status responses, integrated proof. |
 
-The current implementation direction reuses named Live/pool provisioning. The
-SDK must not send ordinary selector-free registration and receive a sandbox agent.
-E1 supplies inventory; E2 owns admission/assignment/recovery; E4 owns credentials;
-E5 owns SDK/CLI composition; E6 owns provider discovery; E7 owns rotation; E8 owns
-terminal serving. Pool-empty behavior is Live register-at-create fallback per the
-E2 index, not an SDK-selected fallback. Several older issue paragraphs still list
-it as open; confirm final SCENs rather than implementing both policies.
+E1 supplies domains, E2 owns admission and recovery, E4 owns credentials, E5 owns
+the SDK and CLI, E6 owns key providers, E7 owns rotation, E8 owns terminal serving.
+When the pool is empty, the server falls back to Live registration (E2 index); the
+SDK does not choose a fallback.
 
 ## Workflow Overview
 
@@ -40,181 +34,113 @@ sequenceDiagram
     participant Public as Public DNS / HTTPS / log
 
     App->>SDK: create(name)
-    SDK->>Registry: Read and validate organization/GI bindings
-    SDK->>State: Lock/load exact registry/org/name
-    SDK->>Keys: Obtain configured signing key
-    SDK->>State: Persist supplied public binding and creation intent
-    SDK->>Registry: Named Live create/replay with caller key
-    Registry-->>SDK: Immutable identity/domain and pending proof facts
+    SDK->>Registry: Read onboarding (org, GI)
+    SDK->>State: Lock and load registry/org/name
+    SDK->>Keys: Get or provision signing key
+    SDK->>State: Persist public key and creation intent
+    SDK->>Registry: Named Live create or replay
+    Registry-->>SDK: Identity ID, domain, proof facts
     SDK->>State: Persist facts and release lock
-    SDK-->>App: Handle (not yet proof of ACTIVE)
+    SDK-->>App: Handle (signing paused)
     App->>SDK: id.active()
-    SDK->>State: Lock/reload operation
-    SDK->>Registry: Complete/recover required proof
-    SDK->>Registry: Read publication/issuance prerequisites
-    SDK->>Public: Recover and verify accepted ISSUANCE if present
-    SDK->>Registry: Otherwise prepare, countersign and submit exact persisted bytes
-    Registry->>Public: Append and converge publication
-    SDK->>Public: Verify signed current key, ACTIVE and fresh log evidence
+    SDK->>State: Lock and reload
+    SDK->>Registry: Complete proof
+    SDK->>Registry: Read publication config and entity key
+    SDK->>Public: Recover accepted ISSUANCE if present
+    SDK->>Registry: Otherwise prepare, countersign, submit persisted bytes
+    Registry->>Public: Append and publish
+    SDK->>Public: Verify current key, ACTIVE, log evidence
     SDK->>State: Persist completion and release lock
     SDK-->>App: Same handle, signing enabled
 ```
 
-Timeout/cancellation preserves progress, not rollback. Without a running client,
-missing customer signatures may remain pending. Already accepted server work must
-recover without another client request. New client invocations reopen the same key
-and operation, never allocate a replacement because the previous result is unknown.
+The server must continue accepted work without another client request, but it
+cannot produce the customer countersignature. That step waits for the client.
 
 ## Existing Account Binding Discovery
 
-Use existing authenticated `GET /api/v1/org/onboarding` for `org_id`, GI/proof, and
-entity delegation, under [05's validation](sdk-design/05-transport-and-registry.md#account-binding-discovery).
-Compare configured/saved organization ID byte-exact before mutation. Onboarding
-instructions are not an entity JWKS URL or new trust root; `entityKeyUrl` remains
-configured. No new account-discovery endpoint is required.
+The SDK uses `GET /api/v1/org/onboarding` for `org_id`, GI, and entity delegation
+under [05](sdk-design/05-transport-and-registry.md#account-binding-discovery). The
+entity key URL comes from `publication_config.ek_url`. No new endpoint is needed.
 
-There is no agreed `managed_registration` onboarding capability field. The SDK
-hash domain separator is not evidence of server support. E2/E5 must agree capability
-or version negotiation; until then release against an explicitly tested server
-contract/deployment and record that compatibility. Do not enable this workflow
-against an arbitrary registry or let an acknowledgement switch bypass acceptance.
+There is no capability field for named registration. Until E2/E5 agree a version
+or capability negotiation, release against a tested server revision and record it.
 
 ## Required Server Work
 
-These acceptance obligations are not all implemented or proven by the cited PRs.
-Use the final E2 SCENs as wire authority; keep ordinary sandbox/zone registration
-and its bounded replay contract separate.
+Final E2 SCENs are the wire authority. Ordinary sandbox registration stays unchanged.
 
-| ID | Required behavior | Coordination / remaining gap |
+| ID | Required behavior | Status / gap |
 |---|---|---|
-| SR-1 | Authenticate and authorize the organization; enforce verified-domain gates, tenant isolation, public-key validation, and create quotas/rates before relevant effects. Reject conflicting account bindings without exposing foreign identity facts. | E2/E4 and ABU-1. API-key authentication alone does not prove authorization or scoped privilege. SDK-derived hashes are not credentials and need no new server hash-validation scheme. |
-| SR-2 | Use exact organization/name ownership, including pending rows. Concurrent matching callers return one identity; different keys fail without changing identity/key/status or consuming another domain. | PR #3150 provides the ownership direction. No SDK-only NFC/trim rule. Additional name policy and existing collision migration require server agreement. |
-| SR-3 | Commit identity/domain assignment and durable handoff consistently; recover unfinished absent/closed/failed workflows, including return-existing paths and no further client call. | #45/#46/#48; stable workflow ID alone is insufficient. Main's ordinary create/cache path does not establish this guarantee. |
-| SR-4 | Retain durable operation/history bindings beyond replay-cache expiry. Delayed requests, deletion, cleanup and terminal transitions must not allocate unintended replacements or resurrect old identities. | #45/#47/#48. Permanent ordinary cache rows are not required; durable generation lookup/retention and soft-deletion behavior still need complete proof. |
-| SR-5 | Preserve caller-key Live 202/proof semantics, request_id equal to the caller's Idempotency-Key, and immutable identity/domain facts needed for safe continuation. Reissue only reclaimable expired proof on the same key/operation. | PR #3304. A replay without challenge may omit its derived domain: the SDK can use saved state, but recovery from lost local state needs an agreed authenticated response/lookup. |
-| SR-6 | Keep customer proof and ISSUANCE countersigning distinct. Validate identity/key/log/signatures before durable admission of submitted bytes; invalid signatures must not poison the issuance key. Expose accepted-entry and safe preparation-reclaim facts. | #46 plus existing prepared-event endpoints. Replicas with different valid signature bytes must recover one verified accepted ISSUANCE without a second append. |
-| SR-7 | Expose accurate registry progress, customer-action outcomes, structured errors, and authoritative publication fields. Readiness requires issuance, log inclusion, and required publication, not workflow completion alone. | #47. Wrong supplied key uses the in-flight 409 KEY_MISMATCH meaning; missing key, revoked credentials/keys, and other conflicts remain distinct. Preserve existing ordinary and Live error codes. |
-| SR-8 | Intentional replacement after revoke/retire gets a fresh domain/log stream, while old identity/domain/history remain terminal and assigned in V1. Delayed old creates cannot trigger it. | Generation/replacement intent is not finalized; see the [proposal below](#proposal-name-reuse-and-failed-provisioning). This design adds no `replaces` field or endpoint. CANCELLED/REJECTED/ERROR and soft deletion are not blanket replacement authorization. Gate replacement separately. |
+| SR-1 | Authorize the organization; enforce verified-domain gates, tenant isolation, key validation, and quotas before effects. Do not expose other tenants' facts. | E2/E4, ABU-1. API-key authentication alone is not authorization. |
+| SR-2 | Exact organization/name ownership, including pending rows. Matching concurrent requests return one identity. A different key fails without changing the identity or consuming a domain. | PR #3150. Further name policy needs server agreement. |
+| SR-3 | Commit identity, domain, and workflow handoff together. Recover unfinished workflows without a client call. | #45, #46, #48. |
+| SR-4 | Identity bindings outlive the replay cache. Delayed requests, cleanup, and terminal transitions never allocate a replacement or revive an old identity. | #45, #47, #48. |
+| SR-5 | Preserve caller-key Live 202 and proof semantics, with `request_id` equal to the Idempotency-Key. **A replay with the same organization, name, and key returns the identity ID, domain, and status**, so a replica without local state can resume. Reissue only expired proof on the same key. | PR #3304. Replay without a challenge can omit the domain today; this is a release gate. |
+| SR-6 | Validate signatures before durably admitting submitted ISSUANCE bytes. An invalid signature does not consume the issuance key. Expose accepted-entry and preparation-reclaim facts. | #46. Competing valid signatures converge on one accepted entry. |
+| SR-7 | Report registry progress, customer-action outcomes, structured errors, and publication fields (including `ek_url`). Readiness requires issuance, log inclusion, and publication. | #47. Wrong key is 409 `KEY_MISMATCH`. E2 #2 also lists `NAME_IN_USE`; confirm whether it stays, and when. |
+| SR-8 | Replacement after revoke or retire gets a new domain and log stream; the old identity stays terminal. Delayed old creates do not trigger it. | Not agreed; see the [proposal](#proposal-name-reuse-and-failed-provisioning). Separate gate. |
 
 ## Decisions Still Owned Outside the SDK Design
 
-Record the owner, minimum contract the SDK needs, and blocking/deferred status for
-external questions; this document does not select server or provider policy. The
-SDK owns typed errors, retained progress and same-operation registration/issuance
-retry under [13](sdk-design/13-managed-registration.md#retry-deadlines-and-errors).
-It does not own key coordination, rejected-replica orchestration, or credential
-issuance/renewal. All bindings and CLI share the
-[implementation acceptance checklist](sdk-design/13-managed-registration.md#implementation-acceptance-checklist).
-
-- **E2 #45/#47:** Generation/replacement intent and historical lookup, including
-  replay-cache expiry, soft deletion, and delayed old requests. The final error
-  and fingerprint matrix must distinguish changed input from wrong/missing keys.
-- **E2 #46:** Whether the separate Live proof challenge remains; recovery/customer
-  action when proof or a signature is missing; recoverable versus terminal
-  provisioning outcomes. The E2 index retains the 48-hour issuance wait then ERROR
-  safety bound; #46 notes that this is existing behavior, not final Foundry policy.
-  Do not turn ERROR into name release or an SDK automatic restart.
-- **E2 #47 / E5:** Final accepted/replay response and authenticated lookup when
-  domain/publication facts are absent; machine-readable compatibility negotiation.
-- **Product / E2:** A distinct Foundry selector is needed only if Foundry and Live
-  organizations share a deployment with different rules. The current SDK adapter
-  uses the Live route; do not invent a new tier without a server decision.
-- **E2 / ABU-1:** Numeric quota/rate values, quota release, and failed-provisioning
-  cleanup. Preserve pending ownership until an agreed outcome authorizes release.
-- **E4 / security:** Credential issuance, scopes, expiry, renewal and revocation
-  policy. The SDK needs authorization for required create/read/proof/issuance calls
-  and structured failure responses; it does not choose a credential-per-name or
-  credential-per-deployment model. Current expiring organization keys still carry
-  broad privileges. Required authorization/errors block integrated enablement;
-  a particular scoping or renewal model is not selected by this SDK design.
-- **E6:** Key initialization/distribution, algorithm/provider support, multi-region
-  setup, the V1 one-identity-per-cloud model, and recovery of rejected replicas. The SDK needs a usable key through its
-  provider interface and reports mismatches without coordinating or adopting keys.
-  Empty-provider initialization may be supplied externally; the SDK does not promise
-  every replica succeeds. Supported signing capabilities block a provider integration;
-  automatic shared-key convergence is not an SDK release gate. This scopes the SDK
-  facade only; E6 owners retain their product acceptance criteria, including
-  empty-provider startup and any external coordination needed for launch.
-- **E7/E8:** Key/status hosting locations, rotation cutover/retention, terminal
-  serving, and revocation propagation. SDKs consume returned/signed URLs; no new
-  key-specific path convention is required for E5 create enablement.
+- **E2 #45/#47:** Replacement intent, historical lookup, and the error matrix.
+- **E2 #46:** Whether the Live proof challenge stays (ISSUANCE countersigning stays
+  either way); which provisioning outcomes are recoverable or terminal. The 48-hour
+  wait then ERROR is current behavior, not final policy.
+- **E2 #47 / E5:** Compatibility negotiation.
+- **Product / E2:** A Foundry-specific selector, only if Foundry and Live
+  organizations need different rules in one deployment.
+- **E2 / ABU-1:** Quota values, quota release, and failed-provisioning cleanup.
+- **E4:** Credential scopes, expiry, renewal, and revocation.
+- **E6:** Key provisioning, algorithms, multi-region setup, the one-identity-per-cloud
+  model, and recovery of replicas that hold a different key.
+- **E7 / E8:** Key and status hosting, rotation, terminal serving.
 
 ## Proposal: Name Reuse and Failed Provisioning
 
-**Status:** Proposed for discussion, not an agreed server contract. This SDK design
-discussion favors the behavior below, subject to E2/server-team agreement in
-[#45](https://github.com/Identity-Digital/known-foundry/issues/45),
-[#46](https://github.com/Identity-Digital/known-foundry/issues/46), and
-[#47](https://github.com/Identity-Digital/known-foundry/issues/47).
-No server-team approval or implementation acceptance is recorded here. Record the
-agreed outcome and links to authoritative E2 SCEN/SPEC/TEST artifacts before
-promoting this proposal into requirements or enabling replacement.
+**Status:** Assumed by the SDK design; not yet agreed by E2. Record the agreed
+outcome and SCEN links before enabling replacement.
 
-The candidate rules are scoped to an authenticated organization and exact name:
+Rules are per authenticated organization and exact name.
 
-| Situation | Proposed behavior |
+| Situation | Assumed server behavior |
 |---|---|
-| Provisioning fails or remains unfinished | Keep the name associated with the original attempt/key and any allocated identity/domain. A same-key retry resumes or reports that attempt; it does not allocate again. A different key cannot silently take it over. |
-| Identity is REVOKED or RETIRED; caller uses its associated key | Return that terminal identity/outcome, not a replacement. |
-| Identity is REVOKED or RETIRED; caller supplies a new, previously unused key for this organization/name | Allow create to establish a fresh identity/domain and repeat provisioning. An additional replacement API might not be needed. |
-| Existing nonterminal identity; caller supplies a different key with no earlier identity binding | Return KEY_MISMATCH without changing the binding. |
-| Delayed request uses a key from an earlier identity | Resolve to that earlier identity/outcome, even after later replacements have also terminated. Never treat the old key as fresh replacement intent. |
-| Temporary request records expire or an identity is hidden/marked deleted | Neither event alone permits replacement or resurrection. |
+| Provisioning fails or is unfinished | The name stays bound to the original attempt and key. A same-key retry resumes it. A different key gets `KEY_MISMATCH`. |
+| Nonterminal identity; caller supplies the identity's current key after rotation | Return the existing identity, not `KEY_MISMATCH`. PR #3304 compares against the create-time key, so this needs agreement. |
+| Nonterminal identity; caller supplies an unrelated key | `KEY_MISMATCH`; no change. |
+| REVOKED or RETIRED; caller uses a key from that identity | Return the terminal identity. |
+| REVOKED or RETIRED; caller supplies a new, unused key | Create a fresh identity and domain. No separate replacement API. |
+| Delayed request with a key from an earlier identity | Resolve to that earlier identity, even after later replacements. |
+| Replay cache expires or a row is soft-deleted | Neither permits replacement or revival. |
 
-For example: A creates an identity and retires; B creates its replacement and later
-retires. A delayed request using A must still resolve to A's terminal identity,
-not start a third identity. The server must also serialize competing replacement
-requests so only one new identity wins.
+Example: A is created and retired; B replaces it and is retired. A delayed request
+with A's key resolves to A. Competing replacement requests produce one new identity.
 
-Keeping a failed attempt bound does not decide indefinite name retention. E2 must
-agree which failures can resume, how an attempt can be abandoned, and when name or
-resource release is safe, including attempts with no domain allocated. It must also
-agree whether a new key is sufficient replacement intent or an explicit action is
-required; historical lookup/retention, including keys superseded by rotation; and
-final responses/errors and concurrency behavior. An unavailable local key is not
-itself evidence of terminal state or permission to replace.
-
-A replay cache is a temporary saved request/response; its expiry must not erase the
-durable identity binding. Soft deletion hides or marks a record without physically
-removing it. Neither mechanism should independently decide product lifecycle rules.
-These safety goals do not require retaining every cached response forever.
-
-Until agreement and acceptance proof, the existing SDK replacement gate remains
-closed. This proposal does not change ordinary registration or protocol rules.
+Open for E2: which failures can resume, how an attempt is abandoned, when a name or
+domain is released, whether a new key is enough replacement intent, and how long
+historical keys (including rotated keys) are retained for lookup.
 
 ## Acceptance Checks
 
-Use real PostgreSQL and shipped server assembly, plus Temporal/external-provider
-fixtures where needed. In-memory handlers or green PR CI alone do not establish
-integrated support. Record the server/SDK revisions and provider limits.
+Use real PostgreSQL and the shipped server, with Temporal and provider fixtures where
+needed. Record server and SDK revisions.
 
-- [ ] SR-1: API-key create enforces tenant isolation, verified-domain gates and
-  quota/rate limits independently of authentication; no foreign disclosure or writes.
-- [ ] SR-2/SR-3: concurrent matching creates yield one durable identity, domain,
-  key binding, and logical handoff; wrong-key/input conflicts mutate none of them.
-- [ ] SR-3: interruption before/after commit and handoff, absent or failed workflow,
-  and return-existing paths recover without another client call; completed work
-  does not relaunch. Uncertain external outcomes are reconciled before repetition.
-- [ ] SR-4: expire/sweep replay-cache rows, restart processes, lose responses, and
-  delete/terminate identities without unintended reallocation or resurrection.
-- [ ] SR-5: real caller-key SDK flow creates, replays, proves/reissues, restarts,
-  and recovers immutable facts; request_id is not confused with internal operation ID.
-- [ ] SR-6: interruptions at preparation/submission/acceptance boundaries reuse
-  exact bytes. Competing valid countersignatures converge on one accepted entry;
-  receipts never claim acceptance of the losing bytes. Invalid then valid submission
-  under the same key succeeds; reclaimability cannot include uncertain commitment.
-- [ ] SR-7: missing signatures, ERROR, CANCELLED/REJECTED, unknown states, provider
-  deferrals, wrong/missing/revoked keys, and unsupported algorithms have accurate
-  structured outcomes and recovery guidance. No automatic sandbox fallback.
-- [ ] SR-7: public ACTIVE/log/key evidence is checked separately from registry READY;
-  SDK credential-free public verification succeeds for the assigned publication.
-- [ ] SR-8 (separate replacement gate): intentional same-name replacement and late
-  retries preserve terminal history/domain ownership and allocate exactly one new
-  domain/log stream under the agreed generation contract.
-- [ ] E5 hosted-flow: Go, Python, TypeScript and CLI run the same create/active,
-  cancellation, restart, propagation, and concurrency scenarios through the shared
-  daily workflow. SDK unit tests do not replace server persistence proof.
+- [ ] SR-1: tenant isolation, gates, and quotas hold independently of authentication.
+- [ ] SR-2/SR-3: concurrent matching creates yield one identity, domain, key, and
+  handoff; conflicts change nothing.
+- [ ] SR-3: interruption before or after commit recovers without a client call;
+  completed work does not relaunch.
+- [ ] SR-4: replay-cache expiry, restarts, lost responses, and deletion cause no
+  reallocation or revival.
+- [ ] SR-5: the SDK flow creates, replays, proves, and restarts; a replay without
+  local state returns ID, domain, and status.
+- [ ] SR-6: interrupted submissions reuse exact bytes; competing signatures converge;
+  invalid then valid submission succeeds.
+- [ ] SR-7: all error and customer-action cases return structured outcomes; public
+  `ACTIVE` is checked separately from `READY`.
+- [ ] SR-8 (separate gate): replacement and late retries keep terminal history and
+  allocate exactly one new domain.
+- [ ] E5: Go, Python, TypeScript, and CLI pass the shared hosted scenarios.
 
-Initial create enablement requires SR-1 through SR-7 acceptance for the supported
-deployment and safe refusal of unresolved terminal replacement. SR-8 enables
-replacement later. E7 rotation/hosting changes are independently gated.
+Initial create needs SR-1 through SR-7 and refusal of terminal replacement. SR-8
+enables replacement later.

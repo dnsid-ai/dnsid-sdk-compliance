@@ -91,11 +91,10 @@ managed registration does not load an entity private key.
   algorithms before registration. Settings include non-secret region,
   project/location, vault URL, or credential references; credentials come from
   ambient chains or referenced sources, never raw secrets/private JWKs in the file.
-- Managed registration consumes the configured provider's signing key. It does not
-  add key-generation configuration, initialize an empty provider, or coordinate
-  keys across replicas. Deployment/provider initialization and wrong-key replica
-  recovery stay outside this facade; existing provider lifecycle APIs are unchanged.
-  A missing key or binding conflict is a typed error, not permission to generate.
+- Managed registration uses the provider's signing key. If the provider has none
+  and supports `EnsureSigningKey()`, `Create` calls it; the provider (E6) decides
+  how it provisions keys and converges replicas. Otherwise `Create` returns
+  `KEY_MISSING`. A binding conflict is a typed error, never a reason to generate.
 - Injected `keyProvider` wins; displaced source settings/packages are not resolved.
   Otherwise an unavailable provider returns `ArgumentError` naming the provider
   and install/build remedy before discovery or mutations, without file fallback.
@@ -224,8 +223,7 @@ For managed setup, a file can add:
   "registry": { "registryUrl": "https://registry.example" },
   "registration": {
     "organizationId": "11111111-1111-4111-8111-111111111111",
-    "governanceId": "acme.example",
-    "entityKeyUrl": "https://dnsid.acme.example/.well-known/dnsid-ek.json"
+    "governanceId": "acme.example"
   },
   "keySource": {
     "provider": "aws-kms",
@@ -235,11 +233,9 @@ For managed setup, a file can add:
 }
 ```
 
-This is illustrative, not a service preset. The key must support the profile's
-algorithm and the current caller-key Live adapter's Ed25519 requirement. For
-Foundry Create, GI is an independently checked expectation, not a root selector;
-the named Live server path owns allocation. Ordinary registration selectors remain
-in 05. Credentials, state-store locations, and runtime dependencies stay separate.
+This is illustrative, not a service preset. The Live adapter requires an Ed25519
+key. `registration` members are optional expectations, not selectors; the server
+allocates the domain. Credentials and state-store locations are supplied separately.
 
 The file loader MUST reject unknown members and mistyped values, and SHOULD
 reject duplicate members where the platform parser makes that available.
@@ -350,17 +346,12 @@ when `registryUrl` is absent.
 
 ## Managed Setup Composition
 
-[Foundry Create/Active](13-managed-registration.md) consumes merged `LoadedConfig`
-plus separate credentials and a default or injected durable store. Its configured
-facade supplies the one-argument Create entry point; it uses the same composition
-for explicit injection and CLI calls. Bindings MUST support file loading with the
-same setup/trust rules as environment/code sources. Build the registry client from
-`loaded.registry`, explicit credentials, and effective transport settings; do not
-re-read the environment. Resolve account/trust bindings and obtain the supplied
-signing key before creation. The current adapter uses named caller-key Live/pool
-creation, not ordinary registration or GI-to-root translation. Account discovery
-and registration are workflow effects, never loader or `Construct` side effects.
-Key initialization/coordination and credential renewal remain outside this facade.
+[Foundry Create/Active](13-managed-registration.md) uses the merged `LoadedConfig`,
+separate credentials, and a default or injected store. The one-argument facade,
+explicit injection, and the CLI use the same composition. Build the registry client
+from `loaded.registry`, credentials, and transport settings; do not re-read the
+environment. Account discovery, key provisioning, and registration happen in
+`Create`, never in the loader or `Construct`.
 
 ## Convenience Constructors
 
@@ -428,12 +419,13 @@ verify` reads; there are no SDK-local aliases.
 | Caller injects a provider while file selects an unavailable provider | Injected provider wins; displaced provider package is not loaded. |
 | CLI source selects local files; a later source selects cloud | Replace all operational source fields; retain any independent `entityKeyPath`. |
 | Invalid/conflicting key selection or unsupported algorithm | Reject invalid settings before mutation. |
-| Managed setup opens an empty provider or a key conflicting with saved state | Typed missing-key/binding error; no generation, coordination or replacement. |
+| Managed setup opens an empty provider | `EnsureSigningKey()` if supported, otherwise `KEY_MISSING`. |
+| Managed setup opens a key conflicting with saved state | Typed binding error; no generation or replacement. |
 | Construction uses local key files | Emit the production-safety warning. |
 | Existing identity changes provider/key through configuration alone | Binding error; explicit authorized rotation required, never implicit import or key replacement. |
 | File/code supplies `registration` | Preserve only supplied setup fields; identity-manager construction does not infer identity or acceptance from them. |
 | Managed setup uses local key files | Emit the production-safety warning; private key files remain separate from recovery data. |
-| Foundry setup supplies expected GI but no ordinary selectors | Use named Live/pool creation; verify GI independently without sandbox or root fallback. |
+| Foundry setup supplies expected GI but no ordinary selectors | Use named Live creation; compare GI with onboarding; no sandbox or root fallback. |
 | Same merged config reaches setup from file or environment plus code overlay | Same registry endpoint, transport, explicit trust, and setup behavior; no environment re-read overrides a file. |
 | Invalid `dnsid` config together with a `policyUrl` | Construction fails with `ArgumentError` without fetching the policy. |
 | Any constructor invoked with environment variables or files present | Constructor reads neither. |

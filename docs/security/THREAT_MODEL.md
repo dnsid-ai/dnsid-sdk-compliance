@@ -81,20 +81,17 @@ SDK exposes but cannot make for them.
 
 ### Managed registration design (not shipped coverage)
 
-The [Foundry design](../sdk-design/13-managed-registration.md) adds explicit
-create/active calls and durable recovery. These are required mitigations, not
-claims that the released SDKs or current server implement them. The registry is
-trusted for allocation and entity-signed publication; public completion still
-requires independently verified identity, current provider-key binding and log
-trust. It is not merely an untrusted evidence reader on this setup path.
+Required mitigations for the [Foundry design](../sdk-design/13-managed-registration.md).
+They are not claims about released SDKs or the current server. The registry is
+trusted to allocate domains and sign publication with the entity key.
 
 | Threat | Required mitigation | Residual / owner |
 |---|---|---|
-| One compromised host uses a setup credential against other agents | Keep credentials outside deployment/recovery data; reject redirects; use credential-free public clients | Current organization keys have broad privileges. Credential scopes, expiry and renewal belong to E4/security; this SDK selects no policy, and expiry alone is not scoping. |
-| Registry substitutes an operational key or wrong-tenant identity | Compare authenticated organization and saved identity before mutations; validate prepared signatures; verify signed current ku matches the provider or a log-authorized successor before enabling signing | A compromised registry/entity signer can still misrepresent identities to other parties; pinning that signer does not remove this trust. |
-| Concurrent startup, lost responses, or cache expiry creates another identity | Persist supplied public bindings, use exact-byte proof/issuance recovery, require atomic server name/operation ownership and history beyond cache expiry, and report conflicting keys | Key initialization/distribution and rejected-replica recovery belong to deployment/provider orchestration. The SDK does not promise replica convergence; E2 persistence proof remains required. |
-| Invalid countersignature poisons a shared submission key | Server validates required signatures before durable admission; clients verify accepted history rather than accepting a losing-byte receipt | Server acceptance gate, not an SDK-only fix. |
-| Crafted exact name or modified recovery file changes bindings | Digest/encode paths, escape diagnostics, owner-only atomic files, validate phase/schema/bindings, no secrets/private keys in recovery documents | Same-user/root compromise remains outside the file boundary; unverified state never authorizes replacement or signing. |
+| A compromised host uses the setup credential against other agents | Keep credentials out of configuration and recovery files; reject redirects; public checks use a client without credentials | Organization API keys have broad privileges. Scopes and expiry belong to E4. |
+| Registry substitutes an operational key or another tenant's identity | Compare organization and saved identity before mutation; validate prepared signatures; check that signed `ku` matches the provider key before enabling signing | A compromised registry can still misrepresent identities. |
+| Concurrent startup, lost responses, or cache expiry creates a second identity | Persist the public key before create; recover with exact bytes; server keeps name ownership beyond cache expiry | Same-key replicas converge. Replicas with different keys get `KEY_MISMATCH`; E6 owns key convergence. |
+| An invalid countersignature consumes the shared submission key | Server validates signatures before admission; clients verify accepted history | Server acceptance gate. |
+| A crafted name or modified recovery file changes bindings | Digest paths, escape diagnostics, owner-only atomic files, validate schema and bindings; no secrets in recovery files | Same-user or root compromise is out of scope. |
 
 ### D. Why a fork cannot inherit trust
 

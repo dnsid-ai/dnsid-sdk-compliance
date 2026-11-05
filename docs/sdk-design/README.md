@@ -42,12 +42,10 @@ The documents are organized by SDK responsibility:
 | [13-managed-registration.md](13-managed-registration.md) | Foundry Create/Active handle, named Live/pool registration, durable proof/issuance recovery, CLI contract, and public readiness. |
 | [conformance/](conformance/) | Language-neutral RFC 9421 signature-base, lifecycle reducer, snapshot, and binding-selection vectors shared by SDK implementations. |
 
-Hosted-registry work is tracked in
-[Managed Registration Server Requirements](../managed-registration-server-requirements.md).
-The Foundry design follows [E5](https://github.com/Identity-Digital/known-foundry/issues/5)
-and the in-flight E2 server contract; it is not a claim that automatic named
-registration is available on current deployed servers. Product decisions remain
-listed in [08](08-open-questions.md#foundry-server-contract-decisions).
+Server assumptions for 13 are in
+[Managed Registration Server Requirements](../managed-registration-server-requirements.md);
+open decisions are in [08](08-open-questions.md#foundry-managed-registration).
+Named registration is not yet available on deployed servers.
 
 ## Configuration
 
