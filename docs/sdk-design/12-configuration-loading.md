@@ -57,16 +57,10 @@ END
 TYPE KeySource
   provider?: file | aws-kms | google-kms | azure-key-vault
   keyRef?: string                   // stable existing operational key reference
-  generation?: KeyGenerationConfig // new key in the selected provider
   settings?: object                // provider-specific non-secret settings
   cliDirectory?: string             // DNSid CLI identity directory (01: Initialization from DNSid CLI Configuration)
   entityKeyPath?: string            // accountable-entity key file; CLI loader resolves a relative entity_key_path against the directory of the config.json that carries it
   keyStorePath?: string             // binding-defined local key store file
-END
-
-TYPE KeyGenerationConfig
-  locator: string                   // stable discovery locator, not a fresh per-call ID
-  algorithm: string                 // must be supported by provider and DNSid profile
 END
 ```
 
@@ -82,29 +76,26 @@ configuration.
 
 `cliDirectory` takes precedence over `keyStorePath` when both are supplied, as
 under `dnsid local run`. These file inputs cannot combine with cloud selection or
-`keyRef`/`generation`. `entityKeyPath` independently supplies an entity provider;
+`keyRef`. `entityKeyPath` independently supplies an entity provider;
 managed registration does not load an entity private key.
 
 ### Operational Key Source Selection
 
-- Missing `provider` selects `file` in the factory. Managed setup defaults to
-  SDK-managed key files separate from recovery data. Both default and explicit
+- Missing `provider` selects `file` in the factory. Both default and explicit
   file selection MUST warn that local keys are unsuitable for production and
-  point to cloud configuration.
-- `keyRef` opens an existing key; `generation` creates/recovers one at a stable
-  locator. They are mutually exclusive; cloud providers require one. References
-  must resolve the same signing key across restarts; unexplained alias/version
-  changes fail binding checks. `Construct` opens existing keys only, never generates.
+  point to cloud configuration. Key files remain separate from recovery data.
+- `keyRef` opens an existing key; cloud factories require it. References must
+  resolve the same signing key across restarts; unexplained alias/version changes
+  fail binding checks. `Construct` opens existing keys only, never generates.
 - Factories validate provider settings, authentication configuration, and supported
-  algorithms before generation/registration. Settings include non-secret region,
+  algorithms before registration. Settings include non-secret region,
   project/location, vault URL, or credential references; credentials come from
   ambient chains or referenced sources, never raw secrets/private JWKs in the file.
-- Generation discovery must converge across replicas and be scoped to the named
-  operation. Persist its locator before generation under
-  [13](13-managed-registration.md#storage-and-recovery). Replacement/rotation uses
-  a fresh locator. If concurrent create-or-recover is unsupported, require an
-  existing key reference; discovery failure never silently generates another key.
-  Bindings document how shared configuration scopes locators.
+- Managed registration consumes the configured provider's signing key. It does not
+  add key-generation configuration, initialize an empty provider, or coordinate
+  keys across replicas. Deployment/provider initialization and wrong-key replica
+  recovery stay outside this facade; existing provider lifecycle APIs are unchanged.
+  A missing key or binding conflict is a typed error, not permission to generate.
 - Injected `keyProvider` wins; displaced source settings/packages are not resolved.
   Otherwise an unavailable provider returns `ArgumentError` naming the provider
   and install/build remedy before discovery or mutations, without file fallback.
@@ -272,9 +263,8 @@ FUNCTION Merge(base: LoadedConfig, overlay: LoadedConfig) -> LoadedConfig
   `overlay` replaces the base value.
 - Lists replace; they are never concatenated or deduplicated across sources.
 - `logTrust` is replaced as a whole section when `overlay` sets any variant.
-- Operational `keySource` fields (`provider`, `keyRef`, `generation`, `settings`,
-  `cliDirectory`, `keyStorePath`) are replaced as a group when the overlay supplies
-  any of them.
+- Operational `keySource` fields (`provider`, `keyRef`, `settings`, `cliDirectory`,
+  `keyStorePath`) are replaced as a group when the overlay supplies any of them.
   `entityKeyPath` merges independently.
 - A section absent from both stays absent.
 
@@ -366,10 +356,11 @@ facade supplies the one-argument Create entry point; it uses the same compositio
 for explicit injection and CLI calls. Bindings MUST support file loading with the
 same setup/trust rules as environment/code sources. Build the registry client from
 `loaded.registry`, explicit credentials, and effective transport settings; do not
-re-read the environment. Resolve account/trust bindings before generation. The
-current adapter uses named caller-key Live/pool creation, not ordinary registration
-or GI-to-root translation. Discovery, generation and registration are workflow
-effects, never loader or `Construct` side effects.
+re-read the environment. Resolve account/trust bindings and obtain the supplied
+signing key before creation. The current adapter uses named caller-key Live/pool
+creation, not ordinary registration or GI-to-root translation. Account discovery
+and registration are workflow effects, never loader or `Construct` side effects.
+Key initialization/coordination and credential renewal remain outside this facade.
 
 ## Convenience Constructors
 
@@ -436,9 +427,8 @@ verify` reads; there are no SDK-local aliases.
 | Selected provider package is absent or not linked | ArgumentError with install/build remedy before account discovery or mutations; no file fallback. |
 | Caller injects a provider while file selects an unavailable provider | Injected provider wins; displaced provider package is not loaded. |
 | CLI source selects local files; a later source selects cloud | Replace all operational source fields; retain any independent `entityKeyPath`. |
-| Base selects `generation`; overlay selects an existing `keyRef` | Replace the operational group; no `generation` remains. |
-| Base selects `keyRef`; overlay supplies only `generation` | Replace the operational group; no `keyRef` remains, then validate the effective provider selection. |
-| Invalid/conflicting key selection or unsupported algorithm; concurrent generation | Reject invalid settings before mutation; replicas recover one key or require an existing reference. |
+| Invalid/conflicting key selection or unsupported algorithm | Reject invalid settings before mutation. |
+| Managed setup opens an empty provider or a key conflicting with saved state | Typed missing-key/binding error; no generation, coordination or replacement. |
 | Construction uses local key files | Emit the production-safety warning. |
 | Existing identity changes provider/key through configuration alone | Binding error; explicit authorized rotation required, never implicit import or key replacement. |
 | File/code supplies `registration` | Preserve only supplied setup fields; identity-manager construction does not infer identity or acceptance from them. |

@@ -41,8 +41,9 @@ sequenceDiagram
 
     App->>SDK: create(name)
     SDK->>Registry: Read and validate organization/GI bindings
-    SDK->>State: Lock/load exact registry/org/name and persist key intent
-    SDK->>Keys: Open or atomically create/recover the same key
+    SDK->>State: Lock/load exact registry/org/name
+    SDK->>Keys: Obtain configured signing key
+    SDK->>State: Persist supplied public binding and creation intent
     SDK->>Registry: Named Live create/replay with caller key
     Registry-->>SDK: Immutable identity/domain and pending proof facts
     SDK->>State: Persist facts and release lock
@@ -93,9 +94,17 @@ and its bounded replay contract separate.
 | SR-5 | Preserve caller-key Live 202/proof semantics, request_id equal to the caller's Idempotency-Key, and immutable identity/domain facts needed for safe continuation. Reissue only reclaimable expired proof on the same key/operation. | PR #3304. A replay without challenge may omit its derived domain: the SDK can use saved state, but recovery from lost local state needs an agreed authenticated response/lookup. |
 | SR-6 | Keep customer proof and ISSUANCE countersigning distinct. Validate identity/key/log/signatures before durable admission of submitted bytes; invalid signatures must not poison the issuance key. Expose accepted-entry and safe preparation-reclaim facts. | #46 plus existing prepared-event endpoints. Replicas with different valid signature bytes must recover one verified accepted ISSUANCE without a second append. |
 | SR-7 | Expose accurate registry progress, customer-action outcomes, structured errors, and authoritative publication fields. Readiness requires issuance, log inclusion, and required publication, not workflow completion alone. | #47. Wrong supplied key uses the in-flight 409 KEY_MISMATCH meaning; missing key, revoked credentials/keys, and other conflicts remain distinct. Preserve existing ordinary and Live error codes. |
-| SR-8 | Intentional replacement after revoke/retire gets a fresh domain/log stream, while old identity/domain/history remain terminal and assigned in V1. Delayed old creates cannot trigger it. | Generation/replacement intent is not finalized. This design adds no `replaces` field or endpoint. CANCELLED/REJECTED/ERROR and soft deletion are not blanket replacement authorization. Gate replacement separately. |
+| SR-8 | Intentional replacement after revoke/retire gets a fresh domain/log stream, while old identity/domain/history remain terminal and assigned in V1. Delayed old creates cannot trigger it. | Generation/replacement intent is not finalized; see the [proposal below](#proposal-name-reuse-and-failed-provisioning). This design adds no `replaces` field or endpoint. CANCELLED/REJECTED/ERROR and soft deletion are not blanket replacement authorization. Gate replacement separately. |
 
 ## Decisions Still Owned Outside the SDK Design
+
+Record the owner, minimum contract the SDK needs, and blocking/deferred status for
+external questions; this document does not select server or provider policy. The
+SDK owns typed errors, retained progress and same-operation registration/issuance
+retry under [13](sdk-design/13-managed-registration.md#retry-deadlines-and-errors).
+It does not own key coordination, rejected-replica orchestration, or credential
+issuance/renewal. All bindings and CLI share the
+[implementation acceptance checklist](sdk-design/13-managed-registration.md#implementation-acceptance-checklist).
 
 - **E2 #45/#47:** Generation/replacement intent and historical lookup, including
   replay-cache expiry, soft deletion, and delayed old requests. The final error
@@ -112,13 +121,66 @@ and its bounded replay contract separate.
   uses the Live route; do not invent a new tier without a server decision.
 - **E2 / ABU-1:** Numeric quota/rate values, quota release, and failed-provisioning
   cleanup. Preserve pending ownership until an agreed outcome authorizes release.
-- **E4 / security:** Setup credential scopes, expiry, and final revoked-key wire
-  codes/remedies. Current expiring organization keys still carry broad privileges.
-- **E6:** Atomic first-key discovery across replicas, algorithm/provider support,
-  and same-cloud multi-region setup. A registration hash cannot solve a provider race.
+- **E4 / security:** Credential issuance, scopes, expiry, renewal and revocation
+  policy. The SDK needs authorization for required create/read/proof/issuance calls
+  and structured failure responses; it does not choose a credential-per-name or
+  credential-per-deployment model. Current expiring organization keys still carry
+  broad privileges. Required authorization/errors block integrated enablement;
+  a particular scoping or renewal model is not selected by this SDK design.
+- **E6:** Key initialization/distribution, algorithm/provider support, multi-region
+  setup, the V1 one-identity-per-cloud model, and recovery of rejected replicas. The SDK needs a usable key through its
+  provider interface and reports mismatches without coordinating or adopting keys.
+  Empty-provider initialization may be supplied externally; the SDK does not promise
+  every replica succeeds. Supported signing capabilities block a provider integration;
+  automatic shared-key convergence is not an SDK release gate. This scopes the SDK
+  facade only; E6 owners retain their product acceptance criteria, including
+  empty-provider startup and any external coordination needed for launch.
 - **E7/E8:** Key/status hosting locations, rotation cutover/retention, terminal
   serving, and revocation propagation. SDKs consume returned/signed URLs; no new
   key-specific path convention is required for E5 create enablement.
+
+## Proposal: Name Reuse and Failed Provisioning
+
+**Status:** Proposed for discussion, not an agreed server contract. This SDK design
+discussion favors the behavior below, subject to E2/server-team agreement in
+[#45](https://github.com/Identity-Digital/known-foundry/issues/45),
+[#46](https://github.com/Identity-Digital/known-foundry/issues/46), and
+[#47](https://github.com/Identity-Digital/known-foundry/issues/47).
+No server-team approval or implementation acceptance is recorded here. Record the
+agreed outcome and links to authoritative E2 SCEN/SPEC/TEST artifacts before
+promoting this proposal into requirements or enabling replacement.
+
+The candidate rules are scoped to an authenticated organization and exact name:
+
+| Situation | Proposed behavior |
+|---|---|
+| Provisioning fails or remains unfinished | Keep the name associated with the original attempt/key and any allocated identity/domain. A same-key retry resumes or reports that attempt; it does not allocate again. A different key cannot silently take it over. |
+| Identity is REVOKED or RETIRED; caller uses its associated key | Return that terminal identity/outcome, not a replacement. |
+| Identity is REVOKED or RETIRED; caller supplies a new, previously unused key for this organization/name | Allow create to establish a fresh identity/domain and repeat provisioning. An additional replacement API might not be needed. |
+| Existing nonterminal identity; caller supplies a different key with no earlier identity binding | Return KEY_MISMATCH without changing the binding. |
+| Delayed request uses a key from an earlier identity | Resolve to that earlier identity/outcome, even after later replacements have also terminated. Never treat the old key as fresh replacement intent. |
+| Temporary request records expire or an identity is hidden/marked deleted | Neither event alone permits replacement or resurrection. |
+
+For example: A creates an identity and retires; B creates its replacement and later
+retires. A delayed request using A must still resolve to A's terminal identity,
+not start a third identity. The server must also serialize competing replacement
+requests so only one new identity wins.
+
+Keeping a failed attempt bound does not decide indefinite name retention. E2 must
+agree which failures can resume, how an attempt can be abandoned, and when name or
+resource release is safe, including attempts with no domain allocated. It must also
+agree whether a new key is sufficient replacement intent or an explicit action is
+required; historical lookup/retention, including keys superseded by rotation; and
+final responses/errors and concurrency behavior. An unavailable local key is not
+itself evidence of terminal state or permission to replace.
+
+A replay cache is a temporary saved request/response; its expiry must not erase the
+durable identity binding. Soft deletion hides or marks a record without physically
+removing it. Neither mechanism should independently decide product lifecycle rules.
+These safety goals do not require retaining every cached response forever.
+
+Until agreement and acceptance proof, the existing SDK replacement gate remains
+closed. This proposal does not change ordinary registration or protocol rules.
 
 ## Acceptance Checks
 

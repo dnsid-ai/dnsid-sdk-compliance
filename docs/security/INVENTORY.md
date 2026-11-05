@@ -75,7 +75,7 @@ calls. These requirements do not claim current implementation or deployment.
   public JWK, replay key, and required proof/countersignature. The handle name is
   registry metadata, not DNS or public-log content. Credentials never accompany
   the separate public DNS/JWKS/status/log verification requests.
-- Owner-only durable recovery stores retain registry/org/name, provider locators,
+- Owner-only durable recovery stores retain registry/org/name, non-secret provider references,
   initial public key, identity/domain, proof/prepared submission bytes, outcomes,
   publication fields, and accepted-evidence retrieval facts. They contain no
   credential or private key. Private material remains in the selected provider.
@@ -83,9 +83,10 @@ calls. These requirements do not claim current implementation or deployment.
   handle state is only an observation, not permanent ACTIVE evidence. Recovery
   retention/backups and ephemeral-storage limits must be documented by each binding;
   the process-lifetime-only retention statement above does not cover this new store.
-- Setup can generate a key inside the configured provider after persisting intent.
-  Cloud credentials follow that provider's ambient chain. Loading configuration
-  alone does not generate keys or create identities.
+- Setup consumes the configured provider's signing key; provider initialization,
+  key distribution and replica recovery are outside this facade. Existing provider
+  lifecycle APIs are unchanged. Cloud credentials follow the provider's ambient
+  chain. Loading configuration alone does not generate keys or create identities.
 
 ## In-memory caches
 

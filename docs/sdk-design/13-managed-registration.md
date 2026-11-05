@@ -8,9 +8,10 @@ This composes [core](01-core-identity-manager.md),
 [configuration](12-configuration-loading.md); it does not change protocol wire
 rules, ordinary registration defaults, or counterparty acceptance.
 
-The SDK owns provider selection, recovery storage, registry/proof/issuance adapters,
-and bounded retries. Consumers supply configuration and credentials, not recovery
-callbacks. Bindings provide idiomatic equivalent APIs and a default file-backed
+The SDK owns provider wiring, registration recovery storage, registry/proof/issuance
+adapters, and bounded retries. Consumers supply configuration, credentials, and a
+usable signing key through the provider interface, not registration recovery
+callbacks. Bindings provide equivalent APIs and a default file-backed recovery
 store. Low-level registry and signing APIs remain available.
 
 ## Scope and Ownership
@@ -25,8 +26,14 @@ inventory domain, purchases one, or falls back to sandbox.
 Authentication, authorization, verified-domain gates, quotas, name ownership,
 allocation, and durable server workflow recovery remain product responsibilities.
 The client retains operational-key custody. Server-side key download/custody is
-not the implementation of this SDK surface. Provider selection and atomic first-key
-discovery belong to [E6](https://github.com/Identity-Digital/known-foundry/issues/6).
+not the implementation of this SDK surface. Key initialization, distribution,
+coordination across replicas, and wrong-key replica recovery are outside this
+facade; coordination belongs to [E6](https://github.com/Identity-Digital/known-foundry/issues/6).
+The SDK does not require a shared locator or guarantee that every replica starts
+with the same key. Deployment/provider initialization may start against an empty
+provider; registration requires a usable signing key. The SDK reports a missing
+key or mismatch without generating, distributing, or adopting a replacement.
+Existing provider lifecycle APIs remain available; this does not change core rotation.
 Rotation belongs to [E7](https://github.com/Identity-Digital/known-foundry/issues/7),
 and terminal lifecycle serving to [E8](https://github.com/Identity-Digital/known-foundry/issues/8).
 
@@ -51,10 +58,10 @@ TYPE ManagedIdentity
 END
 ```
 
-`Create` validates configuration, resolves the organization, creates or recovers
-one provider key and one server identity, and durably records its immutable ID and
-domain before returning. It does not wait for protocol `ACTIVE`. A successful
-HTTP 202 may therefore return a handle that still needs proof, issuance, or
+`Create` validates configuration, resolves the organization, obtains the configured
+provider's signing key, creates or recovers one server identity, and durably records
+its immutable ID and domain before returning. It does not wait for protocol
+`ACTIVE`. A successful HTTP 202 may return a handle that still needs proof, issuance, or
 publication. `domain` comes from a validated create/proof transcript or an
 authenticated read, never from a name, key, registry hostname, or guessed suffix.
 If an accepted operation has no recoverable domain yet, return a resumable error
@@ -118,7 +125,7 @@ END
 
 `LoadedConfig.registration` is setup configuration, not core identity or counterparty
 acceptance. Resolve organization ID and GI from authenticated onboarding and compare
-all configured/saved bindings before key generation or a create/proof/issuance mutation.
+all configured/saved bindings before a create/proof/issuance mutation.
 Organization ID is the byte-exact `org_id` string, not the GI or a credential hash.
 Resolve it before selecting named state; never search across organizations by name
 alone. Require verified GI and entity-key delegation. A credential for a different
@@ -180,11 +187,12 @@ subsequent mutations and use one finite deadline/cancellation budget per invocat
    availability/algorithm under 12 before discovery or mutations. Obtain authenticated
    account bindings and lock/load/validate named state. Deployment support is the
    release gate above, not an invented onboarding capability read.
-2. Persist account/trust bindings, creation intent, and a stable provider locator
-   before generation. Open the existing key or atomically create/recover one there.
-   Persist its immutable provider reference and initial public JWK before creation.
-   The current caller-key Live adapter requires Ed25519/EdDSA; reject unsupported
-   provider algorithms without silently substituting a local key.
+2. Obtain the selected provider's signing key. Persist account/trust bindings,
+   creation intent, non-secret provider configuration/reference when available,
+   and the initial public JWK before creation. Missing keys return a typed error;
+   this facade does not initialize providers or coordinate replicas. The current
+   caller-key Live adapter requires Ed25519/EdDSA; reject unsupported algorithms
+   without silently substituting a local key.
 3. If creation is unresolved, derive `registrationKey`, reconstruct the identical
    `LiveAgentRegistrationInput`, and call `RegisterLiveAgent`. Retain all known
    response facts even on error. Validate `requestId` against the sent key and any
@@ -242,11 +250,14 @@ Retain the returned request ID for proof/reissue. Keep the initial public bindin
 through retries, credential replacement, and rotation; never rederive an unfinished
 operation from a rotated key. Freeze all creation input while its outcome is unknown.
 
-Matching replicas need the same provider key as well as the same name/input. The
-hash cannot reconcile independently generated keys. Atomic first-key discovery must
-converge at a shared locator; otherwise require an existing shared key reference.
-Local per-host stores alone do not provide multi-host convergence. A failed or
-ambiguous lookup MUST NOT trigger generation of another key.
+Matching requests need the same supplied key as well as the same name/input; the
+hash cannot reconcile independently generated keys. The server must atomically
+retain one binding and reject conflicting keys. A rejected replica receives the
+typed mismatch and retains any known operation facts. Application/deployment/provider
+logic owns its recovery; the SDK does not select a winning key, copy private material,
+regenerate, or automatically adopt another identity's binding. Replicas need not all
+succeed for this safety requirement to hold. The SDK still owns registration and
+exact-byte proof/issuance recovery using the supplied key.
 
 Durable server identity/operation bindings must outlive the replay cache. Expiry,
 cleanup, timeout, deletion, or retry MUST NOT turn a delayed request into a new
@@ -346,8 +357,11 @@ the old domain stays assigned and serves terminal history in V1. E2 still must a
 how intentional replacement differs from a delayed create. This design does not add
 a `replaces` wire field, operation nonce, or replacement endpoint. Until that contract
 and its proof exist, a terminal resume returns a typed error, not automatic replacement.
-A future explicit replacement archives the old operation and uses a fresh provider
-locator/key; no timeout, missing key, or missing state authorizes it.
+If enabled, replacement archives the old operation and uses a separately supplied
+fresh key; no timeout, missing key, or missing state authorizes it. The
+[new-key replacement proposal](../managed-registration-server-requirements.md#proposal-name-reuse-and-failed-provisioning)
+asks whether create with a new key is sufficient intent, without a separate
+replacement API. It is pending server-team agreement, not an SDK requirement.
 
 ## Storage and Recovery
 
@@ -367,9 +381,10 @@ committing after lock release. Reconcile indeterminate writes before more mutati
 
 Files require owner-only access, atomic durable updates (including directory
 durability where required), and documented interrupted-process lock recovery.
-Validate missing, corrupt, conflicting, or partial artifacts before mutation. Key
-intent/locator precedes generation; recover that key or report ambiguous initialization,
-never silently generate another. Empty new state differs from incomplete state.
+Validate missing, corrupt, conflicting, or partial artifacts before mutation. Save
+the supplied public binding and reconstructible request before sending creation.
+Reopen that binding or report a typed key/binding error; never silently generate
+another. Empty new state differs from incomplete state.
 
 ### Portable Recovery Document
 
@@ -384,10 +399,10 @@ integers, byte strings unpadded base64url, and timestamps RFC 3339 UTC.
 
 | Member | Value |
 |---|---|
-| `schemaVersion`, `phase` | `1`; `key-pending`, `creation-pending`, `identity-known`, `proof-pending`, `issuance-accepted`, or `complete`. |
+| `schemaVersion`, `phase` | `1`; `creation-pending`, `identity-known`, `proof-pending`, `issuance-accepted`, or `complete`. |
 | `registryUrl`, `organizationId`, `name` | Required exact named-operation tuple. |
 | `governanceId`, `entityKeyUrl`, `logTrust` | Resolved expected bindings; trust uses 12's names. Injected dependencies must be supplied again and match saved bindings. |
-| `keySource`, `currentKeySource` | Non-secret 12 key-source data: original locator/reference, and current reference after verified rotation when different. |
+| `keySource`, `currentKeySource` | Non-secret 12 key-source data when supplied: original configuration/reference, and current reference after verified rotation when different. Injected providers must be supplied again and match the saved public binding. |
 | `initialPublicKey` | Initial public JWK, retained once known. |
 | `creationInput` | Frozen unresolved Live request fields under 05's wire names; `name`/`public_key` reconstructed from the corresponding members. |
 | `identityId`, `domain` | Immutable creation facts, retained as soon as individually known. |
@@ -395,9 +410,9 @@ integers, byte strings unpadded base64url, and timestamps RFC 3339 UTC.
 | `publicationConfig`, `oidcIssuerUrl`, `entityPublicKey` | Validated publication snapshot, exact returned issuer when present, and trusted entity public JWK once obtained. |
 | `issuance` | Prepared/completed bytes, SHA-256 lowercase-hex completed `entryHash`, submission state/error, log reference/index, and verified acceptance facts as known. Submission states follow 11. |
 
-`key-pending` retains generation intent; `creation-pending` requires the initial
-public/provider binding and reconstructible request. `identity-known` retains known
-creation facts; `proof-pending` additionally retains the exact proof context.
+`creation-pending` requires the initial public/provider binding and reconstructible
+request. `identity-known` retains known creation facts; `proof-pending` additionally
+retains the exact proof context.
 `issuance-accepted` requires validated publication/entity bindings and accepted
 entry retrieval facts. `complete` additionally records public verification, not
 an evergreen ACTIVE claim. Validate every recorded phase before mutation.
@@ -419,11 +434,17 @@ and unknown outcomes only with the same operation/input/bytes. Bounded propagati
 polling may explicitly retry `RecordNotFound`; it does not change that verifier
 error's non-transient classification. Integrity, policy, and binding failures stop.
 
-Typed errors retain phase, HTTP status/wire code, immutable identity facts, registry
-state, latest progress, and whether/how the same operation can resume. Distinguish:
+Typed errors retain phase, HTTP status/wire code when present, known immutable
+identity/domain facts, registry state, latest progress, and whether/how the same
+operation can resume. Callers MUST NOT need to parse message text. Failures preserve
+durable progress, not rollback; calling Create or Active again resumes the saved
+operation. Resume does not bypass an unresolved binding error or server-required
+action. Unknown server recovery rules are reported as unresolved, not guessed.
+No failure starts background recovery, changes keys, or replaces the identity.
+Distinguish:
 
-- `KEY_MISSING`: the required local/provider key cannot be opened; do not generate
-  over an established binding. This is distinct from the server's keyless custody flow.
+- `KEY_MISSING`: the required local/provider key cannot be opened; report it without
+  initializing the provider or generating a key. This differs from server key custody.
 - `KEY_MISMATCH`: an available/supplied key differs from the existing identity.
   The in-flight server spelling is HTTP 409 `KEY_MISMATCH` (PR #3304).
 - `KEY_REVOKED`: preserve an authoritative credential/key revocation result; do
@@ -434,9 +455,9 @@ state, latest progress, and whether/how the same operation can resume. Distingui
 Do not relabel ordinary `422 IDEMPOTENCY_MISMATCH` or Live
 `409 IDEMPOTENCY_CONFLICT` as a missing key. Preserve earlier authorization,
 validation, quota, and infrastructure errors. Final missing-key/revocation wire
-codes and remedy text remain an E2/E4 contract task. Recovery guidance must say
-which key/store/operation to restore and point multi-region operators to a shared
-same-cloud key; one identity per cloud is the V1 model, not cross-cloud key copying.
+codes and permitted recovery actions remain an E2/E4 contract task. Recovery guidance
+identifies the affected key/store/operation and any agreed prerequisite for retry;
+it does not prescribe key sharing, distribution, or replica recovery orchestration.
 
 ## CLI and Quick Starts
 
@@ -462,12 +483,14 @@ never describe registry READY as protocol ACTIVE.
 
 ## Security Considerations
 
-Setup uses a caller-supplied organization credential, preferably expiring, and never
-persists it in deployment or recovery files. A replacement same-organization
-credential resumes the same operation. Expiry limits duration, not privileges:
-current organization API keys can affect other identities. Name-bound/create-only
-scopes are an E4/security dependency, not a guarantee of this SDK. The threat model
-and data inventory distinguish these design requirements from shipped coverage.
+Setup uses a caller-supplied registry credential and never persists it in deployment
+or recovery files. A replacement same-organization credential resumes the same
+operation, subject to server authorization. Credential issuance, renewal, distribution,
+scopes, expiry, and revocation policy belong to E4/security, not this SDK facade.
+The SDK reports authentication/authorization failures without automatic renewal.
+Current organization API keys can affect other identities; expiry limits duration,
+not privileges. No narrower scope model is assumed. The threat model and data
+inventory distinguish these design requirements from shipped coverage.
 
 Untrusted registry/public responses must pass binding, signature, resource, TLS,
 and independent log-trust checks before countersigning or completion. An invalid
@@ -487,15 +510,29 @@ local registry/emulator. No SDK-produced expected verdicts or missing-adapter pa
 |---|---|
 | Exact-name/hash vectors; case, whitespace, composed/decomposed Unicode, invalid scalar/length | Same bytes/keys across bindings; no silent normalization. |
 | Configured facade through file/environment/code; invalid workflow/provider/algorithm | Same effective bindings; fail before mutation without sandbox/file fallback. |
-| Wrong configured organization or account/delegation not ready | Fail before key generation/create; never create in the credential's other organization. |
-| Concurrent first use, same name across tenants, unsafe path-like names | Isolated safe storage; shared locator yields one key and server identity, or explicit unsupported discovery. |
+| Wrong configured organization or account/delegation not ready | Fail before create; never create in the credential's other organization. |
+| Concurrent same-key create, same name across tenants, unsafe path-like names | Isolated safe storage; matching requests resolve one server identity. |
+| Replicas supply different keys; provider is empty/unavailable | Typed conflict/missing-key outcome with known facts; no provider initialization, key coordination, automatic adoption or replacement. External orchestration may recover rejected replicas. |
 | Create returns pending handle; caller exits before Active | No false ACTIVE/signing; next invocation resumes required client work on the same identity. |
 | Initial 202; retry without challenge/domain; proof expiry/reissue; unknown proof response | Preserve known facts/request ID; no guessed domain, duplicate allocation, stale proof, or new key. |
 | Lost create response; replay-cache expiry; pending/ERROR/rejected/cancelled/terminal states | Correct same-operation recovery/outcome; no inferred name release or replacement. |
 | Changed request/key; missing key; revoked credential/key | Distinct typed categories with status/code and actionable recovery guidance. |
 | Independent replicas with different valid signature bytes; invalid countersignature then valid one | One accepted ISSUANCE; recover and verify winner, never bind its receipt to losing bytes or poison the submission key. |
-| Interrupt generation, proof, preparation, submission, acceptance, publication, compaction | Durable same-key/exact-byte recovery; no mutation after lock release or corruption-driven recreation. |
+| Interrupt creation, proof, preparation, submission, acceptance, publication, compaction | Durable same-key/exact-byte recovery; no mutation after lock release or corruption-driven recreation. |
 | Registry READY but no public ACTIVE/log inclusion; propagation absence; wrong GI/key/profile/log | Bounded wait or failure; no success/signing until complete public verification. |
 | Completed operation, verified rotation, superseded local provider, unknown enum/member/version | Reobserve without reissuance; select only verified current key; preserve unknown document members and fail safely on unsupported phases/versions. |
 | CLI create/retire, JSON output, warning, rerun, delegated managed hosting | Same SDK flow; correct completion claims; no secrets, stdout pollution, or incorrect self-hosting instructions. |
 | Revoke/retire and delayed old creates | Old identity/domain/history remain terminal; replacement disabled until the agreed generation contract passes proof. |
+
+### Implementation Acceptance Checklist
+
+- [ ] Define shared hosted scenario inputs and expected observations for this table,
+  including handle fields, signing gates, typed errors and retained recovery facts.
+- [ ] Run the same scenarios against Go, Python and TypeScript. Reuse existing
+  proof/issuance coordinators where available; add missing coordination inside the
+  binding, not as consumer callbacks. Native API spelling may differ, semantics may not.
+- [ ] Run CLI create/rerun/cancellation through the same facade and scenarios;
+  keep JSON output and exit outcomes consistent with SDK results. Align quick starts.
+- [ ] Add those adapters to the shared daily workflow. Record SDK/server revisions
+  and distinguish SDK assertions from external server acceptance and provider setup.
+  Missing adapters or unavailable prerequisites must not report a passing scenario.
