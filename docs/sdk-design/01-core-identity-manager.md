@@ -1075,6 +1075,20 @@ INTERFACE KeyProvider
 END
 ```
 
+`ListKeyIds()` is not retained-key enumeration: in the draft 01 key-service
+path it returns only the current active key ID, or an empty list when no key is
+active. Pending keys remain accessible through `JWK(kid)` and rotation proof
+signing through `SignKey(kid, payload)`. The bounded pending-key publication in
+[Operational Key Rotation](#operational-key-rotation) is explicit and does not
+make the pending key active or add it to `ListKeyIds()`.
+
+`Activate` and `Supersede` govern local signing eligibility. `Supersede(kid)`
+prevents further signing with that key and excludes it from live publication.
+For the Google Cloud KMS provider, `Supersede(kid)` MUST NOT disable, destroy, or
+schedule destruction of the corresponding `CryptoKeyVersion`. Google Cloud KMS
+version retirement is a separate operator action. Superseding a retained previous
+key after activating its successor MUST NOT clear the successor's active state.
+
 ---
 
 ### IdentityCache
@@ -1431,6 +1445,14 @@ private key remains in the target `KeyProvider` and MUST be recoverable by its
 recorded reference. Recover both providers from saved references, not changed
 deployment settings. Resolvers MUST reopen the provider state identified by each
 saved reference; unrelated or newly created provider state is not recovery.
+
+Opening an existing cloud version is not a DNSid lifecycle transition. Recovery
+MUST restore the saved provider state and exact key bindings rather than infer
+pending, active, or superseded eligibility from cloud availability. The
+application-owned durable state includes the active provider/key reference;
+`Activate` does not rewrite deployment configuration. After saved acceptance,
+recovery reconciles activation and supersession forward under the checks below,
+not back to a signer selected by stale deployment settings.
 
 Resume validates the durable record before taking action and fails closed on an
 entry-hash, log-reference, or key-binding mismatch. An absent previous key may be

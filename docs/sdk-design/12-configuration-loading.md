@@ -99,6 +99,26 @@ Changing configuration does not import a local private key or replace an establi
 signer. Local-to-cloud transition requires explicit authorized
 [key rotation](01-core-identity-manager.md#operational-key-rotation) using the old provider.
 
+#### Google Cloud KMS Ed25519
+
+For `google-kms`, `keyRef` MUST be the fully qualified immutable version name
+`projects/{project}/locations/{location}/keyRings/{keyRing}/cryptoKeys/{cryptoKey}/cryptoKeyVersions/{version}`.
+A parent `CryptoKey` reference or mutable selector is not sufficient. The opened
+version MUST use `EC_SIGN_ED25519` and be usable for signing; invalid references,
+unsupported algorithms, unavailable versions, and authorization failures MUST
+fail without generating a replacement or falling back to another signer.
+
+An explicit operator call to `GenerateKey()` creates an `EC_SIGN_ED25519` version
+under the configured version's parent `CryptoKey`, not a new `CryptoKey`. It
+returns the new key ID and leaves the key locally pending. It MUST NOT change
+the current active signer, configuration, or live publication. The new key is
+available through `JWK` and `SignKey` for the existing
+[rotation flow](01-core-identity-manager.md#operational-key-rotation).
+Opening the configured version never invokes generation, and cloud-enabled
+state alone does not establish local activation or authorize replacing an
+established signer. Recovery uses the existing
+[application-owned state and exact bindings](01-core-identity-manager.md#managed-rotation-recovery-contract).
+
 ## Sources
 
 | Source | Encoding | Defined in |
@@ -366,3 +386,22 @@ verify` reads; there are no SDK-local aliases.
 | Existing identity changes provider/key through configuration alone | Binding error; explicit authorized rotation required, never implicit import or key replacement. |
 | Invalid `dnsid` config together with a `policyUrl` | Construction fails with `ArgumentError` without fetching the policy. |
 | Any constructor invoked with environment variables or files present | Constructor reads neither. |
+
+### Google Cloud KMS Lifecycle Acceptance Cases
+
+These cases use the shared KeyProvider and managed-rotation contracts; they do
+not require a new persistence mechanism. Pending-key publication and crash-resume
+cases exercise the existing managed-rotation orchestration; they do not require
+the provider package to implement that orchestration.
+
+| Case | Mode | Required caller-observable result |
+|---|---|---|
+| Open the same valid version across restarts | real-capable | Same key ID and public key; no new cloud version. |
+| Supply a parent-only or mutable reference, or a non-Ed25519 version | real-capable | Opening fails without replacement generation or fallback. |
+| Version is unavailable, access is denied, or the KMS service fails | real-capable | Operation fails; no substituted signer or successful signature. |
+| Explicitly generate a key | real-capable | New `EC_SIGN_ED25519` version under the configured parent; configuration, active signer, active listing, and live publication unchanged; `JWK` and rotation `SignKey` work for the pending key. |
+| Retain pending or superseded keys | real-capable | `ListKeyIds()` returns only the active ID, or an empty list when none is active; retained keys are not live inventory. |
+| Publish a pending successor during rotation | fake-only | Explicit rotation publication exposes only the successor while application signing stays paused; the successor remains pending until activation. |
+| Supersede a previous key after successor activation | real-capable | Previous-key signing fails; successor remains active; previous key is absent from the active listing and live publication; cloud version state is unchanged. |
+| Reopen saved pending or superseded provider state | fake-only | Cloud availability does not promote the key to application signing. |
+| Resume an accepted rotation after a crash with stale deployment settings | fake-only | Exact saved bindings are used; activation and supersession reconcile forward; saved target is restored before signing resumes. |
