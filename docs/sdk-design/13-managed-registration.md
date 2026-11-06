@@ -157,7 +157,8 @@ the next mutation. Each call uses one finite deadline.
    keys. Otherwise return `KEY_MISSING`. The Live adapter requires Ed25519. Persist
    bindings, creation intent, provider reference, and the public JWK before creation.
 3. If creation is unresolved, derive `registrationKey`, rebuild the identical
-   request, and call `RegisterLiveAgent`. Validate `requestId` and any challenge
+   request, and call `RegisterLiveAgent` with `registrationKey` as the
+   `Idempotency-Key` header. Validate `requestId` and any challenge
    against the sent request. Persist ID, domain, and proof facts. If the identity is
    already known, use authenticated reads, not another create.
 4. If the server requires a proof challenge, use `SubmitLiveProof` and
@@ -340,7 +341,7 @@ text. Errors keep progress; calling `Create` or `Active` again resumes.
 | Error | Meaning |
 |---|---|
 | `KEY_MISSING` | The provider has no key and cannot provision one. |
-| `KEY_MISMATCH` | The supplied key differs from the existing identity (server HTTP 409, PR #3304). Remedy text points to the one-identity-per-cloud guidance (D9). |
+| `KEY_MISMATCH` | The supplied key differs from the existing identity (server HTTP 409, PR #3304). Remedy text points to the one-identity-per-cloud guidance ([D9, #63](https://github.com/Identity-Digital/known-foundry/issues/63)). |
 | `KEY_REVOKED` | The organization API credential is revoked (E4). Not inferred from a generic 403. |
 | `SigningPaused` | Signing is paused; see [Signing](#signing). |
 | Busy, deadline, unsupported contract or algorithm, workflow outcome, terminal identity | Separate categories with structured causes. |

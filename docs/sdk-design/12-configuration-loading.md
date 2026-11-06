@@ -88,7 +88,7 @@ managed registration does not load an entity private key.
   resolve the same signing key across restarts; unexplained alias/version changes
   fail binding checks. `Construct` opens existing keys only, never generates.
 - Factories validate provider settings, authentication configuration, and supported
-  algorithms before registration. Settings include non-secret region,
+  algorithms before opening a key or registration. Settings include non-secret region,
   project/location, vault URL, or credential references; credentials come from
   ambient chains or referenced sources, never raw secrets/private JWKs in the file.
 - Managed registration uses the provider's signing key. If the provider has none
