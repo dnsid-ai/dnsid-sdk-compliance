@@ -93,6 +93,13 @@ The handle owns the core
 profile helpers (JWT, HTTP message signatures, Web Bot Auth) follow the same rules.
 `Sign` signs raw bytes through the provider and adds no new format.
 
+`IdentityManager()` builds the manager with the normal core constructor from the
+saved domain, GI, and publication configuration. Until the publication
+configuration is saved (step 5 of [Durable Setup](#durable-setup)),
+`IdentityManager()` returns `SigningPaused` and builds nothing. Core keeps its
+construction rules; the handle never passes placeholder values. Later calls
+return the same manager.
+
 Signing is paused:
 
 - until `Active` verifies the identity, or `Create` reopens a `complete` operation
@@ -436,7 +443,7 @@ the cross-SDK daily workflow. Server persistence proof stays in
 | Interruption at each phase | Same-bytes recovery; no recreation. |
 | `READY` without public `ACTIVE`; wrong GI, key, or log | Bounded wait or failure; signing paused. |
 | Restart of a `complete` operation; rotated or superseded key | Signing enabled only for the verified current key; no reissuance. |
-| Profile helper through `IdentityManager()` before `Active` | `SigningPaused`. |
+| Profile helper through `IdentityManager()` before `Active` | `SigningPaused`, from `IdentityManager()` before publication configuration is saved, otherwise from signing. |
 | CLI create, rerun, retire | Same results as the SDK; no secrets in output. |
 
 ### Implementation Acceptance Checklist
