@@ -2,7 +2,20 @@
 
 This document tracks SDK design questions that are not yet resolved.
 
-There are no unresolved shared SDK design questions at this time.
+## Known Foundry Create
+
+Design: [13](13-known-foundry.md). Server assumptions and gates:
+[server requirements](../known-foundry-server-requirements.md).
+
+| Decision | Owner |
+|---|---|
+| Name reuse, replacement intent, failed-provisioning recovery (see the [proposal](../known-foundry-server-requirements.md#proposal-name-reuse-and-failed-provisioning)) | E2 #45–#47 |
+| Create after rotation with the current key (no local state) | E2 #47 |
+| E2 confirmation of the SR-5 `domain` member on replay; compatibility negotiation | E2 #47 / E5 |
+| Whether the Live proof challenge stays | E2 #46 |
+| Final error codes, including `NAME_IN_USE` | E2 / E4 |
+| `EnsureSigningKey()` name and semantics on providers | E6 |
+| Foundry-specific routing selector, if needed | Product / E2 |
 
 ## Resolved Questions
 

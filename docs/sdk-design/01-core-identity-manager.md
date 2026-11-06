@@ -1302,6 +1302,10 @@ use `validated`. Deployments that require DNS-rooted origin authentication use
 
 ### Initial Setup of Local Identity
 
+This is the publisher-owned flow. Known Foundry's registry-held entity signing and
+publication use [Create/Active](13-known-foundry.md) in a separate module above core, with
+durable key/proof/issuance recovery and independent public readiness checks.
+
 ```
 1. IdentityManager.new(config{identity, verification, transport}, deps{keyProvider, entityKeyProvider, logRegistry})
 2. Persist one durable issuance operation; protocol status remains non-active.

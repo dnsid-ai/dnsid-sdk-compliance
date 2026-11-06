@@ -460,6 +460,9 @@ terminal stale-preparation result before any bytes enter the log.
 
 ## Split ISSUANCE Flow
 
+[Known Foundry create](13-known-foundry.md#durable-setup) reuses this
+binding-owned issuance flow with SDK-provided storage/adapters.
+
 Delegated issuance commonly places the accountable-entity key at a registry or
 governance service and the operational key at the agent. The SDK flow is:
 
@@ -587,8 +590,13 @@ representations retain the registry error code and whether the same bytes are
 retryable. Busy, indeterminate, timeout, and unknown transport outcomes retry
 only the identical persisted entry with the same idempotency key. Validation,
 preparation mismatch, and idempotency mismatch failures are terminal for that
-prepared entry. An SDK MUST NOT turn an unclassified failure into a fresh
-rotation or issuance attempt.
+prepared entry. In [Known Foundry create](13-known-foundry.md#issuance-recovery),
+the SDK MUST recover and verify any accepted ISSUANCE before making the operation
+failure final; a different valid signature from another replica can identify the
+accepted entry without matching the losing submission's hash. Its receipt MUST NOT
+be treated as acceptance of the losing bytes. Unresolved submission remains
+recoverable. An SDK MUST NOT turn an unclassified failure into a fresh rotation
+or issuance attempt.
 
 Preparation state includes an expiry and the reserved prior-stream revision.
 Only an expired preparation that is durably known never to have entered

@@ -240,6 +240,18 @@ allowlist the local entity, or expose a public acceptance-bypass option. Public
 `VerifyDomain`, including calls on the local domain, continues to enforce
 acceptance. The internal helper below is conceptual, not a new public API.
 
+Polling MUST retain the immutable ID/domain, publication authority, creation
+publication snapshot, and any saved OIDC issuer. Compare authoritative reads
+with those facts; omission of `oidc_issuer_url` when an issuer was saved is a mismatch,
+not permission to clear it. An issuer omitted at creation need not be present later.
+An authenticated authoritative read MUST establish the retained bindings before
+reporting success. A key change is accepted only as an authorized rotation under
+the core [rotation contract](01-core-identity-manager.md#operational-key-rotation).
+Optional progress callbacks neither establish success nor extend the finite
+deadline/cancellation budget shared by polling and verification. Durable writes
+remain required; cancellation does not prove an in-flight write was undone, and
+recovery must reconcile its outcome.
+
 ```
 FUNCTION AwaitRegistryManagedPublication(registryClient: RegistryClient) -> PublishedRecord
   registration = registryClient.GetRegistration(config.identity.domain)
@@ -247,8 +259,11 @@ FUNCTION AwaitRegistryManagedPublication(registryClient: RegistryClient) -> Publ
     RAISE ValidationError("client controls accountable-entity publication")
   END
 
+  retained = RetainedBindings(registration) // ID, domain, authority, snapshot, saved OIDC issuer
+
   LOOP
     registration = registryClient.GetRegistration(config.identity.domain)
+    AssertRetainedBindings(registration, retained) // Mismatch or omitted saved issuer fails.
     IF registration.registryStatus IN ["REJECTED", "CANCELLED", "ERROR", "REVOKED", "RETIRED"] THEN
       RAISE RegistryWorkflowError(registration)
     END
@@ -323,8 +338,8 @@ END
 The coordinator retries an unknown append outcome with the identical entry
 bytes and idempotency key. Once submission may have begun, it never regenerates
 timestamps, signatures, or chain metadata. An idempotency key reused with
-different bytes is rejected. Only an expired preparation durably known never to
-have entered submission may be replaced.
+different bytes is rejected. Expired preparations may be replaced only under
+[11's durable reclaimability rules](11-c2sp-tlog-binding.md#submission-and-idempotency).
 
 Protocol status and convergence are reported separately. Revocation can return
 protocol `REVOKED` while log evidence is `pending`; issuance cannot return
@@ -347,9 +362,26 @@ history.
 
 ---
 
+### Known Foundry Create
+
+[13: Known Foundry Create](13-known-foundry.md) defines the Identity Digital product
+facade `Create(name)` and its handle, in a separate module. It is built on the low-level methods below and uses named caller-key
+Live registration, never sandbox creation. Ordinary registry defaults and replay
+behavior stay unchanged.
+
 ### RegistryClient
 
 Operator-side client for DNSid registry workflows for the local identity's own managed records. `RegistryClient` is not used by `VerifyDomain` when validating external identities; protocol verification always fetches the `su` endpoint asserted in the signed TXT record.
+
+Omitted transport configuration and an empty `TransportConfig` MUST apply the
+same protected defaults: validated destinations, TLS, finite deadlines/cancellation,
+redirect bounds, and streamed decoded-size limits. Authenticated registry operations
+MUST reject redirects without forwarding credentials or replaying the request to
+the redirect target. Only the documented literal loopback registry permits
+HTTP/local access without `privateAddressHosts`.
+Compressed bodies are decoded once; adapters wrapping decoded bytes MUST remove
+stale encoding/length metadata. Tests cover omitted versus empty configuration,
+compressed responses, and decoded-size overflow.
 
 Registry preparation responses remain untrusted transport values until the
 selected log binding parses and validates them:
@@ -374,6 +406,7 @@ RegistryClient.RegisterAgent(input: AgentRegistrationInput,
   // If supplied, send idempotencyKey as the Idempotency-Key header, not JSON.
   // Preserve creation facts before reading authenticated agent detail to obtain
   // publicationAuthority. See PublicationConfig and Registration Replay and Recovery.
+  // Foundry Create/Active in 13 uses RegisterLiveAgent instead of this ordinary flow.
 
 RegistryClient.GetOrganizationOnboarding() -> OrganizationOnboardingResponse
   // GET {baseUrl}/api/v1/org/onboarding with an organization API key or admin session.
@@ -395,7 +428,8 @@ RegistryClient.RegisterLiveAgent(input: LiveAgentRegistrationInput,
   // Only HTTP 202 is decoded as LiveProvisioningResponse,
   // never AgentRegistration; Live provisioning has not completed at this point.
   // While status is challenge_pending, domain is parsed from the validated
-  // challenge transcript so it can address the proof routes.
+  // challenge transcript so it can address the proof routes. Otherwise domain
+  // comes from the response `domain` field when present (see Live Provisioning Types).
 
 RegistryClient.SubmitLiveProof(domain: string, request: LiveProofRequest,
                                idempotencyKey: string) -> LiveProofResponse
@@ -447,8 +481,9 @@ RegistryClient.PrepareIssuance(domain: string,
   // its signed lr field, independently reproduce signedBytes, verify the domain,
   // governance identity, accountable-entity key and signature, local operational
   // public key, log context, and seq=0, then add only the operational signature.
-  // A retry uses the same idempotency key and must receive byte-identical prepared
-  // content; submission uses the same key and exact completed entry bytes.
+  // A retry uses the same idempotency key and receives byte-identical prepared
+  // content unless durable server state permits reclaiming an expired preparation
+  // under 11: Submission and Idempotency. Submission uses exact persisted completed bytes.
 
 RegistryClient.PrepareKeyRotation(domain: string, request: KeyRotationPreparationRequest,
                                   idempotencyKey: string) -> PreparedRegistryEvent
@@ -488,22 +523,24 @@ RegistryClient.SubmitPreparedEvent(domain: string, entryBytes: bytes,
   // HTTP error and is never reported as an accepted result.
 ```
 
-For a managed `ku` rotation, the SDK generates the new key locally and never
-sends private material to the registry. In the current product,
-`PrepareKeyRotation` requires an owning-organization session credential or
-organization API key; an agent self-auth bearer credential is deliberately not
-accepted because the key being replaced must not authorize its own replacement.
-This control-plane authorization does not replace commit authority from the
-previous operational signature. For the `c2sp-tlog` binding the SDK also signs
-with the pending new key as proof of possession. Before submission, the SDK durably persists the exact
-rotation state and pauses application signing through required injected
-dependencies. After receiving an accepted submission result bound to the exact
-entry hash and new key, it persists acceptance, activates the new key, supersedes
-the old key, persists activation, and only then resumes signing. If submission is
-indeterminate after publication but before the immutable append converges,
-signing remains paused while the registry reconciles the same entry; it does not
-create a replacement rotation. Restart recovery follows the core
-[managed rotation recovery contract](01-core-identity-manager.md#managed-rotation-recovery-contract).
+`PrepareKeyRotation` requires an owning-organization session credential or API key,
+not agent self-auth. This control-plane authorization does not replace the previous
+operational signature; `c2sp-tlog` also requires new-key proof of possession.
+Private keys stay in customer-controlled providers. Persistence, signing pause,
+acceptance/publication checks, activation, and restart follow the core
+[rotation contract](01-core-identity-manager.md#operational-key-rotation).
+
+#### Managed Operational Endpoints
+
+SDKs consume registry-established `kuUrl` and entity-signed TXT `ku`; they never
+synthesize paths from a name, thumbprint, provider alias, or registry hostname.
+Host/cardinality constraints remain profile-owned. Fresh verification uses signed
+current `ku`; historical verification uses accepted log evidence, not an old-URL
+fallback. Rotation follows the current [core contract](01-core-identity-manager.md#operational-key-rotation).
+
+Key-specific URL conventions, old-URL retention and hosted terminal serving are
+E7/E8 product work, not prerequisites added to initial Foundry create. This design
+does not mandate a new hosted path or overlapping live keys.
 
 Registry implementations MAY expose additional setup and publication methods,
 including verification and registry-managed TXT publication.
@@ -535,19 +572,21 @@ previous key also fails, even with another idempotency key.
 #### Account Binding Discovery
 
 `GetOrganizationOnboarding` reads the existing organization-scoped onboarding
-endpoint. Validate any account bindings obtained from it:
+endpoint. Registry and discovery response parsing MUST ignore additional JSON
+members. Unrecognized values MUST NOT satisfy required readiness or authority
+checks or authorize replacement. Setup validates these fields:
 
-| Account value | Existing wire field | Validation |
+| Setup value | Wire field | Validation |
 |---|---|---|
-| Stable organization ID | `org_id` | Nonempty internal account ID; compare any configured/saved ID. |
+| Stable organization ID | `org_id` | Nonempty account ID; compare configured/saved values byte-exact without reformatting. |
 | Expected governance ID | `governance_domain` | Valid domain; compare any configured/saved GI. |
-| Live governance proof | `gi.domain`, `gi.state`, `gi.gate_authorized` | GI object present, matching domain, state `verified`, and gate authorized. |
-| Entity-key delegation | `ek.status` | Must be `verified` before treating delegation as ready. |
+| Live governance proof | `gi.domain`, `gi.state`, `gi.gate_authorized` | GI object present, matching domain, state `verified`, and `gate_authorized` equal to `true`: the registry confirms acceptable governance-domain proof for this organization. |
+| Entity-key delegation | `ek.status` | Must be `verified` before discovery supplies ready setup bindings. |
 
-Absent/pending proofs are not verified. The response does not include a complete
-entity JWKS URL; CNAME instructions are not a JWKS URL or trust root. Preserve
-503 when onboarding is not configured and authorization errors for callers
-without access. This read does not establish named creation or permanent replay.
+Absent or pending proofs are not verified. Onboarding does not return the entity
+key URL; Foundry create reads it from `PublicationConfig.ekUrl`. Preserve 503 when
+onboarding is unavailable and authorization errors when access is denied. This read
+alone does not show that the server supports named create.
 
 #### AgentRegistrationInput
 
@@ -560,7 +599,7 @@ idiomatic public names and serialize the exact JSON wire names shown.
 | `governanceDomain` | `governance_domain` | string | no | Expected accountable governance identifier (`gi`). With no `domain`, also selects an authorized root as described below. It is not an arbitrary signer override. |
 | `rootDomain` | `root_domain` | string | no | Active delegated zone owned by the caller's organization under which the registry assigns a name. Not a zone ID. May be combined with `governanceDomain`. |
 | `publicKeyJwk` | `public_key` | JWK | conditional | Public signing key required whenever the registry assigns the name or manages the identity. Optional for a self-managed exact domain whose JWKS is verified externally. Private JWK members are forbidden. |
-| `name` | `name` | string | no | Human-readable registry metadata; at most 255 characters after trimming. Not published in the DNSid record. |
+| `name` | `name` | string | no | Ordinary registry metadata; at most 255 characters after trimming, not published in DNS. Foundry's required exact name belongs to the separate named Live workflow; ordinary trimming/fingerprint rules stay unchanged. |
 | `capabilitiesUrl` | `capabilities_url` | string | no | HTTPS capabilities-document URL to publish as `cu`. |
 
 New registration omits legacy selector defaults. Existing entry points may
@@ -594,6 +633,20 @@ returns 400 `BAD_REQUEST`, an unauthorized GI returns 403
 `GOVERNANCE_NOT_AUTHORIZED`, and unavailable infrastructure returns 503
 `SERVICE_UNAVAILABLE`.
 
+##### Named Foundry Registration
+
+[Foundry create/active](13-known-foundry.md) uses the named caller-key Live
+path below, not ordinary `RegisterAgent`. Names are exact and case-sensitive under
+[13's rules](13-known-foundry.md#name-normalization). Pending, ERROR,
+CANCELLED, and REJECTED identities keep name ownership. These rules do not apply
+to ordinary registration or status-wait APIs.
+
+A wrong supplied key returns HTTP 409 `KEY_MISMATCH` (in-flight server contract).
+Keep all other HTTP statuses and codes as returned, including Live
+`IDEMPOTENCY_CONFLICT` and ordinary `IDEMPOTENCY_MISMATCH`. SDK-local error
+categories do not imply new server codes. Server behavior that the SDK assumes is
+listed in the [server requirements](../known-foundry-server-requirements.md).
+
 ##### Registration Replay and Recovery
 
 Ordinary creation permits an omitted `Idempotency-Key`. Retry-safe callers supply
@@ -624,7 +677,7 @@ type prevents generic registration fields from creating ambiguous modes.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `name` | string | no | Human-readable registry metadata. |
+| `name` | string | conditional | Optional for low-level Live calls; required by Foundry Create, with exact case-sensitive comparison under 13. |
 | `publicKeyJwk` | Ed25519 JWK | yes | One `OKP`/`Ed25519` public signing key using `alg="EdDSA"`. Private JWK members are forbidden. |
 | `environment` | `"production"` | no | Omit or set to `production`. |
 | `capabilitiesUrl` | string | no | HTTPS capabilities-document URL to publish as `cu`. |
@@ -638,8 +691,10 @@ HTTP route. It requires a public key, an omitted domain and zone, and either an
 omitted environment or `environment="production"`. It also requires an
 `Idempotency-Key` and returns HTTP 202 `LiveProvisioningResponse`, not the HTTP
 201 `AgentRegistration` shape. The returned `requestId` is retained for every
-retry and proof operation. The base64url-decoded `challengeMessage` is the exact
-byte sequence signed by the registered private key. Parsing it for routing or
+retry and proof operation. [Known Foundry create](13-known-foundry.md) also
+requires it to equal the caller's Idempotency-Key (server gate SR-5); ordinary
+Live calls do not check this. The server's internal canonical operation ID may
+differ; the SDK does not substitute or derive it. The base64url-decoded `challengeMessage` is the exact byte sequence signed by the registered private key. Parsing it for routing or
 validation MUST NOT change the bytes that are signed.
 
 The server retains a legacy local Live mode selected by `tier="live"` and
@@ -667,7 +722,7 @@ TYPE LiveProvisioningResponse
   status: string
   challenge: string
   challengeMessage: string // unpadded base64url-encoded bytes
-  domain: string           // derived; present while challenge_pending
+  domain?: string          // from transcript while challenge_pending; else wire `domain` if present
   challengeTranscript: LiveChallengeTranscript // derived; present while challenge_pending
 END
 
@@ -704,7 +759,12 @@ exposes `fqdn` as normalized `domain`. A successful reissue has the same
 requirements, using the required reissue `publicKeyJwk` to validate `keyId`.
 Other replay statuses may carry empty `challenge` and
 `challengeMessage` strings; required wire fields do not imply non-empty values,
-and derived `domain` and `challengeTranscript` are then absent.
+and `challengeTranscript` is then absent. On such a replay, `domain` is the wire
+`domain` field when present and a valid agent domain, and is otherwise absent. A
+missing, null, or empty `domain` member is absent, not an error.
+The current server omits it; adding it is pending server gate SR-5 in the
+[server requirements](../known-foundry-server-requirements.md). If both a
+transcript and a wire `domain` are present, they MUST match after normalization.
 
 The transcript's current wire names are `org_id`, `agent_id`, `key_id`, and
 `expires_at`. Other current Live wire names are `request_id`, `agent_id`,
@@ -730,7 +790,7 @@ Registry registration or verification result for a local identity.
 | `domain` | string | yes | Registered agent FQDN. |
 | `publicationConfig` | PublicationConfig | conditional | Authoritative publication snapshot; required for the Identity Digital adapter, decoded from `publication_config`. Retained with the immutable ID and domain. |
 | `publicationAuthority` | `"client"` or `"registry"` | yes | Registry declaration of who controls the accountable-entity key and signs the DNSid record. For the current product API, `managed="dnsid"` maps to `"registry"` and `managed="self"` maps to `"client"`; other implementations MUST report this explicitly rather than infer it solely from DNS hosting, profile tags, or key availability. |
-| `registryStatus` | string | yes | Registry-controlled registration workflow state exactly as returned by the management API, such as `PENDING`, `VERIFICATION`, `VERIFIED`, `READY`, `REJECTED`, `CANCELLED`, `ERROR`, `REVOKED`, or `RETIRED`. This is not protocol `AgentStatus.state`. |
+| `registryStatus` | string | yes | Registry-controlled registration workflow state exactly as returned by the management API, such as `PENDING`, `PROVISIONING`, `VERIFICATION`, `VERIFIED`, `READY`, `REJECTED`, `CANCELLED`, `ERROR`, `REVOKED`, or `RETIRED`. This is not protocol `AgentStatus.state`. |
 | `dnsPublished` | boolean | no | Registry observation that DNS publication completed. Meaningful for registry-managed publication; successful SDK publication still requires resolving and validating the record. |
 | `protocolStatus` | AgentStatus | no | Complete protocol-facing lifecycle status, when the registry response supplies authoritative state, transition time, and conditional revocation reason. SDKs MUST NOT construct this object solely by mapping `registryStatus`; they MAY obtain it from the identity's `su` endpoint or an equivalent complete protocol-status object returned by the registry. |
 | `oidcIssuerUrl` | string | no | Exact `oidc_issuer_url` returned by the registry. Persist it for OIDC operations rather than deriving an issuer from the registry hostname. |
@@ -744,8 +804,10 @@ protocol state for display or polling, but that mapping is not an
 also requires the actual time of the most recent protocol transition and, for
 `REVOKED`, its reason. In particular, SDKs MUST NOT fabricate
 `lastTransitionAt`, and publication readiness does not by itself prove protocol
-`ACTIVE` state. Polling helpers MUST treat both `REVOKED` and `RETIRED` as
-terminal rather than waiting until timeout.
+`ACTIVE` state. Polling helpers MUST still treat REVOKED and RETIRED as terminal;
+existing registry-status wait helpers otherwise retain their current semantics.
+Foundry `Active` separately applies [13's workflow outcomes](13-known-foundry.md#registry-states)
+and public evidence checks, including retained name ownership after CANCELLED/REJECTED.
 
 #### PublicationConfig
 
@@ -785,9 +847,11 @@ governance persistence also require server integration tests, not SDK coordinati
 |------|-------------|
 | Key-only, exact-domain, root, and GI-selected creation | Correct wire selectors and returned domain/GI; no inferred hosting or injected legacy defaults. |
 | Invalid inputs | Reject conflicting selectors, missing keys for assigned names, invalid URLs, and private JWK members, including nested JWKS material. |
+| Authenticated read or mutation returns a redirect, including to the same origin | Reject; no request or credential reaches the redirect target. |
 | Invalid response or root/admission failure | Fail closed, preserve known creation facts and server errors, and make no fallback request. |
 | Supported existing selectors and managed Live | Preserve existing request behavior; Live still returns 202 provisioning, not ordinary 201 registration. |
-| Keyed replay, including stale GI or changed input | Retain the original request/key and identity; preserve governance/mismatch errors without replacement allocation or cross-organization replay. |
+| Keyed ordinary replay, including stale GI or changed input | Preserve the original request/key and known identity; retain governance/mismatch errors without replacement allocation or cross-organization replay. |
+| Foundry named Live create and durable operation recovery | [Server acceptance checks](../known-foundry-server-requirements.md#acceptance-checks) establish tenant isolation, atomic convergence and replay-expiry safety. Replacement is separately gated. |
 | Timeout or post-creation failure | Retain known facts for recovery; never imply that failure proves no identity exists. |
 
 #### PublishedRecord
@@ -814,5 +878,6 @@ and a `retrySameEntry` flag. For the current product adapter,
 `TLOG_SUBMISSION_BUSY` and `TLOG_SUBMISSION_INDETERMINATE` retry the identical
 `entryBytes` with the same idempotency key. `IDEMPOTENCY_MISMATCH`,
 `TLOG_PREPARATION_MISMATCH`, and `TLOG_INVALID_ENTRY` are terminal for those
-prepared bytes. Unknown transport failures remain indeterminate and MUST NOT
-cause a replacement event to be created.
+prepared bytes. Foundry create MUST perform [issuance recovery](13-known-foundry.md#issuance-recovery)
+before making the operation failure final. Unknown transport failures remain
+indeterminate and MUST NOT cause a replacement event to be created.
