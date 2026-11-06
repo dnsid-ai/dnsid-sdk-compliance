@@ -1302,8 +1302,8 @@ use `validated`. Deployments that require DNS-rooted origin authentication use
 
 ### Initial Setup of Local Identity
 
-This is the publisher-owned flow. Foundry's registry-held entity signing and
-publication use [Create/Active](13-managed-registration.md) above core, with
+This is the publisher-owned flow. Known Foundry's registry-held entity signing and
+publication use [Create/Active](13-known-foundry.md) in a separate module above core, with
 durable key/proof/issuance recovery and independent public readiness checks.
 
 ```

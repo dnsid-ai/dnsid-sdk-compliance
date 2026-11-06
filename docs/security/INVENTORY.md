@@ -65,9 +65,9 @@ key material or tokens.
 KMS providers are recommended for production. Same posture as `ssh-keygen` without a passphrase, `gcloud`, `aws`
 CLI credential files.
 
-## Managed registration design (not shipped coverage)
+## Known Foundry design (not shipped coverage)
 
-The [Foundry create/active design](../sdk-design/13-managed-registration.md) adds
+The [Foundry create/active design](../sdk-design/13-known-foundry.md) adds
 these data flows. They are design requirements, not shipped coverage.
 
 - Registry requests carry the organization credential, account name, public JWK,

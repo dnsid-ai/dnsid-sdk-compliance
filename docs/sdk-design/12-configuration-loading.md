@@ -43,7 +43,7 @@ TYPE LoadedConfig
   dnsid?: DnsidConfig               // partial; sections and fields present only when sourced
   logTrust?: LogTrust               // atomic section, see below
   registry?: RegistryConfig         // partial
-  registration?: ManagedRegistrationConfig // partial organization/setup bindings (13); not core identity or acceptance
+  foundry?: FoundryConfig           // partial Known Foundry expectations (13); not core identity or acceptance
   keySource?: KeySource
 END
 
@@ -77,7 +77,7 @@ configuration.
 `cliDirectory` takes precedence over `keyStorePath` when both are supplied, as
 under `dnsid local run`. These file inputs cannot combine with cloud selection or
 `keyRef`. `entityKeyPath` independently supplies an entity provider;
-managed registration does not load an entity private key.
+Foundry create does not load an entity private key.
 
 ### Operational Key Source Selection
 
@@ -91,7 +91,7 @@ managed registration does not load an entity private key.
   algorithms before opening a key or registration. Settings include non-secret region,
   project/location, vault URL, or credential references; credentials come from
   ambient chains or referenced sources, never raw secrets/private JWKs in the file.
-- Managed registration uses the provider's signing key. If the provider has none
+- Foundry create uses the provider's signing key. If the provider has none
   and supports `EnsureSigningKey()`, `Create` calls it; the provider (E6) decides
   how it provisions keys and converges replicas. Otherwise `Create` returns
   `KEY_MISSING`. A binding conflict is a typed error, never a reason to generate.
@@ -106,8 +106,8 @@ signer. Local-to-cloud transition requires explicit authorized
 [key rotation](01-core-identity-manager.md#operational-key-rotation) using the old provider.
 Before enabling application signing for an established identity, the setup/recovery
 boundary MUST validate the opened provider's `SigningKey()` against the saved
-binding or a successor authorized by fresh verified lifecycle evidence. Managed
-setup owns this check under [13](13-managed-registration.md#completed-operation-resume);
+binding or a successor authorized by fresh verified lifecycle evidence. Foundry
+create owns this check under [13](13-known-foundry.md#completed-operation-resume);
 callers using low-level
 construction own the equivalent check. `Construct` only opens/wires dependencies;
 it does not establish identity continuity. Missing or conflicting evidence fails
@@ -195,7 +195,7 @@ consumers SHOULD emit `DNSID_REGISTRY_URL`, not only the CLI's `DNSID_SERVER`.
 
 The deployment file encodes `LoadedConfig`, including non-secret key-source settings,
 never credentials/private material. Each section maps to its owning type;
-`registration` is consumed only by [managed setup](13-managed-registration.md),
+`foundry` is consumed only by [Foundry create](13-known-foundry.md),
 not core identity construction or counterparty policy.
 
 ```json
@@ -211,17 +211,17 @@ not core identity construction or counterparty policy.
 | `dnsid` | `DnsidConfig`, validated by the `IdentityManager` constructor. |
 | `logTrust` | `LogTrust`; exactly one of `managed`, `profile` (inline document), or `policyUrl`. `policyDocument` has no file member; supply it through `DNSID_LOG_POLICY_FILE` or code. |
 | `registry` | `RegistryConfig`, validated by the `RegistryClient` constructor. |
-| `registration` | [ManagedRegistrationConfig](13-managed-registration.md#configuration-and-trust); validated/resolved by setup. |
+| `foundry` | [FoundryConfig](13-known-foundry.md#configuration-and-trust); validated and resolved by the Foundry module. |
 | `keySource` | `KeySource`; availability and provider settings validated by the selected factory. |
 
-For managed setup, a file can add:
+For Foundry create, a file can add:
 
 ```json
 {
   "dnsid": { "verification": { "dnssecMode": "required" } },
   "logTrust": { "managed": true },
   "registry": { "registryUrl": "https://registry.example" },
-  "registration": {
+  "foundry": {
     "organizationId": "11111111-1111-4111-8111-111111111111",
     "governanceId": "acme.example"
   },
@@ -234,7 +234,7 @@ For managed setup, a file can add:
 ```
 
 This is illustrative, not a service preset. The Live adapter requires an Ed25519
-key. `registration` members are optional expectations, not selectors; the server
+key. `foundry` members are optional expectations, not selectors; the server
 allocates the domain. Credentials and state-store locations are supplied separately.
 
 The file loader MUST reject unknown members and mistyped values, and SHOULD
@@ -344,9 +344,9 @@ Explicit caller credentials take precedence. The constructor applies the
 [05](05-transport-and-registry.md#registry-responsibilities) loopback default
 when `registryUrl` is absent.
 
-## Managed Setup Composition
+## Foundry Create Composition
 
-[Foundry Create/Active](13-managed-registration.md) uses the merged `LoadedConfig`,
+[Foundry Create/Active](13-known-foundry.md) lives in its own module and uses the merged `LoadedConfig`,
 separate credentials, and a default or injected store. The one-argument facade,
 explicit injection, and the CLI use the same composition. Build the registry client
 from `loaded.registry`, credentials, and transport settings; do not re-read the
@@ -419,12 +419,12 @@ verify` reads; there are no SDK-local aliases.
 | Caller injects a provider while file selects an unavailable provider | Injected provider wins; displaced provider package is not loaded. |
 | CLI source selects local files; a later source selects cloud | Replace all operational source fields; retain any independent `entityKeyPath`. |
 | Invalid/conflicting key selection or unsupported algorithm | Reject invalid settings before mutation. |
-| Managed setup opens an empty provider | `EnsureSigningKey()` if supported, otherwise `KEY_MISSING`. |
-| Managed setup opens a key conflicting with saved state | Typed binding error; no generation or replacement. |
+| Foundry create opens an empty provider | `EnsureSigningKey()` if supported, otherwise `KEY_MISSING`. |
+| Foundry create opens a key conflicting with saved state | Typed binding error; no generation or replacement. |
 | Construction uses local key files | Emit the production-safety warning. |
 | Existing identity changes provider/key through configuration alone | Binding error; explicit authorized rotation required, never implicit import or key replacement. |
-| File/code supplies `registration` | Preserve only supplied setup fields; identity-manager construction does not infer identity or acceptance from them. |
-| Managed setup uses local key files | Emit the production-safety warning; private key files remain separate from recovery data. |
+| File/code supplies `foundry` | Preserve only supplied setup fields; identity-manager construction does not infer identity or acceptance from them. |
+| Foundry create uses local key files | Emit the production-safety warning; private key files remain separate from recovery data. |
 | Foundry setup supplies expected GI but no ordinary selectors | Use named Live creation; compare GI with onboarding; no sandbox or root fallback. |
 | Same merged config reaches setup from file or environment plus code overlay | Same registry endpoint, transport, explicit trust, and setup behavior; no environment re-read overrides a file. |
 | Invalid `dnsid` config together with a `policyUrl` | Construction fails with `ArgumentError` without fetching the policy. |

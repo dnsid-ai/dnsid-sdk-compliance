@@ -1,6 +1,6 @@
-# Managed Registration Server Requirements
+# Known Foundry Server Requirements
 
-Server behavior that [Foundry create/active](sdk-design/13-managed-registration.md)
+Server behavior that [Foundry create/active](sdk-design/13-known-foundry.md)
 depends on. The server contract belongs to
 [E2](https://github.com/Identity-Digital/known-foundry/issues/2) and its SCEN, SPEC,
 and TEST artifacts. This document records what the SDK assumes and what is still

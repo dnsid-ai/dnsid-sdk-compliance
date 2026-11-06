@@ -1,4 +1,10 @@
-# Managed Registration
+# Known Foundry Create
+
+> **Product profile.** Known Foundry is Identity Digital's hosted agent-identity
+> product. `create(name)` works only against the Identity Digital registry with
+> Foundry named create enabled. It is not part of the DNSid protocol, and other
+> registries do not implement it. Use the low-level
+> [registry APIs](05-transport-and-registry.md) for any other registry.
 
 Shared SDK design for the Known Foundry `create(name)` call and the identity handle
 it returns. Owner: [E5](https://github.com/Identity-Digital/known-foundry/issues/5)
@@ -8,7 +14,7 @@ It builds on [core](01-core-identity-manager.md), [registry](05-transport-and-re
 It does not change protocol wire rules, ordinary registration, or counterparty acceptance.
 
 Assumptions about server behavior are recorded in the
-[server requirements](../managed-registration-server-requirements.md).
+[server requirements](../known-foundry-server-requirements.md).
 
 ## Scope and Ownership
 
@@ -28,19 +34,34 @@ never falls back to sandbox registration.
 
 Low-level registry and signing APIs stay available.
 
+## Module Placement
+
+Each binding ships Foundry create in its own module. Core, the registry client,
+and configuration loading never import it.
+
+| Binding | Module | Call |
+|---|---|---|
+| Go | `github.com/dnsid-ai/dnsid-go/foundry` | `foundry.Create(ctx, name)` |
+| Python | `dnsid.foundry` | `foundry.create(name)` |
+| TypeScript | `@dnsid-ai/foundry` | `create(name)` |
+
+The module holds the facade, handle, store, and Foundry-specific errors. It must
+not re-export generic APIs under Foundry names, and the core package must not
+re-export Foundry create.
+
 ## Public Workflow
 
 Names are language-neutral. TypeScript and Python use `create`; Go uses `Create`.
 Each binding uses its native context and cancellation conventions.
 
 ```
-Create(name: string) -> ManagedIdentity
+Create(name: string) -> FoundryIdentity
 
-TYPE ManagedIdentity
+TYPE FoundryIdentity
   domain: string                 // immutable assigned domain
   state?: AgentStatus.state      // last public protocol observation; absent until observed
   registryStatus?: string        // last control-plane observation
-  Active() -> ManagedIdentity
+  Active() -> FoundryIdentity
   Sign(data: bytes) -> bytes
   IdentityManager() -> IdentityManager
 END
@@ -108,13 +129,13 @@ needs an agreed server rule and shared vectors.
 ## Configuration and Trust
 
 ```
-TYPE ManagedRegistrationConfig
+TYPE FoundryConfig
   organizationId?: string    // expected registry account ID
   governanceId?: string      // expected governance domain (gi)
 END
 ```
 
-`LoadedConfig.registration` holds these optional expectations. `Create` reads the
+`LoadedConfig.foundry` holds these optional expectations. `Create` reads the
 organization ID and GI from authenticated onboarding
 ([05](05-transport-and-registry.md#account-binding-discovery)) and compares them
 byte-exact with configured and saved values before any mutation. Never select named
@@ -137,9 +158,15 @@ application `trustedEntities` or `VerifyDomain` policy.
 
 ### Server Compatibility and Enablement
 
-There is no runtime capability check. A released Foundry adapter targets a server
+If the onboarding read in step 1 returns 404 or 405, or a response without the
+fields that [05](05-transport-and-registry.md#account-binding-discovery) requires,
+`Create` returns `UnsupportedRegistry` before any mutation. This rejects registries
+that are not Identity Digital. It does not detect an Identity Digital server
+without Foundry named create.
+
+There is no other runtime capability check. A released Foundry adapter targets a server
 contract that has passed
-[server acceptance](../managed-registration-server-requirements.md#acceptance-checks).
+[server acceptance](../known-foundry-server-requirements.md#acceptance-checks).
 Record the supported server revision with each SDK release. Do not enable creation
 against the ordinary 24-hour replay-cache contract. If E2/E5 agree a version or
 capability negotiation, unsupported servers must fail before mutation. Replacement
@@ -205,7 +232,7 @@ returning the identity on replay (SR-5).
 
 The SDK does not decide name reuse, replacement, or cleanup. It relies on the server
 assumptions in the
-[server requirements](../managed-registration-server-requirements.md#proposal-name-reuse-and-failed-provisioning).
+[server requirements](../known-foundry-server-requirements.md#proposal-name-reuse-and-failed-provisioning).
 
 This check freezes the derivation, including distinct Unicode spellings. Compact
 UTF-8 JSON is JCS for these string-only arrays.
@@ -285,12 +312,12 @@ fix a mismatch.
 Same-name replacement after revoke or retire is disabled until E2 agrees how
 replacement intent differs from a delayed create. Until then, a terminal identity
 returns a typed terminal error. See the
-[name-reuse proposal](../managed-registration-server-requirements.md#proposal-name-reuse-and-failed-provisioning).
+[name-reuse proposal](../known-foundry-server-requirements.md#proposal-name-reuse-and-failed-provisioning).
 
 ## Storage and Recovery
 
-`ManagedRegistrationStore` creates, loads, and updates named operations.
-`FileRegistrationStore(directory)` is the default and keys state by
+`FoundryStore` creates, loads, and updates named operations.
+`FileFoundryStore(directory)` is the default and keys state by
 `(registry URL, organization ID, exact name)`, using digests for paths. The SDK and
 CLI share the default location; callers can inject a store. Historical operations
 stay addressable by ID after a name is reused.
@@ -344,6 +371,7 @@ text. Errors keep progress; calling `Create` or `Active` again resumes.
 | `KEY_MISMATCH` | The supplied key differs from the existing identity (server HTTP 409, PR #3304). Remedy text points to the one-identity-per-cloud guidance ([D9, #63](https://github.com/Identity-Digital/known-foundry/issues/63)). |
 | `KEY_REVOKED` | The organization API credential is revoked (E4). Not inferred from a generic 403. |
 | `SigningPaused` | Signing is paused; see [Signing](#signing). |
+| `UnsupportedRegistry` | The registry does not serve the Identity Digital onboarding contract; see [Server Compatibility](#server-compatibility-and-enablement). |
 | Busy, deadline, unsupported contract or algorithm, workflow outcome, terminal identity | Separate categories with structured causes. |
 
 Keep `422 IDEMPOTENCY_MISMATCH` and Live `409 IDEMPOTENCY_CONFLICT` as their own
@@ -381,13 +409,14 @@ misrepresent identities. See the [threat model](../security/THREAT_MODEL.md) and
 
 Bindings share these hosted scenarios against the local registry or emulator, run in
 the cross-SDK daily workflow. Server persistence proof stays in
-[server acceptance](../managed-registration-server-requirements.md#acceptance-checks).
+[server acceptance](../known-foundry-server-requirements.md#acceptance-checks).
 
 | Case | Required result |
 |---|---|
 | Name and hash vectors | Same bytes across bindings; no normalization. |
 | Configuration from file, environment, code; invalid provider or algorithm | Same bindings; fail before mutation; no fallback. |
 | Wrong organization or onboarding not ready | Fail before create. |
+| Registry without the onboarding endpoint | `UnsupportedRegistry`; no mutation. |
 | Empty provider, with and without `EnsureSigningKey` | Provisioned key, or `KEY_MISSING`. |
 | Same-key replicas, with and without saved state | One identity, one ISSUANCE. |
 | Different-key replicas | One wins; others get `KEY_MISMATCH` with known facts. |

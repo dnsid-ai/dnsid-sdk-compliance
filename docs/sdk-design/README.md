@@ -39,12 +39,12 @@ The documents are organized by SDK responsibility:
 | [10-web-bot-auth.md](10-web-bot-auth.md) | Web Bot Auth request signing and verification, with signed-directory serving and verification, using RFC 9421 primitives and DNSid identity binding. |
 | [11-c2sp-tlog-binding.md](11-c2sp-tlog-binding.md) | C2SP transparency-log binding: references, envelopes, split signing, prepared submission, tiled-log verification, policy, witnesses, and completeness. |
 | [12-configuration-loading.md](12-configuration-loading.md) | Configuration sources: environment variable schema, deployment file, merge rule, and convenience constructors. Loaders parse; constructors default. |
-| [13-managed-registration.md](13-managed-registration.md) | Foundry Create/Active handle, named Live/pool registration, durable proof/issuance recovery, CLI contract, and public readiness. |
+| [13-known-foundry.md](13-known-foundry.md) | Known Foundry (Identity Digital product profile, separate module): Create/Active handle, named Live/pool registration, durable proof/issuance recovery, CLI contract, and public readiness. |
 | [conformance/](conformance/) | Language-neutral RFC 9421 signature-base, lifecycle reducer, snapshot, and binding-selection vectors shared by SDK implementations. |
 
 Server assumptions for 13 are in
-[Managed Registration Server Requirements](../managed-registration-server-requirements.md);
-open decisions are in [08](08-open-questions.md#foundry-managed-registration).
+[Known Foundry Server Requirements](../known-foundry-server-requirements.md);
+open decisions are in [08](08-open-questions.md#known-foundry-create).
 Named registration is not yet available on deployed servers.
 
 ## Configuration
@@ -293,15 +293,16 @@ DNSid core does not depend on any application authentication profile.
   -> 05 RegistryClient and TransportConfig
   -> 11 log-trust factories
 
-13 Foundry Create/Active
+13 Known Foundry Create/Active (separate module)
   -> 12 loaded configuration and provider selection
   -> 05 named Live/proof workflows and publication
   -> 11 resumable managed issuance
   -> shared key and durable storage interfaces
 ```
 
-Configuration loading and managed registration depend on core, not the reverse.
-Use separate packages where needed to keep imports acyclic.
+Configuration loading and Known Foundry depend on core, not the reverse.
+Use separate packages where needed to keep imports acyclic. Known Foundry is
+always a separate module; nothing outside it imports it.
 
 ## Naming
 

@@ -246,7 +246,7 @@ with those facts; omission of `oidc_issuer_url` when an issuer was saved is a mi
 not permission to clear it. An issuer omitted at creation need not be present later.
 An authenticated authoritative read MUST establish the retained bindings before
 reporting success. Authorized rotation is handled under
-[13: Completed-Operation Resume](13-managed-registration.md#completed-operation-resume).
+[13: Completed-Operation Resume](13-known-foundry.md#completed-operation-resume).
 Optional progress callbacks neither establish success nor extend the finite
 deadline/cancellation budget shared by polling and verification. Durable writes
 remain required; cancellation does not prove an in-flight write was undone, and
@@ -359,10 +359,10 @@ history.
 
 ---
 
-### Consumer Managed Setup
+### Known Foundry Create
 
-[13: Managed Registration](13-managed-registration.md) defines Foundry `Create(name)`
-and its handle. It is built on the low-level methods below and uses named caller-key
+[13: Known Foundry Create](13-known-foundry.md) defines the Identity Digital product
+facade `Create(name)` and its handle, in a separate module. It is built on the low-level methods below and uses named caller-key
 Live registration, never sandbox creation. Ordinary registry defaults and replay
 behavior stay unchanged.
 
@@ -580,7 +580,7 @@ checks or authorize replacement. Setup validates these fields:
 | Entity-key delegation | `ek.status` | Must be `verified` before discovery supplies ready setup bindings. |
 
 Absent or pending proofs are not verified. Onboarding does not return the entity
-key URL; managed setup reads it from `PublicationConfig.ekUrl`. Preserve 503 when
+key URL; Foundry create reads it from `PublicationConfig.ekUrl`. Preserve 503 when
 onboarding is unavailable and authorization errors when access is denied. This read
 alone does not show that the server supports named create.
 
@@ -629,11 +629,11 @@ returns 400 `BAD_REQUEST`, an unauthorized GI returns 403
 `GOVERNANCE_NOT_AUTHORIZED`, and unavailable infrastructure returns 503
 `SERVICE_UNAVAILABLE`.
 
-##### Named Managed Registration
+##### Named Foundry Registration
 
-[Foundry create/active](13-managed-registration.md) uses the named caller-key Live
+[Foundry create/active](13-known-foundry.md) uses the named caller-key Live
 path below, not ordinary `RegisterAgent`. Names are exact and case-sensitive under
-[13's rules](13-managed-registration.md#name-normalization). Pending, ERROR,
+[13's rules](13-known-foundry.md#name-normalization). Pending, ERROR,
 CANCELLED, and REJECTED identities keep name ownership. These rules do not apply
 to ordinary registration or status-wait APIs.
 
@@ -641,7 +641,7 @@ A wrong supplied key returns HTTP 409 `KEY_MISMATCH` (in-flight server contract)
 Keep all other HTTP statuses and codes as returned, including Live
 `IDEMPOTENCY_CONFLICT` and ordinary `IDEMPOTENCY_MISMATCH`. SDK-local error
 categories do not imply new server codes. Server behavior that the SDK assumes is
-listed in the [server requirements](../managed-registration-server-requirements.md).
+listed in the [server requirements](../known-foundry-server-requirements.md).
 
 ##### Registration Replay and Recovery
 
@@ -796,7 +796,7 @@ also requires the actual time of the most recent protocol transition and, for
 `lastTransitionAt`, and publication readiness does not by itself prove protocol
 `ACTIVE` state. Polling helpers still treat REVOKED and RETIRED as terminal;
 existing registry-status wait helpers otherwise retain their current semantics.
-Foundry `Active` separately applies [13's workflow outcomes](13-managed-registration.md#registry-states)
+Foundry `Active` separately applies [13's workflow outcomes](13-known-foundry.md#registry-states)
 and public evidence checks, including retained name ownership after CANCELLED/REJECTED.
 
 #### PublicationConfig
@@ -841,7 +841,7 @@ governance persistence also require server integration tests, not SDK coordinati
 | Invalid response or root/admission failure | Fail closed, preserve known creation facts and server errors, and make no fallback request. |
 | Supported existing selectors and managed Live | Preserve existing request behavior; Live still returns 202 provisioning, not ordinary 201 registration. |
 | Keyed ordinary replay, including stale GI or changed input | Preserve the original request/key and known identity; retain governance/mismatch errors without replacement allocation. |
-| Foundry named Live create and durable operation recovery | [Server acceptance checks](../managed-registration-server-requirements.md#acceptance-checks) establish tenant isolation, atomic convergence and replay-expiry safety. Replacement is separately gated. |
+| Foundry named Live create and durable operation recovery | [Server acceptance checks](../known-foundry-server-requirements.md#acceptance-checks) establish tenant isolation, atomic convergence and replay-expiry safety. Replacement is separately gated. |
 | Timeout or post-creation failure | Retain known facts for recovery; never imply that failure proves no identity exists. |
 
 #### PublishedRecord
@@ -868,6 +868,6 @@ and a `retrySameEntry` flag. For the current product adapter,
 `TLOG_SUBMISSION_BUSY` and `TLOG_SUBMISSION_INDETERMINATE` retry the identical
 `entryBytes` with the same idempotency key. `IDEMPOTENCY_MISMATCH`,
 `TLOG_PREPARATION_MISMATCH`, and `TLOG_INVALID_ENTRY` are terminal for those
-prepared bytes. Named setup MUST perform [issuance recovery](13-managed-registration.md#issuance-recovery)
+prepared bytes. Foundry create MUST perform [issuance recovery](13-known-foundry.md#issuance-recovery)
 before making the operation failure final. Unknown transport failures remain
 indeterminate and MUST NOT cause a replacement event to be created.

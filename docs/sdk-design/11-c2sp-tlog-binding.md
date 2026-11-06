@@ -460,7 +460,7 @@ terminal stale-preparation result before any bytes enter the log.
 
 ## Split ISSUANCE Flow
 
-[Managed registration](13-managed-registration.md#durable-setup) reuses this
+[Known Foundry create](13-known-foundry.md#durable-setup) reuses this
 binding-owned issuance flow with SDK-provided storage/adapters.
 
 Delegated issuance commonly places the accountable-entity key at a registry or
@@ -590,7 +590,7 @@ representations retain the registry error code and whether the same bytes are
 retryable. Busy, indeterminate, timeout, and unknown transport outcomes retry
 only the identical persisted entry with the same idempotency key. Validation,
 preparation mismatch, and idempotency mismatch failures are terminal for that
-prepared entry. In [named managed setup](13-managed-registration.md#issuance-recovery),
+prepared entry. In [Known Foundry create](13-known-foundry.md#issuance-recovery),
 the SDK MUST recover and verify any accepted ISSUANCE before making the operation
 failure final; a different valid signature from another replica can identify the
 accepted entry without matching the losing submission's hash. Its receipt MUST NOT

@@ -2,14 +2,14 @@
 
 This document tracks SDK design questions that are not yet resolved.
 
-## Foundry Managed Registration
+## Known Foundry Create
 
-Design: [13](13-managed-registration.md). Server assumptions and gates:
-[server requirements](../managed-registration-server-requirements.md).
+Design: [13](13-known-foundry.md). Server assumptions and gates:
+[server requirements](../known-foundry-server-requirements.md).
 
 | Decision | Owner |
 |---|---|
-| Name reuse, replacement intent, failed-provisioning recovery (see the [proposal](../managed-registration-server-requirements.md#proposal-name-reuse-and-failed-provisioning)) | E2 #45–#47 |
+| Name reuse, replacement intent, failed-provisioning recovery (see the [proposal](../known-foundry-server-requirements.md#proposal-name-reuse-and-failed-provisioning)) | E2 #45–#47 |
 | Create after rotation with the current key (no local state) | E2 #47 |
 | Replay response contents (SR-5) and compatibility negotiation | E2 #47 / E5 |
 | Whether the Live proof challenge stays | E2 #46 |
