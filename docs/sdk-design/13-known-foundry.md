@@ -207,8 +207,8 @@ the next mutation. Each call uses one finite deadline.
 5. Wait for `VERIFIED` or `READY`, or a customer-action or error result. Read the
    publication configuration and entity key from `ekUrl`. Apply
    [Registry States](#registry-states).
-6. Recover and verify an accepted ISSUANCE first. Otherwise run the shared issuance
-   coordinator: prepare, validate, countersign, persist exact bytes, submit with
+6. If saved state records an accepted ISSUANCE, verify it. Otherwise run the shared
+   issuance coordinator: prepare, validate, countersign, persist exact bytes, submit with
    `issuanceKey` as the `Idempotency-Key` header. Apply
    [Issuance Recovery](#issuance-recovery) before reporting a final failure.
 7. Wait for publication, then verify public DNS, HTTPS, and log evidence: domain,
@@ -282,9 +282,16 @@ for invalid in ["", "\ud800", "\U0001f600" * 256]:
 
 ## Issuance Recovery
 
-A rejection is final for the submitted bytes only. Before recording a final failure,
-read lifecycle history and verify any accepted ISSUANCE against the identity, initial
-public key, entity key, and log trust. Another replica can have submitted different
+The SDK reads lifecycle history only when it expects an ISSUANCE to exist. It does
+not scan the log before preparation, and it never treats empty history as proof
+that no ISSUANCE exists.
+
+A rejection is final for the submitted bytes only. When the server rejects
+preparation or submission, read lifecycle history and verify any accepted ISSUANCE
+against the identity, initial public key, entity key, and log trust before
+recording a final failure. If the history is empty or has no ISSUANCE yet, return
+a resumable error; the log can lag the server. Unavailable or invalid evidence
+stays an error. Another replica can have submitted different
 valid signature bytes; adopt its verified accepted entry. Never treat its receipt as
 acceptance of the local bytes, and never resubmit an accepted event.
 

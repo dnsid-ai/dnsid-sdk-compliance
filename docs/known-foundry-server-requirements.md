@@ -46,8 +46,8 @@ sequenceDiagram
     SDK->>State: Lock and reload
     SDK->>Registry: Complete proof
     SDK->>Registry: Read publication config and entity key
-    SDK->>Public: Recover accepted ISSUANCE if present
-    SDK->>Registry: Otherwise prepare, countersign, submit persisted bytes
+    SDK->>Registry: Prepare, countersign, submit persisted bytes
+    SDK->>Public: On rejection, recover the accepted ISSUANCE
     Registry->>Public: Append and publish
     SDK->>Public: Verify current key, ACTIVE, log evidence
     SDK->>State: Persist completion and release lock
@@ -78,7 +78,7 @@ Final E2 SCENs are the wire authority. Ordinary sandbox registration stays uncha
 | SR-3 | Commit identity, domain reservation or pool assignment, and workflow handoff together. Paid registration waits for proof. Recover unfinished workflows without a client call. | #45, #46, #48. |
 | SR-4 | Identity bindings outlive the replay cache. Delayed requests, cleanup, and terminal transitions never allocate a replacement or revive an old identity. | #45, #47, #48. |
 | SR-5 | Preserve caller-key Live 202 and proof semantics, with `request_id` equal to the Idempotency-Key. **A replay with the same organization, name, and public key returns the identity ID, domain, and status**, so a replica without local state can resume. The domain is a `domain` member of `LiveProvisioningResponse`, matching the `Agent` schema, present on every response once a domain is assigned. Reissue only expired proof on the same key. | PR #3304 returns only `request_id`, `agent_id`, and `status` on a challenge-free replay. Adding `domain` is a release gate; SDKs read it when present. |
-| SR-6 | Validate signatures before durably admitting submitted ISSUANCE bytes. An invalid signature does not consume the issuance key. Expose accepted-entry and preparation-reclaim facts. | #46. Different bytes under an accepted issuance key are rejected, not given its receipt. |
+| SR-6 | Validate signatures before durably admitting submitted ISSUANCE bytes. An invalid signature does not consume the issuance key. Expose accepted-entry and preparation-reclaim facts. When an ISSUANCE is already accepted, reject a new preparation or different submitted bytes with a structured error; never accept a second ISSUANCE. The SDK relies on this rejection to find another replica's ISSUANCE. | #46. Different bytes under an accepted issuance key are rejected, not given its receipt. |
 | SR-7 | Report registry progress, customer-action outcomes, structured errors, and publication fields (including `ek_url`). Readiness requires issuance, log inclusion, and publication. | #47. Wrong key is 409 `KEY_MISMATCH`. E2 #2 also lists `NAME_IN_USE`; confirm whether it stays, and when. |
 | SR-8 | Replacement after revoke or retire gets a new domain and log stream; the old identity stays terminal. Delayed old creates do not trigger it. | Not agreed; see the [proposal](#proposal-name-reuse-and-failed-provisioning). Separate gate. |
 
