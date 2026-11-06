@@ -161,9 +161,9 @@ the next mutation. Each call uses one finite deadline.
    against the sent request. Persist ID, domain, and proof facts. If the identity is
    already known, use authenticated reads, not another create.
 4. If the server requires a proof challenge, use `SubmitLiveProof` and
-   `ReissueLiveProof`. Persist the exact challenge and signature before submission.
-   Sign the decoded `challengeMessage` bytes unchanged. Reissue only an expired,
-   unused challenge on the same operation and key.
+   `ReissueLiveProof` with the saved `requestId`. Persist the exact challenge and
+   signature before submission. Sign the decoded `challengeMessage` bytes unchanged.
+   Reissue only an expired, unused challenge on the same operation and key.
 5. Wait for `VERIFIED` or `READY`, or a customer-action or error result. Read the
    publication configuration and entity key from `ekUrl`. Apply
    [Registry States](#registry-states).
@@ -393,7 +393,7 @@ the cross-SDK daily workflow. Server persistence proof stays in
 | Caller exits after `Create` | Signing paused; next call resumes. |
 | Proof expiry, lost responses, replay-cache expiry | Same operation; no new domain or key. |
 | `ERROR`, `REJECTED`, `CANCELLED`, terminal, unknown states | Correct typed outcome; no name release or replacement. |
-| Competing valid countersignatures; invalid then valid countersignature | One accepted ISSUANCE; key not poisoned. |
+| Competing valid countersignatures; invalid then valid countersignature | Losing bytes rejected; winner recovered; key not poisoned. |
 | Interruption at each phase | Same-bytes recovery; no recreation. |
 | `READY` without public `ACTIVE`; wrong GI, key, or log | Bounded wait or failure; signing paused. |
 | Restart of a `complete` operation; rotated or superseded key | Signing enabled only for the verified current key; no reissuance. |

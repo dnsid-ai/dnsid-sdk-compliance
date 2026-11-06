@@ -62,6 +62,7 @@ cannot produce the customer countersignature. That step waits for the client.
 The SDK uses `GET /api/v1/org/onboarding` for `org_id`, GI, and entity delegation
 under [05](sdk-design/05-transport-and-registry.md#account-binding-discovery). The
 entity key URL comes from `publication_config.ek_url`. No new endpoint is needed.
+Server code accepts org API keys on this read; the spec and tests do not yet.
 
 There is no capability field for named registration. Until E2/E5 agree a version
 or capability negotiation, release against a tested server revision and record it.
@@ -74,10 +75,10 @@ Final E2 SCENs are the wire authority. Ordinary sandbox registration stays uncha
 |---|---|---|
 | SR-1 | Authorize the organization; enforce verified-domain gates, tenant isolation, key validation, and quotas before effects. Do not expose other tenants' facts. | E2/E4, ABU-1. API-key authentication alone is not authorization. |
 | SR-2 | Exact organization/name ownership, including pending rows. Matching concurrent requests return one identity. A different key fails without changing the identity or consuming a domain. | PR #3150. Further name policy needs server agreement. |
-| SR-3 | Commit identity, domain, and workflow handoff together. Recover unfinished workflows without a client call. | #45, #46, #48. |
+| SR-3 | Commit identity, domain reservation or pool assignment, and workflow handoff together. Paid registration waits for proof. Recover unfinished workflows without a client call. | #45, #46, #48. |
 | SR-4 | Identity bindings outlive the replay cache. Delayed requests, cleanup, and terminal transitions never allocate a replacement or revive an old identity. | #45, #47, #48. |
-| SR-5 | Preserve caller-key Live 202 and proof semantics, with `request_id` equal to the Idempotency-Key. **A replay with the same organization, name, and key returns the identity ID, domain, and status**, so a replica without local state can resume. Reissue only expired proof on the same key. | PR #3304. Replay without a challenge can omit the domain today; this is a release gate. |
-| SR-6 | Validate signatures before durably admitting submitted ISSUANCE bytes. An invalid signature does not consume the issuance key. Expose accepted-entry and preparation-reclaim facts. | #46. Competing valid signatures converge on one accepted entry. |
+| SR-5 | Preserve caller-key Live 202 and proof semantics, with `request_id` equal to the Idempotency-Key. **A replay with the same organization, name, and public key returns the identity ID, domain, and status**, so a replica without local state can resume. Reissue only expired proof on the same key. | PR #3304. Replay without a challenge can omit the domain today; this is a release gate. |
+| SR-6 | Validate signatures before durably admitting submitted ISSUANCE bytes. An invalid signature does not consume the issuance key. Expose accepted-entry and preparation-reclaim facts. | #46. Different bytes under an accepted issuance key are rejected, not given its receipt. |
 | SR-7 | Report registry progress, customer-action outcomes, structured errors, and publication fields (including `ek_url`). Readiness requires issuance, log inclusion, and publication. | #47. Wrong key is 409 `KEY_MISMATCH`. E2 #2 also lists `NAME_IN_USE`; confirm whether it stays, and when. |
 | SR-8 | Replacement after revoke or retire gets a new domain and log stream; the old identity stays terminal. Delayed old creates do not trigger it. | Not agreed; see the [proposal](#proposal-name-reuse-and-failed-provisioning). Separate gate. |
 
@@ -125,7 +126,8 @@ historical keys (including rotated keys) are retained for lookup.
 Use real PostgreSQL and the shipped server, with Temporal and provider fixtures where
 needed. Record server and SDK revisions.
 
-- [ ] SR-1: tenant isolation, gates, and quotas hold independently of authentication.
+- [ ] SR-1: tenant isolation, gates, and quotas hold independently of authentication;
+  an org API key can read onboarding.
 - [ ] SR-2/SR-3: concurrent matching creates yield one identity, domain, key, and
   handoff; conflicts change nothing.
 - [ ] SR-3: interruption before or after commit recovers without a client call;
@@ -133,8 +135,9 @@ needed. Record server and SDK revisions.
 - [ ] SR-4: replay-cache expiry, restarts, lost responses, and deletion cause no
   reallocation or revival.
 - [ ] SR-5: the SDK flow creates, replays, proves, and restarts; a replay without
-  local state returns ID, domain, and status.
-- [ ] SR-6: interrupted submissions reuse exact bytes; competing signatures converge;
+  local state returns ID, domain, and status, then completes proof.
+- [ ] SR-6: interrupted submissions reuse exact bytes; a competing
+  signature is rejected and its replica recovers the accepted entry;
   invalid then valid submission succeeds.
 - [ ] SR-7: all error and customer-action cases return structured outcomes; public
   `ACTIVE` is checked separately from `READY`.
