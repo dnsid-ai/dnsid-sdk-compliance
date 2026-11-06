@@ -76,7 +76,7 @@ Final E2 SCENs are the wire authority. Ordinary sandbox registration stays uncha
 | SR-1 | Authorize the organization; enforce verified-domain gates, tenant isolation, key validation, and quotas before effects. Do not expose other tenants' facts. | E2/E4, ABU-1. API-key authentication alone is not authorization. |
 | SR-2 | Exact organization/name ownership, including pending rows. Matching concurrent requests return one identity. A different key fails without changing the identity or consuming a domain. | PR #3150. Further name policy needs server agreement. |
 | SR-3 | Commit identity, domain reservation or pool assignment, and workflow handoff together. Paid registration waits for proof. Recover unfinished workflows without a client call. | #45, #46, #48. |
-| SR-4 | Identity bindings outlive the replay cache. Delayed requests, cleanup, and terminal transitions never allocate a replacement or revive an old identity. | #45, #47, #48. |
+| SR-4 | Identity bindings outlive the replay cache. Delayed requests, cleanup, and terminal transitions never allocate a replacement or revive an old identity. | #45, #47, #48. PR #3150 as reviewed releases the name on revoke, retire, and soft deletion; that must change before the initial-create gate passes. |
 | SR-5 | Preserve caller-key Live 202 and proof semantics, with `request_id` equal to the Idempotency-Key. **A replay with the same organization, name, and public key returns the identity ID, domain, and status**, so a replica without local state can resume. The domain is a `domain` member of `LiveProvisioningResponse`, matching the `Agent` schema, present on every response once a domain is assigned. Reissue only expired proof on the same key. | PR #3304 returns only `request_id`, `agent_id`, and `status` on a challenge-free replay. Adding `domain` is a release gate; SDKs read it when present. |
 | SR-6 | Validate signatures before durably admitting submitted ISSUANCE bytes. An invalid signature does not consume the issuance key. Expose accepted-entry and preparation-reclaim facts. When an ISSUANCE is already accepted, reject a new preparation or different submitted bytes with a structured error; never accept a second ISSUANCE. The SDK relies on this rejection to find another replica's ISSUANCE. | #46. Different bytes under an accepted issuance key are rejected, not given its receipt. |
 | SR-7 | Report registry progress, customer-action outcomes, structured errors, and publication fields (including `ek_url`). Readiness requires issuance, log inclusion, and publication. | #47. Wrong key is 409 `KEY_MISMATCH`. E2 #2 also lists `NAME_IN_USE`; confirm whether it stays, and when. |
@@ -110,7 +110,7 @@ Rules are per authenticated organization and exact name.
 | Nonterminal identity; caller supplies the identity's current key after rotation | Return the existing identity, not `KEY_MISMATCH`. PR #3304 compares against the create-time key, so this needs agreement. |
 | Nonterminal identity; caller supplies an unrelated key | `KEY_MISMATCH`; no change. |
 | REVOKED or RETIRED; caller uses a key from that identity | Return the terminal identity. |
-| REVOKED or RETIRED; caller supplies a new, unused key | Create a fresh identity and domain. No separate replacement API. |
+| REVOKED or RETIRED; caller supplies a new, unused key | After SR-8 is enabled: create a fresh identity and domain, with no separate replacement API. Before SR-8: return a terminal error and allocate nothing. |
 | Delayed request with a key from an earlier identity | Resolve to that earlier identity, even after later replacements. |
 | Replay cache expires or a row is soft-deleted | Neither permits replacement or revival. |
 
@@ -145,5 +145,7 @@ needed. Record server and SDK revisions.
   allocate exactly one new domain.
 - [ ] E5: Go, Python, TypeScript, and CLI pass the shared hosted scenarios.
 
-Initial create needs SR-1 through SR-7 and refusal of terminal replacement. SR-8
+Initial create needs SR-1 through SR-7 and refusal of terminal replacement: the
+server returns a terminal error for any key on a REVOKED or RETIRED name, because
+the SDK cannot detect replacement for a replica without local state. SR-8
 enables replacement later.

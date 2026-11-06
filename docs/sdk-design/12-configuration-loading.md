@@ -211,7 +211,7 @@ not core identity construction or counterparty policy.
 | `dnsid` | `DnsidConfig`, validated by the `IdentityManager` constructor. |
 | `logTrust` | `LogTrust`; exactly one of `managed`, `profile` (inline document), or `policyUrl`. `policyDocument` has no file member; supply it through `DNSID_LOG_POLICY_FILE` or code. |
 | `registry` | `RegistryConfig`, validated by the `RegistryClient` constructor. |
-| `foundry` | [FoundryConfig](13-known-foundry.md#configuration-and-trust); validated and resolved by the Foundry module. |
+| `foundry` | [FoundryConfig](13-known-foundry.md#configuration-and-trust), a plain data type owned by this loader; the loader checks members and types, and the Foundry module validates and resolves values. |
 | `keySource` | `KeySource`; availability and provider settings validated by the selected factory. |
 
 For Foundry create, a file can add:

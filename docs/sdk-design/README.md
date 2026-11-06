@@ -302,7 +302,8 @@ DNSid core does not depend on any application authentication profile.
 
 Configuration loading and Known Foundry depend on core, not the reverse.
 Use separate packages where needed to keep imports acyclic. Known Foundry is
-always a separate module; nothing outside it imports it.
+always a separate module; core, the registry client, and configuration loading
+never import it.
 
 ## Naming
 

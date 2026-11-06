@@ -37,7 +37,8 @@ Low-level registry and signing APIs stay available.
 ## Module Placement
 
 Each binding ships Foundry create in its own module. Core, the registry client,
-and configuration loading never import it.
+and configuration loading never import it. `FoundryConfig` is a plain data type
+owned by the configuration loader; the Foundry module imports and validates it.
 
 | Binding | Module | Call |
 |---|---|---|
@@ -118,8 +119,11 @@ check, so a restart does not depend on DNS or log availability. Call `Active` to
 refresh the public observation. A refresh that finds a terminal state or mismatch
 pauses signing.
 
-Repeated `Create` calls reopen the same identity, including after rotation, without
-another issuance. They never replace a terminal identity.
+With saved state, repeated `Create` calls reopen the same identity, including after
+rotation, without another issuance. A replica without saved state after rotation
+derives a new `registrationKey` from its current key; until E2 #47 decides that case
+([08](08-open-questions.md#known-foundry-create)), expect `KEY_MISMATCH`. `Create`
+never replaces a terminal identity.
 
 ### Name Normalization
 
@@ -299,8 +303,7 @@ acceptance of the local bytes, and never resubmit an accepted event.
 Retry an unknown outcome with the same bytes and key. Replace an expired preparation
 only when the server state permits it under
 [11](11-c2sp-tlog-binding.md#submission-and-idempotency); keep the same issuance key.
-Otherwise return a recoverable error. Go and TypeScript have coordinators; Python
-needs the same coordinator ([#51](https://github.com/Identity-Digital/known-foundry/issues/51)).
+Otherwise return a recoverable error.
 
 ## Registry States
 
@@ -372,7 +375,10 @@ base64url; timestamps are RFC 3339 UTC.
 | `publicationConfig`, `oidcIssuerUrl`, `entityPublicKey` | Publication snapshot, issuer, and entity public JWK. |
 | `issuance` | Prepared and completed bytes, `entryHash`, submission state (per 11), log reference and index, acceptance facts. |
 
-Each phase requires the members needed to resume it. Drop proof and issuance bytes
+`proof-pending` lasts until the proof outcome is saved. `identity-known` covers a
+saved ID and domain with no unsettled proof, including ISSUANCE preparation and
+submission; the `issuance` member records that progress. Each phase requires the
+members needed to resume it. Drop proof and issuance bytes
 only after their outcome is durably known. Documents never contain private keys or
 credentials; the destination reopens the same provider key or a verified successor.
 
@@ -409,9 +415,10 @@ and store, calls `Create` then `Active`, and succeeds only after public readines
 JSON output goes to stdout; progress and warnings go to stderr. On timeout or error,
 it reports the known ID, domain, and how to resume. Rerunning resumes.
 
-Retire finds the identity in the local store, or by name through the registry, and
-calls the existing retire endpoint with the E8 type-the-name confirmation. It reports
-"pending" until it observes public convergence. `dnsid rotate` belongs to E7.
+Retire finds the identity in the local store and calls the existing retire endpoint with the E8 type-the-name confirmation. It reports
+"pending" until it observes public convergence. Without local state it returns a
+typed error; lookup by name needs a server endpoint that E2 has not defined.
+`dnsid rotate` belongs to E7.
 
 The `init` refactor ([#2600](https://github.com/Identity-Digital/dnsid/issues/2600),
 [#2651](https://github.com/Identity-Digital/dnsid/issues/2651)) can share key and

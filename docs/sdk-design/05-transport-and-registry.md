@@ -245,8 +245,8 @@ publication snapshot, and any saved OIDC issuer. Compare authoritative reads
 with those facts; omission of `oidc_issuer_url` when an issuer was saved is a mismatch,
 not permission to clear it. An issuer omitted at creation need not be present later.
 An authenticated authoritative read MUST establish the retained bindings before
-reporting success. Authorized rotation is handled under
-[13: Completed-Operation Resume](13-known-foundry.md#completed-operation-resume).
+reporting success. A key change is accepted only as an authorized rotation under
+the core [rotation contract](01-core-identity-manager.md#operational-key-rotation).
 Optional progress callbacks neither establish success nor extend the finite
 deadline/cancellation budget shared by polling and verification. Durable writes
 remain required; cancellation does not prove an in-flight write was undone, and
@@ -259,8 +259,11 @@ FUNCTION AwaitRegistryManagedPublication(registryClient: RegistryClient) -> Publ
     RAISE ValidationError("client controls accountable-entity publication")
   END
 
+  retained = RetainedBindings(registration) // ID, domain, authority, snapshot, saved OIDC issuer
+
   LOOP
     registration = registryClient.GetRegistration(config.identity.domain)
+    AssertRetainedBindings(registration, retained) // Mismatch or omitted saved issuer fails.
     IF registration.registryStatus IN ["REJECTED", "CANCELLED", "ERROR", "REVOKED", "RETIRED"] THEN
       RAISE RegistryWorkflowError(registration)
     END
@@ -687,10 +690,11 @@ Managed Live registration is a separate operation, even though it uses the same
 HTTP route. It requires a public key, an omitted domain and zone, and either an
 omitted environment or `environment="production"`. It also requires an
 `Idempotency-Key` and returns HTTP 202 `LiveProvisioningResponse`, not the HTTP
-201 `AgentRegistration` shape. The returned `requestId` must equal the caller's
-Idempotency-Key and is retained for every retry and proof operation. The server's
-internal canonical operation ID may differ; the SDK does not substitute or derive
-it. The base64url-decoded `challengeMessage` is the exact byte sequence signed by the registered private key. Parsing it for routing or
+201 `AgentRegistration` shape. The returned `requestId` is retained for every
+retry and proof operation. [Known Foundry create](13-known-foundry.md) also
+requires it to equal the caller's Idempotency-Key (server gate SR-5); ordinary
+Live calls do not check this. The server's internal canonical operation ID may
+differ; the SDK does not substitute or derive it. The base64url-decoded `challengeMessage` is the exact byte sequence signed by the registered private key. Parsing it for routing or
 validation MUST NOT change the bytes that are signed.
 
 The server retains a legacy local Live mode selected by `tier="live"` and
@@ -799,7 +803,7 @@ protocol state for display or polling, but that mapping is not an
 also requires the actual time of the most recent protocol transition and, for
 `REVOKED`, its reason. In particular, SDKs MUST NOT fabricate
 `lastTransitionAt`, and publication readiness does not by itself prove protocol
-`ACTIVE` state. Polling helpers still treat REVOKED and RETIRED as terminal;
+`ACTIVE` state. Polling helpers MUST still treat REVOKED and RETIRED as terminal;
 existing registry-status wait helpers otherwise retain their current semantics.
 Foundry `Active` separately applies [13's workflow outcomes](13-known-foundry.md#registry-states)
 and public evidence checks, including retained name ownership after CANCELLED/REJECTED.
@@ -845,7 +849,7 @@ governance persistence also require server integration tests, not SDK coordinati
 | Authenticated read or mutation returns a redirect, including to the same origin | Reject; no request or credential reaches the redirect target. |
 | Invalid response or root/admission failure | Fail closed, preserve known creation facts and server errors, and make no fallback request. |
 | Supported existing selectors and managed Live | Preserve existing request behavior; Live still returns 202 provisioning, not ordinary 201 registration. |
-| Keyed ordinary replay, including stale GI or changed input | Preserve the original request/key and known identity; retain governance/mismatch errors without replacement allocation. |
+| Keyed ordinary replay, including stale GI or changed input | Preserve the original request/key and known identity; retain governance/mismatch errors without replacement allocation or cross-organization replay. |
 | Foundry named Live create and durable operation recovery | [Server acceptance checks](../known-foundry-server-requirements.md#acceptance-checks) establish tenant isolation, atomic convergence and replay-expiry safety. Replacement is separately gated. |
 | Timeout or post-creation failure | Retain known facts for recovery; never imply that failure proves no identity exists. |
 
