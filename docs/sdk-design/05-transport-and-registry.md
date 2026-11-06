@@ -425,7 +425,8 @@ RegistryClient.RegisterLiveAgent(input: LiveAgentRegistrationInput,
   // Only HTTP 202 is decoded as LiveProvisioningResponse,
   // never AgentRegistration; Live provisioning has not completed at this point.
   // While status is challenge_pending, domain is parsed from the validated
-  // challenge transcript so it can address the proof routes.
+  // challenge transcript so it can address the proof routes. Otherwise domain
+  // comes from the response `domain` field when present (see Live Provisioning Types).
 
 RegistryClient.SubmitLiveProof(domain: string, request: LiveProofRequest,
                                idempotencyKey: string) -> LiveProofResponse
@@ -717,7 +718,7 @@ TYPE LiveProvisioningResponse
   status: string
   challenge: string
   challengeMessage: string // unpadded base64url-encoded bytes
-  domain: string           // derived; present while challenge_pending
+  domain?: string          // from transcript while challenge_pending; else wire `domain` if present
   challengeTranscript: LiveChallengeTranscript // derived; present while challenge_pending
 END
 
@@ -754,7 +755,11 @@ exposes `fqdn` as normalized `domain`. A successful reissue has the same
 requirements, using the required reissue `publicKeyJwk` to validate `keyId`.
 Other replay statuses may carry empty `challenge` and
 `challengeMessage` strings; required wire fields do not imply non-empty values,
-and derived `domain` and `challengeTranscript` are then absent.
+and `challengeTranscript` is then absent. On such a replay, `domain` is the wire
+`domain` field when present and a valid agent domain, and is otherwise absent.
+The current server omits it; adding it is pending server gate SR-5 in the
+[server requirements](../known-foundry-server-requirements.md). If both a
+transcript and a wire `domain` are present, they MUST match after normalization.
 
 The transcript's current wire names are `org_id`, `agent_id`, `key_id`, and
 `expires_at`. Other current Live wire names are `request_id`, `agent_id`,

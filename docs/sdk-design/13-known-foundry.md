@@ -138,7 +138,8 @@ END
 `LoadedConfig.foundry` holds these optional expectations. `Create` reads the
 organization ID and GI from authenticated onboarding
 ([05](05-transport-and-registry.md#account-binding-discovery)) and compares them
-byte-exact with configured and saved values before any mutation. Never select named
+with configured and saved values before any mutation: the organization ID
+byte-exact, and the GI as a normalized domain under 05. Never select named
 state by name alone across organizations. A credential for a different organization
 fails before creation.
 
@@ -186,8 +187,12 @@ the next mutation. Each call uses one finite deadline.
 3. If creation is unresolved, derive `registrationKey`, rebuild the identical
    request, and call `RegisterLiveAgent` with `registrationKey` as the
    `Idempotency-Key` header. Validate `requestId` and any challenge
-   against the sent request. Persist ID, domain, and proof facts. If the identity is
-   already known, use authenticated reads, not another create.
+   against the sent request. Take the domain from the validated challenge, or from
+   the response `domain` field on a challenge-free replay
+   ([05](05-transport-and-registry.md#live-provisioning-types)). Persist ID, domain,
+   and proof facts. If no domain is known, persist the ID and status and return the
+   resumable error. If the identity is already known, use authenticated reads, not
+   another create.
 4. If the server requires a proof challenge, use `SubmitLiveProof` and
    `ReissueLiveProof` with the saved `requestId`. Persist the exact challenge and
    signature before submission. Sign the decoded `challengeMessage` bytes unchanged.
@@ -317,7 +322,8 @@ returns a typed terminal error. See the
 ## Storage and Recovery
 
 `FoundryStore` creates, loads, and updates named operations.
-`FileFoundryStore(directory)` is the default and keys state by
+`FileFoundryStore(directory)` is the default, at `~/.dnsid/foundry/` when no
+directory is given. It keys state by
 `(registry URL, organization ID, exact name)`, using digests for paths. The SDK and
 CLI share the default location; callers can inject a store. Historical operations
 stay addressable by ID after a name is reused.
@@ -358,7 +364,10 @@ credentials; the destination reopens the same provider key or a verified success
 ## Retry, Deadlines, and Errors
 
 Each call has one finite deadline covering locks, provider calls, network, storage,
-and retries. Retry transient failures and unknown outcomes only with the same input
+and retries. Pass the deadline to provider calls that accept cancellation. For a
+provider call that does not, check the deadline before and after the call; the
+provider's own timeout bounds the call. Do not change the `KeyProvider` interface
+for this. Retry transient failures and unknown outcomes only with the same input
 and bytes. Integrity, policy, and binding failures stop.
 
 Typed errors carry the phase, HTTP status and wire code, known ID and domain,
