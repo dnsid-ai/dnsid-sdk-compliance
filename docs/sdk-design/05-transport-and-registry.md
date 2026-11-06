@@ -760,7 +760,8 @@ requirements, using the required reissue `publicKeyJwk` to validate `keyId`.
 Other replay statuses may carry empty `challenge` and
 `challengeMessage` strings; required wire fields do not imply non-empty values,
 and `challengeTranscript` is then absent. On such a replay, `domain` is the wire
-`domain` field when present and a valid agent domain, and is otherwise absent.
+`domain` field when present and a valid agent domain, and is otherwise absent. A
+missing, null, or empty `domain` member is absent, not an error.
 The current server omits it; adding it is pending server gate SR-5 in the
 [server requirements](../known-foundry-server-requirements.md). If both a
 transcript and a wire `domain` are present, they MUST match after normalization.

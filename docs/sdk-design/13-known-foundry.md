@@ -208,7 +208,11 @@ the next mutation. Each call uses one finite deadline.
 4. If the server requires a proof challenge, use `SubmitLiveProof` and
    `ReissueLiveProof` with the saved `requestId`. Persist the exact challenge and
    signature before submission. Sign the decoded `challengeMessage` bytes unchanged.
-   Reissue only an expired, unused challenge on the same operation and key.
+   Reissue only after the challenge expires, on the same operation and key. If a
+   submitted proof's outcome is unknown and the registry still waits for proof
+   after expiry, request a reissue: the server refuses a used challenge (HTTP 409),
+   and the SDK then waits for the registry status. A successful reissue replaces
+   the saved challenge and signature.
 5. Wait for `VERIFIED` or `READY`, or a customer-action or error result. Read the
    publication configuration and entity key from `ekUrl`. Apply
    [Registry States](#registry-states).
