@@ -191,15 +191,16 @@ the next mutation. Each call uses one finite deadline.
    `EnsureSigningKey()`, call it; the provider owns how it provisions or converges
    keys. Otherwise return `KEY_MISSING`. The Live adapter requires Ed25519. Persist
    bindings, creation intent, provider reference, and the public JWK before creation.
-3. If creation is unresolved, derive `registrationKey`, rebuild the identical
+3. Creation is unresolved until both the ID and the domain are saved. If it is
+   unresolved, derive `registrationKey`, rebuild the identical
    request, and call `RegisterLiveAgent` with `registrationKey` as the
    `Idempotency-Key` header. Validate `requestId` and any challenge
    against the sent request. Take the domain from the validated challenge, or from
    the response `domain` field on a challenge-free replay
    ([05](05-transport-and-registry.md#live-provisioning-types)). Persist ID, domain,
    and proof facts. If no domain is known, persist the ID and status and return the
-   resumable error. If the identity is already known, use authenticated reads, not
-   another create.
+   resumable error; the next call replays the same request. Once the ID and domain
+   are saved, use authenticated reads, not another create.
 4. If the server requires a proof challenge, use `SubmitLiveProof` and
    `ReissueLiveProof` with the saved `requestId`. Persist the exact challenge and
    signature before submission. Sign the decoded `challengeMessage` bytes unchanged.
