@@ -1066,7 +1066,7 @@ INTERFACE KeyProvider
   // require proof of possession from the pending new key.
   SignKey(kid: string, payload: bytes) -> bytes
 
-  // --- Management methods (called by operator code during key rotation) ---
+  // --- Management methods (called by operator code during setup or rotation) ---
 
   GenerateKey() -> kid
   Activate(kid: string)
@@ -1301,6 +1301,46 @@ use `validated`. Deployments that require DNS-rooted origin authentication use
 ## Core Flows
 
 ### Initial Setup of Local Identity
+
+#### KMS-first operational key creation
+
+Before constructing the initial local-identity manager, an operator explicitly
+creates the operational key through the selected provider's native KMS creation
+operation. AWS KMS and Google Cloud KMS bootstrap MUST NOT require an existing
+active operational key or a prior key version. Google Cloud KMS parent
+prerequisites are defined in
+[12](12-configuration-loading.md#google-cloud-kms-ed25519).
+These are semantic operations, not prescribed per-binding API names or a new
+shared provisioning interface.
+
+The private key MUST be generated inside the KMS and remain there: no local
+keypair generation, private-key export/import, file-provider fallback, or local
+keystore, identity-file, or temporary-key-file writes on success or failure.
+This does not govern unrelated cloud-authentication cache behavior.
+
+Successful creation exposes the provider and its immutable public key reference,
+through the result or inspectable provider state, after validating the requested
+resource, algorithm, readiness, and public key. The key remains locally pending
+until explicit operator activation. The operator activates it locally before
+supplying the provider as `deps.keyProvider` for the initial setup below.
+Local activation enables signing; it is not protocol ISSUANCE or activation of
+identity status and does not bypass publication or issuance checks.
+
+The application owns the reference handoff and any durable storage it chooses;
+the SDK MUST NOT implicitly persist state files. Subsequent startup reopens the
+same immutable reference and validates the same key binding, without recreating
+it or inferring protocol status from cloud availability. Ordinary
+[configuration construction](12-configuration-loading.md#operational-key-source-selection)
+remains open-only. Initial creation MUST NOT implicitly replace an established
+signer; that requires authorized rotation.
+
+A failed or indeterminate remote create may still leave a billable remote key or
+version. The SDK MUST NOT implicitly recreate or delete it, fall back to a local
+signer, or partially activate it. The operator owns resource discovery,
+reconciliation, and any explicit cleanup, including resources whose creation
+response was lost. Creation does not promise idempotent provisioning.
+
+#### Publication and issuance
 
 ```
 1. IdentityManager.new(config{identity, verification, transport}, deps{keyProvider, entityKeyProvider, logRegistry})

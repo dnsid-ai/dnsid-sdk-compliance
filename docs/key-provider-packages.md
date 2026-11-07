@@ -9,7 +9,7 @@ SDK configuration composition, not core verification.
 |---|---|---|
 | Go | Provider package registers its factory in `init()`; application imports it, commonly with a blank import, as with `database/sql`. Configuration selects linked factories; no runtime plugins. | Add dependency/import and rebuild. Installing a module alone does not link it; switching among linked providers needs no code change. |
 | TypeScript | Fixed name-to-loader mapping with lazy `import()` of known optional packages. Packaging/bundlers preserve selected optional imports. | Install the package and include it in the build; a bundled-out provider is unavailable. |
-| Python | Fixed name-to-module mapping using `importlib` for the selected optional package. | Install the named package. |
+| Python | Fixed name-to-module mapping using `importlib` for the selected provider module; cloud dependencies remain optional. | Install the selected provider dependency; Google Cloud KMS uses `dnsid[gcp]`, not a separate provider distribution. |
 
 Loading the base SDK must not load every cloud dependency. Test selected-only
 loading and missing packages/factories, alongside

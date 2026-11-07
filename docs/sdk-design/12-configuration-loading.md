@@ -108,9 +108,20 @@ version MUST use `EC_SIGN_ED25519` and be usable for signing; invalid references
 unsupported algorithms, unavailable versions, and authorization failures MUST
 fail without generating a replacement or falling back to another signer.
 
-An explicit operator call to `GenerateKey()` creates an `EC_SIGN_ED25519` version
-under the configured version's parent `CryptoKey`, not a new `CryptoKey`. It
-returns the new key ID and leaves the key locally pending. It MUST NOT change
+For explicit [initial creation](01-core-identity-manager.md#kms-first-operational-key-creation),
+the operator supplies an existing compatible `CryptoKey` parent with signing
+purpose and an `EC_SIGN_ED25519` version template. No prior `CryptoKeyVersion`
+is required or opened. The operation validates the parent and template and
+creates an `EC_SIGN_ED25519` version remotely, not a project, key ring, or
+`CryptoKey`. The caller must provide the existing resources and permissions for
+creation, metadata/public-key access, and signing. The resulting immutable
+version reference is handed off for subsequent open-only startup; a parent
+reference is not a valid configured `keyRef`.
+
+For rotation, an explicit operator call to `GenerateKey()` creates an
+`EC_SIGN_ED25519` version under the configured version's parent `CryptoKey`,
+not a new `CryptoKey`. It returns the new key ID and leaves the key locally
+pending. It MUST NOT change
 the current active signer, configuration, or live publication. The new key is
 available through `JWK` and `SignKey` for the existing
 [rotation flow](01-core-identity-manager.md#operational-key-rotation).
