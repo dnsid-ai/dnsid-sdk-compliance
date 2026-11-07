@@ -1318,13 +1318,19 @@ keypair generation, private-key export/import, file-provider fallback, or local
 keystore, identity-file, or temporary-key-file writes on success or failure.
 This does not govern unrelated cloud-authentication cache behavior.
 
-Successful creation exposes the provider and its immutable public key reference,
+Successful creation exposes the provider and its immutable KMS resource reference,
 through the result or inspectable provider state, after validating the requested
-resource, algorithm, readiness, and public key. The key remains locally pending
-until explicit operator activation. The operator activates it locally before
+resource, algorithm, readiness, and public key. This reference is the created AWS
+key ARN (not a mutable alias) or Google Cloud KMS version name, not public-key
+bytes. The key remains locally pending until explicit operator activation.
+The operator activates it locally before
 supplying the provider as `deps.keyProvider` for the initial setup below.
 Local activation enables signing; it is not protocol ISSUANCE or activation of
 identity status and does not bypass publication or issuance checks.
+The caller still supplies distinct accountable-entity custody through
+`deps.entityKeyProvider`, as required by the existing
+[KeyProvider contract](#keyprovider-interface); operational-key creation does not
+change that separation.
 
 The application owns the reference handoff and any durable storage it chooses;
 the SDK MUST NOT implicitly persist state files. Subsequent startup reopens the
