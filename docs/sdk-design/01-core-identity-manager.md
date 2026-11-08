@@ -1336,15 +1336,23 @@ The caller still supplies distinct accountable-entity custody through
 change that separation.
 
 The application owns the reference handoff and any durable storage it chooses;
-the SDK MUST NOT implicitly persist state files. For an already locally activated
-key, subsequent startup reopens the same immutable reference and validates the
-same key binding, without recreating it or inferring protocol status from cloud
-availability. Reference-only recovery after creation but before local activation
-remains an [open question](08-open-questions.md#kms-first-restart-before-local-activation).
+the SDK MUST NOT implicitly persist state files. After restart, deliberate
+operator or application selection of the handed-off immutable reference is
+sufficient to use that existing key as the local signer, even if it was never
+locally activated before restart. No saved provider state or persisted proof of
+prior activation is required for this reference-only startup. Opening validates
+the resource, algorithm, readiness, public key, and same key binding without
+recreating the key. The explicit selection authorizes local signing; neither
+creation nor cloud-enabled state alone does so. The SDK MUST NOT automatically
+discover or select keys. DNS publication, verification-resource publication,
+ISSUANCE, and protocol status remain separate requirements.
+
 Ordinary
 [configuration construction](12-configuration-loading.md#operational-key-source-selection)
-remains open-only. Initial creation MUST NOT implicitly replace an established
-signer; that requires authorized rotation.
+remains open-only. Reference selection MUST NOT replace an established signer
+without authorized rotation or bypass saved pending or superseded provider state
+and the [managed-rotation recovery checks](#managed-rotation-recovery-contract).
+Initial creation MUST NOT implicitly replace an established signer.
 
 A failed or indeterminate remote create may still leave a billable remote key or
 version. The SDK MUST NOT implicitly recreate or delete it, fall back to a local

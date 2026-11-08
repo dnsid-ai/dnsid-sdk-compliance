@@ -105,7 +105,8 @@ AWS initial creation uses the common
 [KMS-first operational key creation contract](01-core-identity-manager.md#kms-first-operational-key-creation),
 including validation of the requested resource, algorithm, readiness, and public
 key, handoff of the immutable created key ARN rather than a mutable alias,
-pending activation, failure reconciliation, and subsequent open-only startup.
+pending activation, failure reconciliation, and deliberate reference selection for
+subsequent open-only startup without persisted proof of prior activation.
 These common requirements are also the AWS acceptance target; the Google-specific
 cases below do not defer AWS acceptance or restrict AWS to Ed25519.
 
@@ -137,8 +138,12 @@ available through `JWK` and `SignKey` for the existing
 [rotation flow](01-core-identity-manager.md#operational-key-rotation).
 Opening the configured version never invokes generation, and cloud-enabled
 state alone does not establish local activation or authorize replacing an
-established signer. Recovery uses the existing
-[application-owned state and exact bindings](01-core-identity-manager.md#managed-rotation-recovery-contract).
+established signer. Deliberate selection of the immutable version reference for
+reference-only startup authorizes local signing under the
+[KMS-first contract](01-core-identity-manager.md#kms-first-operational-key-creation),
+without requiring prior local activation or persisted proof of it. This does not
+bypass saved pending or superseded provider state. Managed-rotation recovery uses
+the existing [application-owned state and exact bindings](01-core-identity-manager.md#managed-rotation-recovery-contract).
 
 ## Sources
 
@@ -419,7 +424,7 @@ the provider package to implement that orchestration.
 |---|---|---|
 | Explicitly create the initial version under a compatible parent with no prior version or active key | real-capable | New remote `EC_SIGN_ED25519` version and immutable version reference; key remains locally pending with no active signer until explicit activation enables signing. |
 | Initial creation fails or has an indeterminate outcome | real-capable | No local keystore, identity-file, or temporary-key-file writes, local fallback, implicit recreate/delete, or partial activation; operator owns remote-resource reconciliation. |
-| Reopen an already locally activated initial key using the handed-off immutable version reference | real-capable | Same key ID and public key; no new cloud version; the parent alone is not a valid configured `keyRef`. |
+| Restart after initial creation but before local activation, with only the handed-off immutable version reference, and deliberately select it as signer | real-capable | Same key ID and public key; local signing succeeds without saved provider state or persisted proof of prior activation; no new cloud version, automatic key discovery, or implicit publication or issuance; the parent alone is not a valid configured `keyRef`. |
 | Open the same valid version across restarts | real-capable | Same key ID and public key; no new cloud version. |
 | Supply a parent-only or mutable reference, or a non-Ed25519 version | real-capable | Opening fails without replacement generation or fallback. |
 | Version is unavailable, access is denied, or the KMS service fails | real-capable | Operation fails; no substituted signer or successful signature. |
@@ -427,5 +432,5 @@ the provider package to implement that orchestration.
 | Retain pending or superseded keys | real-capable | `ListKeyIds()` returns only the active ID, or an empty list when none is active; retained keys are not live inventory. |
 | Publish a pending successor during rotation | fake-only | Explicit rotation publication exposes only the successor while application signing stays paused; the successor remains pending until activation. |
 | Supersede a previous key after successor activation | real-capable | Previous-key signing fails; successor remains active; previous key is absent from the active listing and live publication; cloud version state is unchanged. |
-| Reopen saved pending or superseded provider state | fake-only | Cloud availability does not promote the key to application signing. |
+| Reopen saved pending or superseded provider state | fake-only | Saved eligibility is preserved; neither cloud availability nor reference selection bypasses it or managed-rotation recovery checks. |
 | Resume an accepted rotation after a crash with stale deployment settings | fake-only | Exact saved bindings are used; activation and supersession reconcile forward; saved target is restored before signing resumes. |

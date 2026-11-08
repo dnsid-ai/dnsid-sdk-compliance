@@ -4,21 +4,26 @@ This document tracks SDK design questions that are not yet resolved.
 
 ## Open Questions
 
-### KMS-first restart before local activation
-
-**OPEN:** After explicit AWS KMS or Google Cloud KMS first-key creation, what
-happens if the application restarts before local activation and only the
-immutable resource reference has been handed off, without saved provider state?
-The pending-versus-active result of reference-only reopening and any required
-state handoff remain undecided. This question does not define a new persistence
-mechanism or authorize automatic activation.
-
-The existing saved-pending-state rule in
-[12](12-configuration-loading.md#google-cloud-kms-lifecycle-acceptance-cases)
-remains unchanged. The ordinary already-activated reopen path is described in
-[01](01-core-identity-manager.md#kms-first-operational-key-creation).
+None currently.
 
 ## Resolved Questions
+
+### KMS-first restart before local activation
+
+After restart, deliberate operator or application selection of the handed-off
+immutable AWS KMS key ARN or Google Cloud KMS version reference is sufficient to
+use that existing key as the local signer, even if it was never locally activated
+before restart. No saved provider state or persisted proof of prior activation
+is required for this reference-only startup. Creation still leaves the key
+pending; cloud-enabled state alone does not authorize signing, and the SDK does
+not automatically discover or select keys. Selection does not replace an
+established signer without authorized rotation, bypass saved pending or
+superseded provider state or managed-rotation recovery checks, or satisfy external
+publication and issuance requirements.
+
+The contract is defined in
+[01](01-core-identity-manager.md#kms-first-operational-key-creation), with
+[acceptance cases in 12](12-configuration-loading.md#google-cloud-kms-lifecycle-acceptance-cases).
 
 Operation-level `logchk` uses the operation-independent
 `VerifyLogEvidence(verifiedDomain, at)` primitive defined in
