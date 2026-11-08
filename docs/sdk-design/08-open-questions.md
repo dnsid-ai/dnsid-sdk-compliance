@@ -2,7 +2,21 @@
 
 This document tracks SDK design questions that are not yet resolved.
 
-There are no unresolved shared SDK design questions at this time.
+## Open Questions
+
+### KMS-first restart before local activation
+
+**OPEN:** After explicit AWS KMS or Google Cloud KMS first-key creation, what
+happens if the application restarts before local activation and only the
+immutable resource reference has been handed off, without saved provider state?
+The pending-versus-active result of reference-only reopening and any required
+state handoff remain undecided. This question does not define a new persistence
+mechanism or authorize automatic activation.
+
+The existing saved-pending-state rule in
+[12](12-configuration-loading.md#google-cloud-kms-lifecycle-acceptance-cases)
+remains unchanged. The ordinary already-activated reopen path is described in
+[01](01-core-identity-manager.md#kms-first-operational-key-creation).
 
 ## Resolved Questions
 

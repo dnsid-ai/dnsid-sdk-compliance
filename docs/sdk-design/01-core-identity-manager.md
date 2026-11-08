@@ -1304,6 +1304,9 @@ use `validated`. Deployments that require DNS-rooted origin authentication use
 
 #### KMS-first operational key creation
 
+This subsection applies to AWS KMS and Google Cloud KMS; it does not define
+Azure Key Vault first-key provisioning or reference semantics.
+
 Before constructing the initial local-identity manager, an operator explicitly
 creates the operational key through the selected provider's native KMS creation
 operation. AWS KMS and Google Cloud KMS bootstrap MUST NOT require an existing
@@ -1333,9 +1336,12 @@ The caller still supplies distinct accountable-entity custody through
 change that separation.
 
 The application owns the reference handoff and any durable storage it chooses;
-the SDK MUST NOT implicitly persist state files. Subsequent startup reopens the
-same immutable reference and validates the same key binding, without recreating
-it or inferring protocol status from cloud availability. Ordinary
+the SDK MUST NOT implicitly persist state files. For an already locally activated
+key, subsequent startup reopens the same immutable reference and validates the
+same key binding, without recreating it or inferring protocol status from cloud
+availability. Reference-only recovery after creation but before local activation
+remains an [open question](08-open-questions.md#kms-first-restart-before-local-activation).
+Ordinary
 [configuration construction](12-configuration-loading.md#operational-key-source-selection)
 remains open-only. Initial creation MUST NOT implicitly replace an established
 signer; that requires authorized rotation.
