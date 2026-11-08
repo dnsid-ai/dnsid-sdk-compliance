@@ -99,6 +99,16 @@ Changing configuration does not import a local private key or replace an establi
 signer. Local-to-cloud transition requires explicit authorized
 [key rotation](01-core-identity-manager.md#operational-key-rotation) using the old provider.
 
+#### AWS KMS
+
+AWS initial creation uses the common
+[KMS-first operational key creation contract](01-core-identity-manager.md#kms-first-operational-key-creation),
+including validation of the requested resource, algorithm, readiness, and public
+key, handoff of the immutable created key ARN rather than a mutable alias,
+pending activation, failure reconciliation, and subsequent open-only startup.
+These common requirements are also the AWS acceptance target; the Google-specific
+cases below do not defer AWS acceptance or restrict AWS to Ed25519.
+
 #### Google Cloud KMS Ed25519
 
 For `google-kms`, `keyRef` MUST be the fully qualified immutable version name
