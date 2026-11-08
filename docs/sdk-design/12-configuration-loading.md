@@ -419,7 +419,7 @@ the provider package to implement that orchestration.
 |---|---|---|
 | Explicitly create the initial version under a compatible parent with no prior version or active key | real-capable | New remote `EC_SIGN_ED25519` version and immutable version reference; key remains locally pending with no active signer until explicit activation enables signing. |
 | Initial creation fails or has an indeterminate outcome | real-capable | No local keystore, identity-file, or temporary-key-file writes, local fallback, implicit recreate/delete, or partial activation; operator owns remote-resource reconciliation. |
-| Reopen the initial key using the handed-off immutable version reference | real-capable | Same key ID and public key; no new cloud version; the parent alone is not a valid configured `keyRef`. |
+| Reopen an already locally activated initial key using the handed-off immutable version reference | real-capable | Same key ID and public key; no new cloud version; the parent alone is not a valid configured `keyRef`. |
 | Open the same valid version across restarts | real-capable | Same key ID and public key; no new cloud version. |
 | Supply a parent-only or mutable reference, or a non-Ed25519 version | real-capable | Opening fails without replacement generation or fallback. |
 | Version is unavailable, access is denied, or the KMS service fails | real-capable | Operation fails; no substituted signer or successful signature. |
