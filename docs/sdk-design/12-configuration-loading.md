@@ -43,7 +43,13 @@ TYPE LoadedConfig
   dnsid?: DnsidConfig               // partial; sections and fields present only when sourced
   logTrust?: LogTrust               // atomic section, see below
   registry?: RegistryConfig         // partial
+  foundry?: FoundryConfig           // partial Known Foundry expectations (13); not core identity or acceptance
   keySource?: KeySource
+END
+
+TYPE FoundryConfig                 // consumed only by Known Foundry create (13)
+  organizationId?: string           // expected registry account ID
+  governanceId?: string             // expected governance domain (gi)
 END
 
 TYPE LogTrust
@@ -75,20 +81,24 @@ configuration.
 
 `cliDirectory` takes precedence over `keyStorePath` when both are supplied, as
 under `dnsid local run`. These file inputs cannot combine with cloud selection or
-`keyRef`. `entityKeyPath` independently supplies an entity provider.
+`keyRef`. `entityKeyPath` independently supplies an entity provider;
+Foundry create does not load an entity private key.
 
 ### Operational Key Source Selection
 
 - Missing `provider` selects `file` in the factory. Both default and explicit
   file selection MUST warn that local keys are unsuitable for production and
-  point to cloud configuration.
-- `keyRef` opens an existing key; cloud providers require it. References must
+  point to cloud configuration. Key files remain separate from recovery data.
+- `keyRef` opens an existing key; cloud factories require it. References must
   resolve the same signing key across restarts; unexplained alias/version changes
   fail binding checks. `Construct` opens existing keys only, never generates.
 - Factories validate provider settings, authentication configuration, and supported
-  algorithms before opening a key. Settings include non-secret region,
+  algorithms before opening a key or registration. Settings include non-secret region,
   project/location, vault URL, or credential references; credentials come from
   ambient chains or referenced sources, never raw secrets/private JWKs in the file.
+- Foundry create uses the provider's signing key. If `ListKeyIds()` is empty,
+  `Create` returns `KEY_MISSING`; it never generates, provisions, or selects a key.
+  A binding conflict is a typed error, never a reason to generate.
 - Injected `keyProvider` wins; displaced source settings/packages are not resolved.
   Otherwise an unavailable provider returns `ArgumentError` naming the provider
   and install/build remedy before discovery or mutations, without file fallback.
@@ -98,6 +108,14 @@ under `dnsid local run`. These file inputs cannot combine with cloud selection o
 Changing configuration does not import a local private key or replace an established
 signer. Local-to-cloud transition requires explicit authorized
 [key rotation](01-core-identity-manager.md#operational-key-rotation) using the old provider.
+Before enabling application signing for an established identity, the setup/recovery
+boundary MUST validate the opened provider's `SigningKey()` against the saved
+binding or a successor authorized by fresh verified lifecycle evidence. Foundry
+create owns this check under [13](13-known-foundry.md#completed-operation-resume);
+callers using low-level
+construction own the equivalent check. `Construct` only opens/wires dependencies;
+it does not establish identity continuity. Missing or conflicting evidence fails
+closed. First setup instead persists the initial public binding before registration.
 
 #### Google Cloud KMS Ed25519
 
@@ -167,8 +185,11 @@ rejected.
 
 Configuration fields without a variable (`policyFlags`, `maxKeyAge`,
 `statusCheckInterval`, `trustedEntities`, `logTrust.managed`,
-`keySource.entityKeyPath`, and all profile settings) are set through the deployment file or the
-code overlay. Add a variable here when a consumer needs one; do not add
+`keySource.entityKeyPath`, `foundry.organizationId`, `foundry.governanceId`, and all
+profile settings) are set through the deployment file or the code overlay.
+Foundry create rejects configuration that contains `dnsid.identity`, including
+`DNSID_DOMAIN` or `DNSID_GOVERNANCE_ID` from the environment, before any registry
+call. Foundry's expected GI is `foundry.governanceId`. Add a variable here when a consumer needs one; do not add
 binding-local names.
 
 Variables that deployment tooling exports for the hosted application
@@ -180,7 +201,9 @@ consumers SHOULD emit `DNSID_REGISTRY_URL`, not only the CLI's `DNSID_SERVER`.
 ### Deployment File
 
 The deployment file encodes `LoadedConfig`, including non-secret key-source settings,
-never credentials/private material. Each section maps to its owning type.
+never credentials/private material. Each section maps to its owning type;
+`foundry` is consumed only by [Foundry create](13-known-foundry.md),
+not core identity construction or counterparty policy.
 
 ```json
 {
@@ -195,12 +218,20 @@ never credentials/private material. Each section maps to its owning type.
 | `dnsid` | `DnsidConfig`, validated by the `IdentityManager` constructor. |
 | `logTrust` | `LogTrust`; exactly one of `managed`, `profile` (inline document), or `policyUrl`. `policyDocument` has no file member; supply it through `DNSID_LOG_POLICY_FILE` or code. |
 | `registry` | `RegistryConfig`, validated by the `RegistryClient` constructor. |
+| `foundry` | `FoundryConfig`, a plain data type owned by this loader; the loader checks members and types, and the [Foundry module](13-known-foundry.md#configuration-and-trust) validates and resolves values. |
 | `keySource` | `KeySource`; availability and provider settings validated by the selected factory. |
 
-A deployment file with local identity publication settings can add this key source:
+For Foundry create, a file can add:
 
 ```json
 {
+  "dnsid": { "verification": { "dnssecMode": "required" } },
+  "logTrust": { "managed": true },
+  "registry": { "registryUrl": "https://registry.example" },
+  "foundry": {
+    "organizationId": "11111111-1111-4111-8111-111111111111",
+    "governanceId": "acme.example"
+  },
   "keySource": {
     "provider": "aws-kms",
     "keyRef": "arn:aws:kms:us-east-1:111122223333:key/11111111-1111-4111-8111-111111111111",
@@ -209,9 +240,9 @@ A deployment file with local identity publication settings can add this key sour
 }
 ```
 
-This is illustrative, not a service preset. The key must support the profile's
-algorithm and any registry algorithm restrictions. Credentials and runtime
-dependencies remain separately supplied; this configuration does not create an agent.
+This is illustrative, not a service preset. The Live adapter requires an Ed25519
+key. `foundry` members are optional expectations, not selectors; the server
+allocates the domain. Credentials and state-store locations are supplied separately.
 
 The file loader MUST reject unknown members and mistyped values, and SHOULD
 reject duplicate members where the platform parser makes that available.
@@ -284,7 +315,10 @@ constructors and apply their own defaults, like any other constructor.
 
 `LogRegistryFromTrust` dispatches on the single `LogTrust` variant.
 `managed: true` calls the
-[managed factory](11-c2sp-tlog-binding.md#dnsid-managed-trust) with no options.
+[managed factory](11-c2sp-tlog-binding.md#dnsid-managed-trust) with `resourceFetcher`
+set to a bounded safe fetcher constructed from `loaded.dnsid.transport`. All
+selected log readers therefore honor the effective DNS resolver, `caBundlePath`,
+and `privateAddressHosts`, without changing managed trust or freshness defaults.
 `profile`, `policyDocument`, and `policyUrl` call the
 [generic factory](11-c2sp-tlog-binding.md#verification-convenience-factory)
 with that one trust input, `transport` set to `loaded.dnsid.transport` so the
@@ -316,6 +350,15 @@ trims it, and passes it to `RegistryClient` without storing it in `LoadedConfig`
 Explicit caller credentials take precedence. The constructor applies the
 [05](05-transport-and-registry.md#registry-responsibilities) loopback default
 when `registryUrl` is absent.
+
+## Foundry Create Composition
+
+[Foundry Create/Active](13-known-foundry.md) lives in its own module and uses the merged `LoadedConfig`,
+separate credentials, and a default or injected store. The one-argument facade,
+explicit injection, and the CLI use the same composition. Build the registry client
+from `loaded.registry`, credentials, and transport settings; do not re-read the
+environment. Account discovery, key provisioning, and registration happen in
+`Create`, never in the loader or `Construct`.
 
 ## Convenience Constructors
 
@@ -371,6 +414,7 @@ verify` reads; there are no SDK-local aliases.
 | Deployment file adds a checkpoint-store path or recovery member to `logTrust` | Rejected as an unknown member; store setup remains code-only. |
 | `DNSID_LOG_POLICY_URL`, `DNSID_CA_BUNDLE`, `DNSID_PRIVATE_HOSTS=.test` set | Policy fetch uses the CA bundle and private-host allowance; verification of a `.test` draft 01 identity succeeds with no further wiring. |
 | `DNSID_LOG_TRUST_PROFILE_FILE` set, profile carries bundle verifier keys | Registry constructs with the 10-minute bundle lifetime default; no `ArgumentError`. |
+| `logTrust.managed: true` with custom DNS, CA bundle, or private hosts | Managed log fetches use effective transport settings through `resourceFetcher`; trust and freshness defaults remain fixed. |
 | `DNSID_CONFIG_DIR` and `DNSID_KEY_STORE` both set | Operational key from the CLI directory; key store unused. |
 | CLI `config.json` with `entity_key_path`, no caller `entityKeyProvider` | Entity key provider loaded from the resolved path. |
 | `IdentityManagerFromDnsid()` with `DNSID_CONFIG_DIR` set | Reads `~/.dnsid`; the variable is not consulted. |
@@ -382,8 +426,14 @@ verify` reads; there are no SDK-local aliases.
 | Caller injects a provider while file selects an unavailable provider | Injected provider wins; displaced provider package is not loaded. |
 | CLI source selects local files; a later source selects cloud | Replace all operational source fields; retain any independent `entityKeyPath`. |
 | Invalid/conflicting key selection or unsupported algorithm | Reject invalid settings before mutation. |
+| Foundry create opens an empty provider | `KEY_MISSING`; no key generated or selected. |
+| Foundry create opens a key conflicting with saved state | Typed binding error; no generation or replacement. |
 | Construction uses local key files | Emit the production-safety warning. |
 | Existing identity changes provider/key through configuration alone | Binding error; explicit authorized rotation required, never implicit import or key replacement. |
+| File/code supplies `foundry` | Preserve only supplied setup fields; identity-manager construction does not infer identity or acceptance from them. |
+| Foundry create uses local key files | Emit the production-safety warning; private key files remain separate from recovery data. |
+| Foundry setup supplies expected GI but no ordinary selectors | Use named Live creation; compare GI with onboarding; no sandbox or root fallback. |
+| Same merged config reaches setup from file or environment plus code overlay | Same registry endpoint, transport, explicit trust, and setup behavior; no environment re-read overrides a file. |
 | Invalid `dnsid` config together with a `policyUrl` | Construction fails with `ArgumentError` without fetching the policy. |
 | Any constructor invoked with environment variables or files present | Constructor reads neither. |
 

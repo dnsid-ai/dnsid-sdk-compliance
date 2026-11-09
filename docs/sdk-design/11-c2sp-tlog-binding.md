@@ -460,6 +460,9 @@ terminal stale-preparation result before any bytes enter the log.
 
 ## Split ISSUANCE Flow
 
+[Known Foundry create](13-known-foundry.md#durable-setup) reuses this
+binding-owned issuance flow with SDK-provided storage/adapters.
+
 Delegated issuance commonly places the accountable-entity key at a registry or
 governance service and the operational key at the agent. The SDK flow is:
 
@@ -471,7 +474,9 @@ governance service and the operational key at the agent. The SDK flow is:
 4. The operational SDK parses the partially signed prepared envelope as
    untrusted input. It validates FQDN, `gi`, `ek`, its own `ku`, `lr`, origin,
    stream, `seq=0`, canonical encoding, and `sigs.ae`.
-5. The operational SDK adds `sigs.op` over the identical `signedBytes`.
+5. The operational SDK adds `sigs.op` over the identical `signedBytes`, then verifies
+   every signature in the completed entry, including its own, before persisting it.
+   A failed check keeps the prepared bytes and sends nothing; countersigning retries.
 6. The fully signed canonical entry is submitted with a durable idempotency key.
 7. The service revalidates both signatures and all context, persists the exact
    entry bytes, and appends them unchanged.
@@ -587,8 +592,13 @@ representations retain the registry error code and whether the same bytes are
 retryable. Busy, indeterminate, timeout, and unknown transport outcomes retry
 only the identical persisted entry with the same idempotency key. Validation,
 preparation mismatch, and idempotency mismatch failures are terminal for that
-prepared entry. An SDK MUST NOT turn an unclassified failure into a fresh
-rotation or issuance attempt.
+prepared entry. In [Known Foundry create](13-known-foundry.md#issuance-recovery),
+the SDK MUST recover and verify any accepted ISSUANCE before making the operation
+failure final; a different valid signature from another replica can identify the
+accepted entry without matching the losing submission's hash. Its receipt MUST NOT
+be treated as acceptance of the losing bytes. Unresolved submission remains
+recoverable. An SDK MUST NOT turn an unclassified failure into a fresh rotation
+or issuance attempt.
 
 Preparation state includes an expiry and the reserved prior-stream revision.
 Only an expired preparation that is durably known never to have entered

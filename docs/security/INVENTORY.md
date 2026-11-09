@@ -65,6 +65,22 @@ key material or tokens.
 KMS providers are recommended for production. Same posture as `ssh-keygen` without a passphrase, `gcloud`, `aws`
 CLI credential files.
 
+## Known Foundry design (not shipped coverage)
+
+The [Foundry create/active design](../sdk-design/13-known-foundry.md) adds
+these data flows. They are design requirements, not shipped coverage.
+
+- Registry requests carry the organization credential, account name, public JWK,
+  replay key, proof signature, and ISSUANCE countersignature. The name is not
+  published. Public DNS, JWKS, status, and log requests carry no credentials.
+- Owner-only recovery files hold registry/org/name, provider references, public
+  keys, identity and domain, proof and submission bytes, outcomes, and publication
+  fields. They hold no credentials or private keys. Bindings document retention,
+  backups, and the limits of container-local storage.
+- `Create` never creates or selects a key; an empty provider returns `KEY_MISSING`.
+  Private material stays in the provider. Loading configuration alone creates no keys
+  or identities.
+
 ## In-memory caches
 
 | Cache | Contents | Lifetime | Persistence |
