@@ -39,12 +39,8 @@ Low-level registry and signing APIs stay available.
 Each binding ships Foundry create in its own module. Core, the registry client,
 and configuration loading never import it. `FoundryConfig` is a plain data type
 owned by the configuration loader; the Foundry module imports and validates it.
-
-| Binding | Module | Call |
-|---|---|---|
-| Go | `github.com/dnsid-ai/dnsid-go/foundry` | `foundry.Create(ctx, name)` |
-| Python | `dnsid.foundry` | `foundry.create(name)` |
-| TypeScript | `@dnsid-ai/foundry` | `create(name)` |
+Each binding's module path and call are recorded in its
+[implementation tracker](implementations/).
 
 The module holds the facade, handle, store, and Foundry-specific errors. It must
 not re-export generic APIs under Foundry names, and the core package must not
@@ -472,8 +468,8 @@ the cross-SDK daily workflow. Server persistence proof stays in
 ### Implementation Acceptance Checklist
 
 - [ ] Shared scenario inputs and expected observations for the table above.
-- [ ] Go, Python, and TypeScript pass the same scenarios; API spelling may differ,
-  behavior may not.
+- [ ] Every binding passes the same scenarios; API spelling may differ, behavior
+  may not. Per-binding status is in the implementation trackers.
 - [ ] CLI runs the same scenarios through the same facade.
 - [ ] Scenarios run in the daily workflow with SDK and server revisions recorded.
   Missing adapters or prerequisites never report a pass.

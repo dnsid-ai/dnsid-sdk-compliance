@@ -273,6 +273,12 @@ updates migration coverage only; unrelated rows were not re-audited.
 | Retry / backoff behavior for transient failures | [01: VerificationError](../01-core-identity-manager.md#verificationerror) | Implemented: packages/protocol/src/retry.ts:25, packages/protocol/src/retry.ts:35, packages/protocol/src/index.ts:17 |  |
 | Parsed empty optional TXT tags remain signed | [07: DnsIdTxtRecord](../07-protocol-data-types.md#dnsidtxtrecord) | Implemented: parsed optional presence survives canonical/serialize (`packages/protocol/src/txt-record.ts:34`, `:80`, `:152`, `:166`); regressions `test/txt-record.test.ts:94`. | SDK-created unset optionals remain omitted; exact v= and frozen profile behavior are unchanged. |
 
+### Known Foundry Create (13)
+
+| Design Item | Design Link | Evidence | Notes |
+| --- | --- | --- | --- |
+| Separate Foundry module and call | [13: Module Placement](../13-known-foundry.md#module-placement) | In progress: `@dnsid-ai/foundry`, `create(name)` (dnsid-ts #151, unmerged). | Core, the registry client, and configuration loading do not import it. Shared scenarios not yet run. |
+
 ## Findings
 
 - **Partial — profile configuration ownership:** HTTP retains caller config (`packages/http-signatures/src/index.ts:279`); OIDC shallow-freezes mutable issuer/algorithm arrays (`packages/oidc/src/index.ts:470`). WBA's nested snapshot is separate.
