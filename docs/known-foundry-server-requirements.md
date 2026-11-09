@@ -109,7 +109,7 @@ Rules are per authenticated organization and exact name.
 | Provisioning fails or is unfinished | The name stays bound to the original attempt and key. A same-key retry resumes it. A different key gets `KEY_MISMATCH`. |
 | Nonterminal identity; caller supplies the identity's current key after rotation | Return the existing identity, not `KEY_MISMATCH`. PR #3304 compares against the create-time key, so this needs agreement. |
 | Nonterminal identity; caller supplies an unrelated key | `KEY_MISMATCH`; no change. |
-| REVOKED or RETIRED; caller uses a key from that identity | Return the terminal identity. |
+| REVOKED or RETIRED; caller uses a key from that identity | Return the terminal identity with its ID, domain, and status; allocate nothing. |
 | REVOKED or RETIRED; caller supplies a new, unused key | After SR-8 is enabled: create a fresh identity and domain, with no separate replacement API. Before SR-8: return a terminal error and allocate nothing. |
 | Delayed request with a key from an earlier identity | Resolve to that earlier identity, even after later replacements. |
 | Replay cache expires or a row is soft-deleted | Neither permits replacement or revival. |
@@ -145,7 +145,9 @@ needed. Record server and SDK revisions.
   allocate exactly one new domain.
 - [ ] E5: Go, Python, TypeScript, and CLI pass the shared hosted scenarios.
 
-Initial create needs SR-1 through SR-7 and refusal of terminal replacement: the
-server returns a terminal error for any key on a REVOKED or RETIRED name, because
-the SDK cannot detect replacement for a replica without local state. SR-8
-enables replacement later.
+Initial create needs SR-1 through SR-7 and refusal of terminal replacement: for a
+REVOKED or RETIRED name, the server returns a terminal error for a new or unrelated
+key, because the SDK cannot detect replacement for a replica without local state.
+A key from that identity gets the terminal identity, as in the
+[proposal](#proposal-name-reuse-and-failed-provisioning); the SDK reports it as a
+typed terminal error. SR-8 enables replacement later.
