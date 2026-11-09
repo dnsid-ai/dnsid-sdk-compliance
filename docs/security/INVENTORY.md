@@ -74,7 +74,7 @@ key material or tokens.
 | Permissions | Files created `0600`, `O_EXCL`, written atomically via temp file + rename (go `keyprovider.go`, ts `local-key-provider.ts`, py `local_key_provider.py`) |
 | Format | Plaintext JSON (JWK private keys) |
 | Encryption at rest | **None. No passphrase option.** Protection is file mode + OS user boundary only |
-| Production alternative | AWS KMS (go, ts, py) / GCP KMS (go, ts, py) providers: private key never leaves the HSM |
+| Production alternative | AWS KMS (go, ts, py) / GCP KMS (go, ts, py) providers: private key material remains in the remote KMS service; the Google implementation requires SOFTWARE Ed25519 protection, not HSM protection. |
 
 **Position:** local keys are stored unencrypted. Accepted: the local provider is for development/single-host use;
 KMS providers are recommended for production. Same posture as `ssh-keygen` without a passphrase, `gcloud`, `aws`
