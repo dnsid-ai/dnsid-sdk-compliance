@@ -189,7 +189,8 @@ the next mutation. Each call uses one finite deadline.
    `KEY_MISSING`. `Create` never generates, provisions, or selects a key; key
    provisioning and replica convergence stay with E6
    ([open decision](08-open-questions.md#known-foundry-create)). The Live adapter requires Ed25519. Persist
-   bindings, creation intent, provider reference, and the public JWK before creation.
+   bindings, creation intent, provider reference, and the provider's public JWK (the
+   creation key) before creation.
 3. Creation is unresolved until both the ID and the domain are saved. If it is
    unresolved, derive `registrationKey`, rebuild the identical
    request, and call `RegisterLiveAgent` with `registrationKey` as the
@@ -290,10 +291,12 @@ that no ISSUANCE exists.
 
 A rejection is final for the submitted bytes only. When the server rejects
 preparation or submission, read lifecycle history and verify any accepted ISSUANCE
-against the identity, the saved initial public key, entity key, and log trust before
-recording a final failure. Without saved state, the initial key comes from the
-verified ISSUANCE; the provider's current key must follow from it through verified
-KEY_ROTATION events and match signed `ku`. If the history is empty or has no ISSUANCE yet, return
+against the identity, the initial public key, entity key, and log trust before
+recording a final failure. The ISSUANCE's operational key must equal the saved
+creation key, or the creation key must follow from it through verified KEY_ROTATION
+events and match signed `ku`. The second case is a replica that started without saved
+state after rotation: save the ISSUANCE key as `initialPublicKey` and the creation key
+as `currentPublicKey`; `creationInput` keeps the creation key. If the history is empty or has no ISSUANCE yet, return
 a resumable error; the log can lag the server. Unavailable or invalid evidence
 stays an error. Another replica can have submitted different
 valid signature bytes; adopt its verified accepted entry. Never treat its receipt as
@@ -347,8 +350,8 @@ returns a typed terminal error. See the
 `FileFoundryStore(directory)` is the default, at `~/.dnsid/foundry/` when no
 directory is given. It keys state by
 `(registry URL, organization ID, exact name)`, using digests for paths. The SDK and
-CLI share the default location; callers can inject a store. Historical operations
-stay addressable by ID after a name is reused.
+CLI share the default location; callers can inject a store. How stored operations
+stay reachable after a name is reused is defined with replacement (SR-8).
 
 An exclusive in-process and cross-process lock covers each `Create` or `Active` call.
 A competing caller waits for the lock until its deadline, then gets a typed busy

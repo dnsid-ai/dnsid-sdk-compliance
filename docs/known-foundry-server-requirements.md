@@ -14,7 +14,7 @@ Reviewed 2026-11-05:
 |---|---|
 | Server main `966e62eb` | Ordinary replay rows expire after 24 hours. Not enough for named recovery. |
 | [PR #3150](https://github.com/Identity-Digital/dnsid/pull/3150) `6c01536a` | Open. Named Live ownership with a pending Agent row; exact, case-sensitive names; unique organization/name index. CANCELLED, REJECTED, and ERROR keep ownership; revoke, retire, and soft deletion release it. |
-| [PR #3304](https://github.com/Identity-Digital/dnsid/pull/3304) `bd4a27a1` | Open. Caller-key Live: HTTP 202 replay, `request_id` equal to the caller's Idempotency-Key, 409 `KEY_MISMATCH` against the key pinned at create, replay-expiry tests. |
+| [PR #3304](https://github.com/Identity-Digital/dnsid/pull/3304) `bd4a27a1` | Open. Caller-key Live: HTTP 202 replay, `request_id` equal to the caller's Idempotency-Key, 409 `KEY_MISMATCH` against the agent's stored key, which rotation replaces; replay-expiry tests. |
 | [#45](https://github.com/Identity-Digital/known-foundry/issues/45)–[#48](https://github.com/Identity-Digital/known-foundry/issues/48) | Atomic assignment, durable workflow, create/status responses, integrated proof. |
 
 E1 supplies domains, E2 owns admission and recovery, E4 owns credentials, E5 owns

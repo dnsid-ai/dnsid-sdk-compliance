@@ -185,8 +185,10 @@ rejected.
 
 Configuration fields without a variable (`policyFlags`, `maxKeyAge`,
 `statusCheckInterval`, `trustedEntities`, `logTrust.managed`,
-`keySource.entityKeyPath`, and all profile settings) are set through the deployment file or the
-code overlay. Add a variable here when a consumer needs one; do not add
+`keySource.entityKeyPath`, `foundry.organizationId`, `foundry.governanceId`, and all
+profile settings) are set through the deployment file or the code overlay.
+`DNSID_GOVERNANCE_ID` sets `dnsid.identity.governanceId`, which Foundry create does
+not read; Foundry's expected GI is `foundry.governanceId`. Add a variable here when a consumer needs one; do not add
 binding-local names.
 
 Variables that deployment tooling exports for the hosted application
