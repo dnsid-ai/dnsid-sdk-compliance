@@ -1368,6 +1368,12 @@ still applies, including a conflict with an existing verified `ku` publication.
 Initial unpublished identity construction remains allowed in the ordered setup
 below; it does not require prior publication.
 
+Startup identity discovery, policy for absent or unreachable publication evidence,
+and SDK-versus-application ownership remain an
+[open question in 08](08-open-questions.md#startup-identity-discovery-publication-evidence-and-ownership).
+That question does not relax the no-replacement requirements or the binding-error
+result for a selected key conflicting with an existing verified `ku` publication.
+
 Reference-only startup cannot reconstruct unavailable supersession history.
 The operator or application chooses the immutable key version; validation binds
 the cryptographic key and public key to that selected reference, not to proof

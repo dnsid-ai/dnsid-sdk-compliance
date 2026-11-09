@@ -12,6 +12,26 @@ should `azure-key-vault` support? The selectable provider name in
 semantics. The [KMS-first contract in 01](01-core-identity-manager.md#kms-first-operational-key-creation)
 defines AWS KMS and Google Cloud KMS only; Azure remains undefined.
 
+### Startup identity discovery, publication evidence, and ownership
+
+For configuration-managed `Construct` without saved provider or rotation state,
+how is an initial identity distinguished from an existing identity, how is its
+publication binding established, and which responsibilities belong to the SDK
+versus the application? The startup publication-discovery algorithm and policy
+for absent or unreachable publication evidence remain unspecified in
+[12](12-configuration-loading.md#operational-key-source-selection).
+
+This open question does not authorize configuration-only signer replacement.
+The [no-replacement requirements in 01](01-core-identity-manager.md#kms-first-operational-key-creation)
+and the binding-error result in 12, including a selected key conflicting with an
+existing verified `ku` publication, remain unchanged. Deliberate immutable-reference
+selection still permits local provider open and local Active signing without
+prior activation, saved state, or current publication; it does not establish
+successful `Construct` for a conflicting existing identity. Saved provider state
+and managed-rotation recovery bindings remain authoritative. Initial unpublished
+identity construction remains allowed under the
+[ordered setup](01-core-identity-manager.md#publication-and-issuance).
+
 ## Resolved Questions
 
 ### KMS-first restart before local activation
@@ -36,11 +56,15 @@ The contract is defined in
 [AWS acceptance cases](12-configuration-loading.md#aws-kms-lifecycle-acceptance-cases)
 and [Google acceptance cases](12-configuration-loading.md#google-cloud-kms-lifecycle-acceptance-cases) in 12.
 
+### Operation-level log checking
+
 Operation-level `logchk` uses the operation-independent
 `VerifyLogEvidence(verifiedDomain, at)` primitive defined in
 [`01-core-identity-manager.md`](01-core-identity-manager.md#verifylogevidencevd-verifieddomain-at-timestamp---loggedstateevidence).
 Applications and deployment policy decide when to invoke it; protocol code does
 not accept business-operation taxonomies.
+
+### Cross-system lifecycle ordering and recovery
 
 Cross-system lifecycle ordering and recovery are resolved. The shared reducer
 is defined in [`06-log-bindings.md`](06-log-bindings.md), managed operation

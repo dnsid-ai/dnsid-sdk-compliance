@@ -111,6 +111,9 @@ a policy for absent or unreachable publication evidence, or whether the
 application or SDK establishes initial-versus-existing identity and publication
 binding; they do not permit configuration-only signer replacement.
 
+These unspecified startup discovery, evidence, and ownership points are tracked
+as an [open question in 08](08-open-questions.md#startup-identity-discovery-publication-evidence-and-ownership).
+
 #### AWS KMS
 
 AWS initial creation uses the common
@@ -119,6 +122,13 @@ including validation of the requested resource, algorithm, readiness, and public
 key, handoff of the immutable created key ARN rather than a mutable alias,
 pending activation, failure reconciliation, and deliberate reference selection for
 subsequent open-only startup without persisted proof of prior activation.
+
+For KMS-first reference-only startup, `keyRef` MUST be the handed-off immutable
+created key ARN, not a mutable alias. This requirement is scoped to that startup
+path; it does not define allowed reference forms for ordinary AWS existing-key
+opens. Those opens remain subject to the stable-reference and binding rules
+above.
+
 The [AWS lifecycle acceptance cases](#aws-kms-lifecycle-acceptance-cases)
 enumerate these common requirements using immutable key ARNs and the selected
 supported algorithm; they do not restrict AWS to Ed25519.
