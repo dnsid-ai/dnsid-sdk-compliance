@@ -164,9 +164,11 @@ application `trustedEntities` or `VerifyDomain` policy.
 
 ### Server Compatibility and Enablement
 
-If the onboarding read in step 1 returns 404 or 405, or a response without the
-fields that [05](05-transport-and-registry.md#account-binding-discovery) requires,
-`Create` returns `UnsupportedRegistry` before any mutation. This rejects registries
+If the onboarding read in step 1 returns 404 or 405, or a response without `org_id`
+or `ek.status`, `Create` returns `UnsupportedRegistry` before any mutation. A response
+without `governance_domain` or `gi` is an organization that has not started governance
+onboarding: it is not ready ([05](05-transport-and-registry.md#account-binding-discovery)),
+and `Create` returns the resumable not-ready error before any mutation. This rejects registries
 that are not Identity Digital. It does not detect an Identity Digital server
 without Foundry named create.
 
@@ -457,7 +459,7 @@ the cross-SDK daily workflow. Server persistence proof stays in
 | Name and hash vectors | Same bytes across bindings; no normalization. |
 | Configuration from file, environment, code; invalid provider or algorithm | Same bindings; fail before mutation; no fallback. |
 | Configuration contains `dnsid.identity` (for example `DNSID_GOVERNANCE_ID` in the environment) | `ArgumentError` before any registry call. |
-| Wrong organization or onboarding not ready | Fail before create. |
+| Wrong organization or onboarding not ready, including absent `gi` or `governance_domain` | Fail before create; not ready is resumable, not `UnsupportedRegistry`. |
 | Registry without the onboarding endpoint | `UnsupportedRegistry`; no mutation. |
 | Empty provider | `KEY_MISSING`; no key generated or selected; no registry mutation. |
 | Same-key replicas, with and without saved state | One identity, one ISSUANCE. |
