@@ -36,7 +36,7 @@ sequenceDiagram
     App->>SDK: create(name)
     SDK->>Registry: Read onboarding (org, GI)
     SDK->>State: Lock and load registry/org/name
-    SDK->>Keys: Get or provision signing key
+    SDK->>Keys: Get signing key
     SDK->>State: Persist public key and creation intent
     SDK->>Registry: Named Live create or replay
     Registry-->>SDK: Identity ID, domain, proof facts

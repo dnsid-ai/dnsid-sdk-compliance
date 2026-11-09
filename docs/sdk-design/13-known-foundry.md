@@ -27,7 +27,7 @@ never falls back to sandbox registration.
 | Owner | Responsibility |
 |---|---|
 | SDK (E5) | Provider wiring, durable recovery state, registry/proof/issuance adapters, bounded retries, typed errors, public readiness checks, CLI. |
-| Operator | Supplies the operational key, or a provider that can provision one. Supplies credentials and configuration. |
+| Operator | Supplies the operational key, created before `Create` runs. Supplies credentials and configuration. |
 | Server (E2) | Authentication, authorization, quotas, name ownership, domain allocation, durable workflow recovery. |
 | E6 | Key providers, provisioning, and key convergence across replicas. |
 | E7 / E8 | Rotation; revoke, retire, and terminal serving. |
@@ -188,13 +188,10 @@ the next mutation. Each call uses one finite deadline.
 
 1. Validate the name, configuration, provider, and algorithm. Read onboarding.
    Lock, load, and validate named state.
-2. Obtain the signing key. The provider has no key when `SigningKey()` returns no
-   active key (each binding's no-key result). If the provider has no key, no
-   creation intent is saved, and it supports `EnsureSigningKey()`, call it; the
-   provider owns how it provisions or converges keys. `EnsureSigningKey()` is
-   provisional until E6 settles its name and semantics
-   ([open decision](08-open-questions.md#known-foundry-create)). Otherwise return
-   `KEY_MISSING`. The Live adapter requires Ed25519. Persist
+2. Obtain the signing key. If the provider's `ListKeyIds()` is empty, return
+   `KEY_MISSING`. `Create` never generates, provisions, or selects a key; key
+   provisioning and replica convergence stay with E6
+   ([open decision](08-open-questions.md#known-foundry-create)). The Live adapter requires Ed25519. Persist
    bindings, creation intent, provider reference, and the public JWK before creation.
 3. Creation is unresolved until both the ID and the domain are saved. If it is
    unresolved, derive `registrationKey`, rebuild the identical
@@ -407,7 +404,7 @@ text. Errors keep progress; calling `Create` or `Active` again resumes.
 
 | Error | Meaning |
 |---|---|
-| `KEY_MISSING` | The provider has no key and cannot provision one. |
+| `KEY_MISSING` | The provider has no active key (`ListKeyIds()` is empty). |
 | `KEY_MISMATCH` | The supplied key differs from the existing identity (server HTTP 409, PR #3304). Remedy text points to the one-identity-per-cloud guidance ([D9, #63](https://github.com/Identity-Digital/known-foundry/issues/63)). |
 | `KEY_REVOKED` | The organization API credential is revoked (E4). Not inferred from a generic 403. |
 | `SigningPaused` | Signing is paused; see [Signing](#signing). |
@@ -458,7 +455,7 @@ the cross-SDK daily workflow. Server persistence proof stays in
 | Configuration from file, environment, code; invalid provider or algorithm | Same bindings; fail before mutation; no fallback. |
 | Wrong organization or onboarding not ready | Fail before create. |
 | Registry without the onboarding endpoint | `UnsupportedRegistry`; no mutation. |
-| Empty provider, with and without `EnsureSigningKey` | Provisioned key, or `KEY_MISSING`. |
+| Empty provider | `KEY_MISSING`; no key generated or selected; no registry mutation. |
 | Same-key replicas, with and without saved state | One identity, one ISSUANCE. |
 | Different-key replicas | One wins; others get `KEY_MISMATCH` with known facts. |
 | Caller exits after `Create` | Signing paused; next call resumes. |

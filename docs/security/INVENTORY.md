@@ -77,9 +77,9 @@ these data flows. They are design requirements, not shipped coverage.
   keys, identity and domain, proof and submission bytes, outcomes, and publication
   fields. They hold no credentials or private keys. Bindings document retention,
   backups, and the limits of container-local storage.
-- `Create` can ask the provider to provision a key (`EnsureSigningKey()`); private
-  material stays in the provider. Loading configuration alone creates no keys or
-  identities.
+- `Create` never creates or selects a key; an empty provider returns `KEY_MISSING`.
+  Private material stays in the provider. Loading configuration alone creates no keys
+  or identities.
 
 ## In-memory caches
 

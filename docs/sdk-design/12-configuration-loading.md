@@ -91,11 +91,9 @@ Foundry create does not load an entity private key.
   algorithms before opening a key or registration. Settings include non-secret region,
   project/location, vault URL, or credential references; credentials come from
   ambient chains or referenced sources, never raw secrets/private JWKs in the file.
-- Foundry create uses the provider's signing key. If the provider has none, no
-  creation intent is saved, and it supports `EnsureSigningKey()` (provisional, pending E6 in
-  [08](08-open-questions.md#known-foundry-create)), `Create` calls it; the provider
-  (E6) decides how it provisions keys and converges replicas. Otherwise `Create` returns
-  `KEY_MISSING`. A binding conflict is a typed error, never a reason to generate.
+- Foundry create uses the provider's signing key. If `ListKeyIds()` is empty,
+  `Create` returns `KEY_MISSING`; it never generates, provisions, or selects a key.
+  A binding conflict is a typed error, never a reason to generate.
 - Injected `keyProvider` wins; displaced source settings/packages are not resolved.
   Otherwise an unavailable provider returns `ArgumentError` naming the provider
   and install/build remedy before discovery or mutations, without file fallback.
@@ -420,7 +418,7 @@ verify` reads; there are no SDK-local aliases.
 | Caller injects a provider while file selects an unavailable provider | Injected provider wins; displaced provider package is not loaded. |
 | CLI source selects local files; a later source selects cloud | Replace all operational source fields; retain any independent `entityKeyPath`. |
 | Invalid/conflicting key selection or unsupported algorithm | Reject invalid settings before mutation. |
-| Foundry create opens an empty provider | With no saved creation intent, `EnsureSigningKey()` if supported; otherwise `KEY_MISSING`. |
+| Foundry create opens an empty provider | `KEY_MISSING`; no key generated or selected. |
 | Foundry create opens a key conflicting with saved state | Typed binding error; no generation or replacement. |
 | Construction uses local key files | Emit the production-safety warning. |
 | Existing identity changes provider/key through configuration alone | Binding error; explicit authorized rotation required, never implicit import or key replacement. |

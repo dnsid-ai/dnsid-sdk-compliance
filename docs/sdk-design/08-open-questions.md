@@ -14,7 +14,7 @@ Design: [13](13-known-foundry.md). Server assumptions and gates:
 | E2 confirmation of the SR-5 `domain` member on replay; compatibility negotiation | E2 #47 / E5 |
 | Whether the Live proof challenge stays | E2 #46 |
 | Final error codes, including `NAME_IN_USE` | E2 / E4 |
-| `EnsureSigningKey()` name and semantics on providers | E6 |
+| Replica key convergence on an empty key store (known-foundry #62) and how it relates to explicit KMS-first creation (dnsid-sdk-compliance #57). Until decided, Foundry `Create` provisions no keys. | E6 |
 | Foundry-specific routing selector, if needed | Product / E2 |
 
 ## Resolved Questions
