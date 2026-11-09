@@ -10,7 +10,7 @@ Design: [13](13-known-foundry.md). Server assumptions and gates:
 | Decision | Owner |
 |---|---|
 | Name reuse, replacement intent, failed-provisioning recovery (see the [proposal](../known-foundry-server-requirements.md#proposal-name-reuse-and-failed-provisioning)) | E2 #45–#47 |
-| Create after rotation with the current key (no local state) | E2 #47 |
+| Confirm that create after rotation with the current key (no local state) returns the existing identity, as PR #3304 does; superseded-key lookup | E2 #47 |
 | E2 confirmation of the SR-5 `domain` member on replay; compatibility negotiation | E2 #47 / E5 |
 | Whether the Live proof challenge stays | E2 #46 |
 | Final error codes, including `NAME_IN_USE` | E2 / E4 |

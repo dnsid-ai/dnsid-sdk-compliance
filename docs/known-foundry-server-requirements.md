@@ -77,7 +77,7 @@ Final E2 SCENs are the wire authority. Ordinary sandbox registration stays uncha
 | SR-2 | Exact organization/name ownership, including pending rows. Matching concurrent requests return one identity. A different key fails without changing the identity or consuming a domain. | PR #3150. Further name policy needs server agreement. |
 | SR-3 | Commit identity, domain reservation or pool assignment, and workflow handoff together. Paid registration waits for proof. Recover unfinished workflows without a client call. | #45, #46, #48. |
 | SR-4 | Identity bindings outlive the replay cache. Delayed requests, cleanup, and terminal transitions never allocate a replacement or revive an old identity. | #45, #47, #48. PR #3150 as reviewed releases the name on revoke, retire, and soft deletion; that must change before the initial-create gate passes. |
-| SR-5 | Preserve caller-key Live 202 and proof semantics, with `request_id` equal to the Idempotency-Key. **A replay with the same organization, name, and public key returns the identity ID, domain, and status**, so a replica without local state can resume. The domain is a `domain` member of `LiveProvisioningResponse`, matching the `Agent` schema, present on every response once a domain is assigned. Reissue only expired proof on the same key. | PR #3304 returns only `request_id`, `agent_id`, and `status` on a challenge-free replay. Adding `domain` is a release gate; SDKs read it when present. |
+| SR-5 | Preserve caller-key Live 202 and proof semantics, with `request_id` equal to the Idempotency-Key. **A replay with the same organization, name, and public key returns the identity ID, domain, and status**, so a replica without local state can resume. The domain is a `domain` member of `LiveProvisioningResponse`, matching the `Agent` schema, present on every response once a domain is assigned. A replay at any stage, including `READY`, answers 202 with the current registry status, never the ordinary 201 create response. Reissue only expired proof on the same key. | PR #3304 returns only `request_id`, `agent_id`, and `status` on a challenge-free replay. Adding `domain` is a release gate; SDKs read it when present. #3304 also reports the stored preflight status (`provider_deferred`) instead of the registry status, and answers 201 when the reservation is not provider-deferred. |
 | SR-6 | Validate signatures before durably admitting submitted ISSUANCE bytes. An invalid signature does not consume the issuance key. Expose accepted-entry and preparation-reclaim facts. When an ISSUANCE is already accepted, reject a new preparation or different submitted bytes with a structured error; never accept a second ISSUANCE. The SDK relies on this rejection to find another replica's ISSUANCE. | #46. Different bytes under an accepted issuance key are rejected, not given its receipt. |
 | SR-7 | Report registry progress, customer-action outcomes, structured errors, and publication fields (including `ek_url`). Readiness requires issuance, log inclusion, and publication. | #47. Wrong key is 409 `KEY_MISMATCH`. E2 #2 also lists `NAME_IN_USE`; confirm whether it stays, and when. |
 | SR-8 | Replacement after revoke or retire gets a new domain and log stream; the old identity stays terminal. Delayed old creates do not trigger it. | Not agreed; see the [proposal](#proposal-name-reuse-and-failed-provisioning). Separate gate. |
@@ -107,7 +107,7 @@ Rules are per authenticated organization and exact name.
 | Situation | Assumed server behavior |
 |---|---|
 | Provisioning fails or is unfinished | The name stays bound to the original attempt and key. A same-key retry resumes it. A different key gets `KEY_MISMATCH`. |
-| Nonterminal identity; caller supplies the identity's current key after rotation | Return the existing identity, not `KEY_MISMATCH`. PR #3304 compares against the create-time key, so this needs agreement. |
+| Nonterminal identity; caller supplies the identity's current key after rotation | Return the existing identity, not `KEY_MISMATCH`, with `request_id` equal to the caller's Idempotency-Key. PR #3304 does this: it compares against the stored key, which rotation replaces. A superseded key of that identity gets `KEY_MISMATCH` there. E2 has not confirmed either as the contract. |
 | Nonterminal identity; caller supplies an unrelated key | `KEY_MISMATCH`; no change. |
 | REVOKED or RETIRED; caller uses a key from that identity | Return the terminal identity with its ID, domain, and status; allocate nothing. |
 | REVOKED or RETIRED; caller supplies a new, unused key | After SR-8 is enabled: create a fresh identity and domain, with no separate replacement API. Before SR-8: return a terminal error and allocate nothing. |
@@ -135,7 +135,8 @@ needed. Record server and SDK revisions.
 - [ ] SR-4: replay-cache expiry, restarts, lost responses, and deletion cause no
   reallocation or revival.
 - [ ] SR-5: the SDK flow creates, replays, proves, and restarts; a replay without
-  local state returns ID, domain, and status, then completes proof.
+  local state returns ID, domain, and status, then completes proof. After rotation,
+  a replay with the current key returns the existing `READY` identity with 202.
 - [ ] SR-6: interrupted submissions reuse exact bytes; a competing
   signature is rejected and its replica recovers the accepted entry;
   invalid then valid submission succeeds.

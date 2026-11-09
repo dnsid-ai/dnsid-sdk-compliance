@@ -117,8 +117,9 @@ pauses signing.
 
 With saved state, repeated `Create` calls reopen the same identity, including after
 rotation, without another issuance. A replica without saved state after rotation
-derives a new `registrationKey` from its current key; until E2 #47 decides that case
-([08](08-open-questions.md#known-foundry-create)), expect `KEY_MISMATCH`. `Create`
+derives a new `registrationKey` from its current key, and the server returns the
+existing identity (pending E2 confirmation in [08](08-open-questions.md#known-foundry-create)).
+It recovers the earlier ISSUANCE under [Issuance Recovery](#issuance-recovery). `Create`
 never replaces a terminal identity.
 
 ### Name Normalization
@@ -216,7 +217,9 @@ the next mutation. Each call uses one finite deadline.
 5. Wait for `VERIFIED` or `READY`, or a customer-action or error result. Read the
    publication configuration and entity key from `ekUrl`. Apply
    [Registry States](#registry-states).
-6. If saved state records an accepted ISSUANCE, verify it. Otherwise run the shared
+6. If saved state records an accepted ISSUANCE, verify it. If the registry reports
+   `READY` and no ISSUANCE is saved, recover it under [Issuance Recovery](#issuance-recovery);
+   never prepare another. Otherwise run the shared
    issuance coordinator: prepare, validate, countersign, persist exact bytes, submit with
    `issuanceKey` as the `Idempotency-Key` header. Apply
    [Issuance Recovery](#issuance-recovery) before reporting a final failure.
@@ -291,14 +294,17 @@ for invalid in ["", "\ud800", "\U0001f600" * 256]:
 
 ## Issuance Recovery
 
-The SDK reads lifecycle history only when it expects an ISSUANCE to exist. It does
+The SDK reads lifecycle history only when it expects an ISSUANCE to exist: after a
+rejection, or when the registry reports `READY` and no ISSUANCE is saved. It does
 not scan the log before preparation, and it never treats empty history as proof
 that no ISSUANCE exists.
 
 A rejection is final for the submitted bytes only. When the server rejects
 preparation or submission, read lifecycle history and verify any accepted ISSUANCE
-against the identity, initial public key, entity key, and log trust before
-recording a final failure. If the history is empty or has no ISSUANCE yet, return
+against the identity, the saved initial public key, entity key, and log trust before
+recording a final failure. Without saved state, the initial key comes from the
+verified ISSUANCE; the provider's current key must follow from it through verified
+KEY_ROTATION events and match signed `ku`. If the history is empty or has no ISSUANCE yet, return
 a resumable error; the log can lag the server. Unavailable or invalid evidence
 stays an error. Another replica can have submitted different
 valid signature bytes; adopt its verified accepted entry. Never treat its receipt as
@@ -462,6 +468,7 @@ the cross-SDK daily workflow. Server persistence proof stays in
 | Interruption at each phase | Same-bytes recovery; no recreation. |
 | `READY` without public `ACTIVE`; wrong GI, key, or log | Bounded wait or failure; signing paused. |
 | Restart of a `complete` operation; rotated or superseded key | Signing enabled only for the verified current key; no reissuance. |
+| Replica without saved state after rotation, using the current key | Existing identity; earlier ISSUANCE recovered, none prepared; signing only after the current key matches signed `ku` through verified rotation history. |
 | Profile helper through `IdentityManager()` before `Active` | `SigningPaused`, from `IdentityManager()` before publication configuration is saved, otherwise from signing. |
 | CLI create, rerun, retire | Same results as the SDK; no secrets in output. |
 
