@@ -1360,6 +1360,14 @@ without authorized rotation or bypass saved pending or superseded provider state
 and the [managed-rotation recovery checks](#managed-rotation-recovery-contract).
 Initial creation MUST NOT implicitly replace an established signer.
 
+Local provider open and local Active signing eligibility are distinct from
+successful configuration-managed `Construct`. Opening the selected key does not
+authorize `Construct` to replace an existing identity's signer; the
+[binding-error rule in 12](12-configuration-loading.md#operational-key-source-selection)
+still applies, including a conflict with an existing verified `ku` publication.
+Initial unpublished identity construction remains allowed in the ordered setup
+below; it does not require prior publication.
+
 Reference-only startup cannot reconstruct unavailable supersession history.
 The operator or application chooses the immutable key version; validation binds
 the cryptographic key and public key to that selected reference, not to proof

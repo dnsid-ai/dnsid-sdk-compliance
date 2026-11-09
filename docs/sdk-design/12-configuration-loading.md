@@ -98,6 +98,18 @@ under `dnsid local run`. These file inputs cannot combine with cloud selection o
 Changing configuration does not import a local private key or replace an established
 signer. Local-to-cloud transition requires explicit authorized
 [key rotation](01-core-identity-manager.md#operational-key-rotation) using the old provider.
+A successful local provider open, including reference-only restart with local
+Active signing eligibility, does not establish successful configuration-managed
+`Construct`: configuration-only replacement of an existing identity's signer
+returns a binding error, including when the selected key conflicts with an
+existing verified `ku` publication. Initial unpublished identity construction
+remains allowed under the
+[ordered initial setup](01-core-identity-manager.md#publication-and-issuance).
+Saved provider state and managed-rotation recovery bindings remain authoritative.
+These rules do not specify a universal startup publication-discovery algorithm,
+a policy for absent or unreachable publication evidence, or whether the
+application or SDK establishes initial-versus-existing identity and publication
+binding; they do not permit configuration-only signer replacement.
 
 #### AWS KMS
 
@@ -412,7 +424,7 @@ verify` reads; there are no SDK-local aliases.
 | CLI source selects local files; a later source selects cloud | Replace all operational source fields; retain any independent `entityKeyPath`. |
 | Invalid/conflicting key selection or unsupported algorithm | Reject invalid settings before mutation. |
 | Construction uses local key files | Emit the production-safety warning. |
-| Existing identity changes provider/key through configuration alone | Binding error; explicit authorized rotation required, never implicit import or key replacement. |
+| Existing identity changes provider/key through configuration alone, including a selected key conflicting with an existing verified `ku` publication | Binding error; explicit authorized rotation required, never implicit import or key replacement, even if local provider open succeeds. |
 | Invalid `dnsid` config together with a `policyUrl` | Construction fails with `ArgumentError` without fetching the policy. |
 | Any constructor invoked with environment variables or files present | Constructor reads neither. |
 
@@ -422,7 +434,9 @@ These are acceptance requirements, not executable coverage or release claims.
 They apply the [common KMS-first contract](01-core-identity-manager.md#kms-first-operational-key-creation)
 with AWS-native immutable key ARNs and the selected supported algorithm.
 Managed-rotation cases belong to the existing orchestration, not a new
-provider-owned persistence mechanism.
+provider-owned persistence mechanism. The reference-only restart case asserts
+local provider behavior, not successful `Construct` with a conflicting existing
+identity signer.
 
 | Case | Mode | Required caller-observable result |
 |---|---|---|
@@ -430,7 +444,7 @@ provider-owned persistence mechanism.
 | Initial creation fails or has an indeterminate outcome | real-capable | No local keystore, identity-file, or temporary-key-file writes, local fallback, implicit recreate/delete, or partial activation; operator owns remote-resource reconciliation. |
 | Restart before local activation with only the handed-off immutable key ARN and deliberately select it as signer | real-capable | Same key ID and public key; selected key is locally Active, `SigningKey()` returns its JWK, `ListKeyIds()` returns its ID alone, and local signing succeeds without saved state or proof of prior activation; no new remote key, automatic discovery, or implicit publication or issuance. |
 | Open the same valid immutable key ARN across restarts | real-capable | Same key ID and public key; no new remote key; ordinary existing-key Active signer behavior. |
-| Supply a mutable alias or invalid reference, unsupported algorithm, or mismatched resource/public-key binding | real-capable | Opening fails without replacement generation or fallback. |
+| Supply an invalid reference, unsupported algorithm, or mismatched resource/public-key binding | real-capable | Opening fails without replacement generation or fallback. |
 | Key is unavailable, access is denied, or the KMS service fails | real-capable | Operation fails; no substituted signer or successful signature. |
 | Explicitly generate a key for rotation | real-capable | New remote key using the selected supported algorithm remains Pending; configuration, active signer, active listing, and live publication unchanged; `JWK` and rotation `SignKey` work for the pending key. |
 | Retain pending or superseded keys | real-capable | `ListKeyIds()` returns only the active ID, or an empty list when none is active; retained keys are not live inventory. |
@@ -449,7 +463,9 @@ These are acceptance requirements, not executable coverage or release claims.
 They use the shared KeyProvider and managed-rotation contracts; they do
 not require a new persistence mechanism. Pending-key publication and crash-resume
 cases exercise the existing managed-rotation orchestration; they do not require
-the provider package to implement that orchestration.
+the provider package to implement that orchestration. The reference-only restart
+case asserts local provider behavior, not successful `Construct` with a
+conflicting existing identity signer.
 
 | Case | Mode | Required caller-observable result |
 |---|---|---|
