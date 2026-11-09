@@ -48,8 +48,8 @@ re-export Foundry create.
 
 ## Public Workflow
 
-Names are language-neutral. TypeScript and Python use `create`; Go uses `Create`.
-Each binding uses its native context and cancellation conventions.
+Names are language-neutral; each binding uses its native spelling, context, and
+cancellation conventions.
 
 ```
 Create(name: string) -> FoundryIdentity
