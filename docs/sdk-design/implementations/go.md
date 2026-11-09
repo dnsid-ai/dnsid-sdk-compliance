@@ -225,7 +225,7 @@
 
 | Design Item | Design Link | Evidence | Notes |
 | --- | --- | --- | --- |
-| Separate Foundry module and call | [13: Module Placement](../13-known-foundry.md#module-placement) | In progress: `github.com/dnsid-ai/dnsid-go/foundry`, `foundry.Create(ctx, name)` (dnsid-go #132, unmerged). | Core, the registry client, and configuration loading do not import it. Shared scenarios not yet run. |
+| Separate Foundry module and call | [13: Module Placement](../13-known-foundry.md#module-placement) | Missing: not on the default branch. | Planned module and call: `github.com/dnsid-ai/dnsid-go/foundry`, `foundry.Create(ctx, name)` (dnsid-go #132). Core, the registry client, and configuration loading must not import it. |
 
 ## Findings
 

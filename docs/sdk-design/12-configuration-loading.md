@@ -47,6 +47,11 @@ TYPE LoadedConfig
   keySource?: KeySource
 END
 
+TYPE FoundryConfig                 // consumed only by Known Foundry create (13)
+  organizationId?: string           // expected registry account ID
+  governanceId?: string             // expected governance domain (gi)
+END
+
 TYPE LogTrust
   managed?: boolean                 // true selects the embedded managed catalog (11: DNSid-Managed Trust)
   profile?: object                  // trust profile document (11: Trust Profiles)
@@ -210,7 +215,7 @@ not core identity construction or counterparty policy.
 | `dnsid` | `DnsidConfig`, validated by the `IdentityManager` constructor. |
 | `logTrust` | `LogTrust`; exactly one of `managed`, `profile` (inline document), or `policyUrl`. `policyDocument` has no file member; supply it through `DNSID_LOG_POLICY_FILE` or code. |
 | `registry` | `RegistryConfig`, validated by the `RegistryClient` constructor. |
-| `foundry` | [FoundryConfig](13-known-foundry.md#configuration-and-trust), a plain data type owned by this loader; the loader checks members and types, and the Foundry module validates and resolves values. |
+| `foundry` | `FoundryConfig`, a plain data type owned by this loader; the loader checks members and types, and the [Foundry module](13-known-foundry.md#configuration-and-trust) validates and resolves values. |
 | `keySource` | `KeySource`; availability and provider settings validated by the selected factory. |
 
 For Foundry create, a file can add:

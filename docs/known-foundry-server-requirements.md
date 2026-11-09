@@ -110,7 +110,7 @@ Rules are per authenticated organization and exact name.
 | Nonterminal identity; caller supplies the identity's current key after rotation | Return the existing identity, not `KEY_MISMATCH`, with `request_id` equal to the caller's Idempotency-Key. PR #3304 does this: it compares against the stored key, which rotation replaces. A superseded key of that identity gets `KEY_MISMATCH` there. E2 has not confirmed either as the contract. |
 | Nonterminal identity; caller supplies an unrelated key | `KEY_MISMATCH`; no change. |
 | REVOKED or RETIRED; caller uses a key from that identity | Return the terminal identity with its ID, domain, and status; allocate nothing. |
-| REVOKED or RETIRED; caller supplies a new, unused key | After SR-8 is enabled: create a fresh identity and domain, with no separate replacement API. Before SR-8: return a terminal error and allocate nothing. |
+| REVOKED or RETIRED; caller supplies a new, unused key | After SR-8 is enabled: create a fresh identity and domain, with no separate replacement API. Before SR-8: return a terminal error and allocate nothing. Open for E2: its HTTP status and code, and whether it carries the ID, domain, and status. |
 | Delayed request with a key from an earlier identity | Resolve to that earlier identity, even after later replacements. |
 | Replay cache expires or a row is soft-deleted | Neither permits replacement or revival. |
 

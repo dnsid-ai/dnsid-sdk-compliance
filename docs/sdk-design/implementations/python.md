@@ -259,7 +259,7 @@ These are Python binding capabilities, not new language-agnostic design requirem
 
 | Design Item | Design Link | Evidence | Notes |
 | --- | --- | --- | --- |
-| Separate Foundry module and call | [13: Module Placement](../13-known-foundry.md#module-placement) | In progress: `dnsid.foundry`, `foundry.create(name)` (dnsid-py #125, unmerged). | Core, the registry client, and configuration loading do not import it. Shared scenarios not yet run. |
+| Separate Foundry module and call | [13: Module Placement](../13-known-foundry.md#module-placement) | Missing: not on the default branch. | Planned module and call: `dnsid.foundry`, `foundry.create(name)` (dnsid-py #125). Core, the registry client, and configuration loading must not import it. |
 
 ## Findings
 

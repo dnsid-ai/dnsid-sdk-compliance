@@ -100,7 +100,8 @@ return the same manager.
 Signing is paused:
 
 - until `Active` verifies the identity, or `Create` reopens a `complete` operation
-  whose provider key matches the saved current key binding;
+  whose provider key matches the saved current key binding and whose saved state
+  records no terminal state or pause;
 - during rotation, as defined in core;
 - after an observation finds a terminal state or a key-binding mismatch.
 
@@ -113,7 +114,9 @@ the provider can sign directly.
 Reopening a `complete` operation after a restart enables signing without a network
 check, so a restart does not depend on DNS or log availability. Call `Active` to
 refresh the public observation. A refresh that finds a terminal state or mismatch
-pauses signing.
+saves it (`registryStatus`, `signingPaused`) and pauses signing, so a restart stays
+paused. Only a later `Active` that verifies the identity again clears a mismatch
+pause; a terminal state is never cleared.
 
 With saved state, repeated `Create` calls reopen the same identity, including after
 rotation, without another issuance. A replica without saved state after rotation
@@ -136,14 +139,8 @@ needs an agreed server rule and shared vectors.
 
 ## Configuration and Trust
 
-```
-TYPE FoundryConfig
-  organizationId?: string    // expected registry account ID
-  governanceId?: string      // expected governance domain (gi)
-END
-```
-
-`LoadedConfig.foundry` holds these optional expectations. `Create` reads the
+`LoadedConfig.foundry` holds the optional `organizationId` and `governanceId`
+expectations ([`FoundryConfig` in 12](12-configuration-loading.md#loaded-configuration)). `Create` reads the
 organization ID and GI from authenticated onboarding
 ([05](05-transport-and-registry.md#account-binding-discovery)) and compares them
 with configured and saved values before any mutation: the organization ID
@@ -256,39 +253,33 @@ The SDK does not decide name reuse, replacement, or cleanup. It relies on the se
 assumptions in the
 [server requirements](../known-foundry-server-requirements.md#proposal-name-reuse-and-failed-provisioning).
 
-This check freezes the derivation, including distinct Unicode spellings. Compact
-UTF-8 JSON is JCS for these string-only arrays.
+These vectors freeze the derivation. Serialize the string arrays with RFC 8785
+string escaping; a general JSON encoder can differ (for example by escaping `<`,
+`>`, `&`, or U+2028). All rows use organization
+`11111111-1111-4111-8111-111111111111` and `initialKeyId`
+`kPrK_qmxVWaYVA9wwBF6Iuo3vVzz7TxHCTwXBygrS4k`. Names are shown as JSON string literals.
 
-```python
-import base64, hashlib, json
+| Name | `registrationKey` |
+|---|---|
+| `"billing-agent"` | `2sWNUpI4tnAzJ3quPrT78uJNVdo96m4En3cZsggktcA` (`issuanceKey` `pxQMSC0k-V9nn9qLqMRDczyUxyNyQE87LbGuK5SEWGw`) |
+| `"agent"` | `ksFWEjxU0Yf_F7-_UEwFWQ3J97VRmQPVLjVM5l-3YlY` |
+| `"Agent"` | `43mRUDBHeMLHZ6AZKy6RTQXox_LZxBDLa3IXLQ0qCGI` |
+| `"agent "` | `eVX-4H-42OOxnU2EbgtKoEzYad0bIaaRoCkf5T2BIEM` |
+| `"caf\u00e9"` | `kBdivhIHZhZ_20_Ku_KnIVYE7x0iSw4K1ceQb2s6fxs` |
+| `"cafe\u0301"` | `WxS5QzyfB3D0utVhJDzJQTY6eXDMagDV3tqOImr_u6A` |
+| `"\u00a0cafe\u0301\u3000"` | `x6ARjxrBFYbZ1jCSznnOWBUX9DpFr4edVmYy1zLnyTc` |
+| U+1F600 repeated 255 times | `AEttzAMd8C-GpyQqR_y5G-IfIawJpRWIMi4ZpfbkqWU` |
+| `"a\"b"` | `2bWVuTgcCN056vagU5cF40TRXcroeKQCLhd5hTVjhcM` |
+| `"a\\b"` | `g8sOgOWQxkQncp1g_H2nI81dTe-60Y8p6ryb87s3Vrk` |
+| `"a\u0001b"` | `oNMzk-Vz7VqZ75bxvj4srioM6Dtxd0lNFT3W_-uOF0A` |
+| `"a\nb"` | `yM6te8_oTYfg8b2Co21WukeVw4SfYQgCG9brN_W9Bio` |
+| `"<a>&"` | `D-ZrRgfx1r9BUVg-wF9Pbey_cfLsZjWeOUCRCsYhTnk` |
+| `"a\u2028b"` | `-0mnonROfh4y6N--aNbASSi_x7pWEcBu8-Ldwmop4mU` |
+| `"a\u007fb"` | `V9Xm6mXYXgQCT7DLYtBfT-etOMFRmX9mgKK60ocWtTA` |
+| `"a/b"` | `vQvjQxYsTU1TyU3oai2SQY07iNjuCrSBPH5fCjHqhiE` |
 
-def validate_name(value):
-    if not value or len(value) > 255 or any(0xD800 <= ord(c) <= 0xDFFF for c in value):
-        raise ValueError("invalid registration name")
-    return value
-
-def digest(fields):
-    data = json.dumps(fields, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-    return base64.urlsafe_b64encode(hashlib.sha256(data).digest()).rstrip(b"=").decode()
-
-fields = ["dnsid-managed-registration-v1", "11111111-1111-4111-8111-111111111111",
-          validate_name("billing-agent"), "kPrK_qmxVWaYVA9wwBF6Iuo3vVzz7TxHCTwXBygrS4k"]
-key = digest(fields)
-assert key == "2sWNUpI4tnAzJ3quPrT78uJNVdo96m4En3cZsggktcA"
-assert digest(["dnsid-managed-issuance-v1", key]) == "pxQMSC0k-V9nn9qLqMRDczyUxyNyQE87LbGuK5SEWGw"
-assert validate_name("\u00a0cafe\u0301\u3000") == "\u00a0cafe\u0301\u3000"
-assert validate_name("\U0001f600" * 255) == "\U0001f600" * 255
-names = ["agent", "Agent", "agent ", "café", "cafe\u0301", "\u00a0cafe\u0301\u3000"]
-assert len({digest(fields[:2] + [validate_name(n), fields[3]]) for n in names}) == len(names)
-assert digest(fields[:2] + ["café", fields[3]]) == "kBdivhIHZhZ_20_Ku_KnIVYE7x0iSw4K1ceQb2s6fxs"
-for invalid in ["", "\ud800", "\U0001f600" * 256]:
-    try:
-        validate_name(invalid)
-    except ValueError:
-        pass
-    else:
-        raise AssertionError("accepted invalid name")
-```
+Rejected names: empty, any lone surrogate (for example `"\ud800"`), and 256 scalar
+values (for example U+1F600 repeated 256 times).
 
 ## Issuance Recovery
 
@@ -384,6 +375,7 @@ base64url; timestamps are RFC 3339 UTC.
 | `initialPublicKey`, `currentPublicKey` | Initial JWK; current JWK after verified rotation if different. |
 | `creationInput` | Frozen Live request fields (05 wire names). |
 | `identityId`, `domain`, `requestId` | Creation facts. |
+| `registryStatus`, `signingPaused` | Last observed registry status; `true` after an observed terminal state or key-binding mismatch. |
 | `proof` | Exact challenge, signature request, and latest outcome. |
 | `publicationConfig`, `oidcIssuerUrl`, `entityPublicKey` | Publication snapshot, issuer, and entity public JWK. |
 | `issuance` | Prepared and completed bytes, `entryHash`, submission state (per 11), log reference and index, acceptance facts. |
@@ -428,7 +420,9 @@ and store, calls `Create` then `Active`, and succeeds only after public readines
 JSON output goes to stdout; progress and warnings go to stderr. On timeout or error,
 it reports the known ID, domain, and how to resume. Rerunning resumes.
 
-Retire finds the identity in the local store and calls the existing retire endpoint with the E8 type-the-name confirmation. It reports
+Retire finds the identity in the local store, asks the operator to type the name
+(the E8 confirmation; a CLI prompt, not a request member), and then calls the
+existing retire endpoint. It reports
 "pending" until it observes public convergence. Without local state it returns a
 typed error; lookup by name needs a server endpoint that E2 has not defined.
 `dnsid rotate` belongs to E7.
