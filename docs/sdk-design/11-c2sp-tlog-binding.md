@@ -474,7 +474,9 @@ governance service and the operational key at the agent. The SDK flow is:
 4. The operational SDK parses the partially signed prepared envelope as
    untrusted input. It validates FQDN, `gi`, `ek`, its own `ku`, `lr`, origin,
    stream, `seq=0`, canonical encoding, and `sigs.ae`.
-5. The operational SDK adds `sigs.op` over the identical `signedBytes`.
+5. The operational SDK adds `sigs.op` over the identical `signedBytes`, then verifies
+   every signature in the completed entry, including its own, before persisting it.
+   A failed check keeps the prepared bytes and sends nothing; countersigning retries.
 6. The fully signed canonical entry is submitted with a durable idempotency key.
 7. The service revalidates both signatures and all context, persists the exact
    entry bytes, and appends them unchanged.

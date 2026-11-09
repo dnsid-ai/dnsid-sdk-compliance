@@ -217,7 +217,8 @@ the next mutation. Each call uses one finite deadline.
 6. If saved state records an accepted ISSUANCE, verify it. If the registry reports
    `READY` and no ISSUANCE is saved, recover it under [Issuance Recovery](#issuance-recovery);
    never prepare another. Otherwise run the shared
-   issuance coordinator: prepare, validate, countersign, persist exact bytes, submit with
+   issuance coordinator: prepare, validate, countersign, verify the completed entry
+   including its own signature, persist exact bytes, submit with
    `issuanceKey` as the `Idempotency-Key` header. Apply
    [Issuance Recovery](#issuance-recovery) before reporting a final failure.
 7. Wait for publication, then verify public DNS, HTTPS, and log evidence: domain,
@@ -311,6 +312,11 @@ Retry an unknown outcome with the same bytes and key. Replace an expired prepara
 only when the server state permits it under
 [11](11-c2sp-tlog-binding.md#submission-and-idempotency); keep the same issuance key.
 Otherwise return a recoverable error.
+
+Whether `TLOG_INVALID_ENTRY` for locally verified bytes ends the operation, and
+whether the issuance key may prepare again after it, are server decisions
+([08](08-open-questions.md#known-foundry-create)). Until decided, it stays a
+resumable error that keeps the registry code.
 
 ## Registry States
 
@@ -461,7 +467,7 @@ the cross-SDK daily workflow. Server persistence proof stays in
 | Caller exits after `Create` | Signing paused; next call resumes. |
 | Proof expiry, lost responses, replay-cache expiry | Same operation; no new domain or key. |
 | `ERROR`, `REJECTED`, `CANCELLED`, terminal, unknown states | Correct typed outcome; no name release or replacement. |
-| Competing valid countersignatures; invalid then valid countersignature | Losing bytes rejected; winner recovered; key not poisoned. |
+| Competing valid countersignatures; invalid then valid local countersignature | Losing bytes rejected; winner recovered; an invalid local signature is never persisted or submitted, and the next attempt countersigns the same prepared bytes. |
 | Interruption at each phase | Same-bytes recovery; no recreation. |
 | `READY` without public `ACTIVE`; wrong GI, key, or log | Bounded wait or failure; signing paused. |
 | Restart of a `complete` operation; rotated or superseded key | Signing enabled only for the verified current key; no reissuance. |
