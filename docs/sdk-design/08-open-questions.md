@@ -4,7 +4,13 @@ This document tracks SDK design questions that are not yet resolved.
 
 ## Open Questions
 
-None currently.
+### Azure Key Vault first-key provisioning and references
+
+What explicit first-key provisioning operation and immutable reference form
+should `azure-key-vault` support? The selectable provider name in
+[12](12-configuration-loading.md#loaded-configuration) does not settle these
+semantics. The [KMS-first contract in 01](01-core-identity-manager.md#kms-first-operational-key-creation)
+defines AWS KMS and Google Cloud KMS only; Azure remains undefined.
 
 ## Resolved Questions
 
@@ -14,16 +20,21 @@ After restart, deliberate operator or application selection of the handed-off
 immutable AWS KMS key ARN or Google Cloud KMS version reference is sufficient to
 use that existing key as the local signer, even if it was never locally activated
 before restart. No saved provider state or persisted proof of prior activation
-is required for this reference-only startup. Creation still leaves the key
-pending; cloud-enabled state alone does not authorize signing, and the SDK does
-not automatically discover or select keys. Selection does not replace an
+is required for this reference-only startup. The selected reopened key is
+locally Active, with the ordinary `SigningKey()` and active-only `ListKeyIds()`
+behavior. Creation still leaves the key Pending in the creating provider process;
+cloud-enabled state alone does not authorize signing, and the SDK does not
+automatically discover or select keys. Selection does not replace an
 established signer without authorized rotation, bypass saved pending or
 superseded provider state or managed-rotation recovery checks, or satisfy external
-publication and issuance requirements.
+publication and issuance requirements. Without saved state, startup cannot
+reconstruct unavailable supersession history; the selected-reference binding
+check is not proof of current publication or rotation eligibility.
 
 The contract is defined in
 [01](01-core-identity-manager.md#kms-first-operational-key-creation), with
-[acceptance cases in 12](12-configuration-loading.md#google-cloud-kms-lifecycle-acceptance-cases).
+[AWS acceptance cases](12-configuration-loading.md#aws-kms-lifecycle-acceptance-cases)
+and [Google acceptance cases](12-configuration-loading.md#google-cloud-kms-lifecycle-acceptance-cases) in 12.
 
 Operation-level `logchk` uses the operation-independent
 `VerifyLogEvidence(verifiedDomain, at)` primitive defined in

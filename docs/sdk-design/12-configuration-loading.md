@@ -107,8 +107,9 @@ including validation of the requested resource, algorithm, readiness, and public
 key, handoff of the immutable created key ARN rather than a mutable alias,
 pending activation, failure reconciliation, and deliberate reference selection for
 subsequent open-only startup without persisted proof of prior activation.
-These common requirements are also the AWS acceptance target; the Google-specific
-cases below do not defer AWS acceptance or restrict AWS to Ed25519.
+The [AWS lifecycle acceptance cases](#aws-kms-lifecycle-acceptance-cases)
+enumerate these common requirements using immutable key ARNs and the selected
+supported algorithm; they do not restrict AWS to Ed25519.
 
 #### Google Cloud KMS Ed25519
 
@@ -141,7 +142,9 @@ state alone does not establish local activation or authorize replacing an
 established signer. Deliberate selection of the immutable version reference for
 reference-only startup authorizes local signing under the
 [KMS-first contract](01-core-identity-manager.md#kms-first-operational-key-creation),
-without requiring prior local activation or persisted proof of it. This does not
+without requiring prior local activation or persisted proof of it. The selected
+reopened key is locally Active: `SigningKey()` returns its JWK and
+`ListKeyIds()` returns its key ID alone. This does not
 bypass saved pending or superseded provider state. Managed-rotation recovery uses
 the existing [application-owned state and exact bindings](01-core-identity-manager.md#managed-rotation-recovery-contract).
 
@@ -413,19 +416,47 @@ verify` reads; there are no SDK-local aliases.
 | Invalid `dnsid` config together with a `policyUrl` | Construction fails with `ArgumentError` without fetching the policy. |
 | Any constructor invoked with environment variables or files present | Constructor reads neither. |
 
+### AWS KMS Lifecycle Acceptance Cases
+
+These are acceptance requirements, not executable coverage or release claims.
+They apply the [common KMS-first contract](01-core-identity-manager.md#kms-first-operational-key-creation)
+with AWS-native immutable key ARNs and the selected supported algorithm.
+Managed-rotation cases belong to the existing orchestration, not a new
+provider-owned persistence mechanism.
+
+| Case | Mode | Required caller-observable result |
+|---|---|---|
+| Explicitly create the initial key with no prior key or active signer | real-capable | New remote key with the requested supported algorithm, validated readiness and public key, and immutable key ARN (not an alias); key remains locally Pending in the creating provider process, with no active signer until explicit activation enables signing. |
+| Initial creation fails or has an indeterminate outcome | real-capable | No local keystore, identity-file, or temporary-key-file writes, local fallback, implicit recreate/delete, or partial activation; operator owns remote-resource reconciliation. |
+| Restart before local activation with only the handed-off immutable key ARN and deliberately select it as signer | real-capable | Same key ID and public key; selected key is locally Active, `SigningKey()` returns its JWK, `ListKeyIds()` returns its ID alone, and local signing succeeds without saved state or proof of prior activation; no new remote key, automatic discovery, or implicit publication or issuance. |
+| Open the same valid immutable key ARN across restarts | real-capable | Same key ID and public key; no new remote key; ordinary existing-key Active signer behavior. |
+| Supply a mutable alias or invalid reference, unsupported algorithm, or mismatched resource/public-key binding | real-capable | Opening fails without replacement generation or fallback. |
+| Key is unavailable, access is denied, or the KMS service fails | real-capable | Operation fails; no substituted signer or successful signature. |
+| Explicitly generate a key for rotation | real-capable | New remote key using the selected supported algorithm remains Pending; configuration, active signer, active listing, and live publication unchanged; `JWK` and rotation `SignKey` work for the pending key. |
+| Retain pending or superseded keys | real-capable | `ListKeyIds()` returns only the active ID, or an empty list when none is active; retained keys are not live inventory. |
+| Publish a pending successor during rotation | fake-only | Explicit rotation publication exposes only the successor while application signing stays paused; the successor remains pending until activation. |
+| Supersede a previous key after successor activation | real-capable | Previous-key signing fails; successor remains active; previous key is absent from the active listing and live publication. |
+| Reopen saved pending or superseded provider state | fake-only | Saved eligibility is preserved; neither cloud availability nor reference selection bypasses it or managed-rotation recovery checks. |
+| Resume an accepted rotation after a crash with stale deployment settings | fake-only | Exact saved bindings are used; activation and supersession reconcile forward; saved target is restored before signing resumes. |
+
+Reference-only startup has the [history limits defined in 01](01-core-identity-manager.md#kms-first-operational-key-creation):
+a valid ARN/public-key binding is not proof of current publication or rotation
+eligibility, and unavailable supersession history cannot be reconstructed.
+
 ### Google Cloud KMS Lifecycle Acceptance Cases
 
-These cases use the shared KeyProvider and managed-rotation contracts; they do
+These are acceptance requirements, not executable coverage or release claims.
+They use the shared KeyProvider and managed-rotation contracts; they do
 not require a new persistence mechanism. Pending-key publication and crash-resume
 cases exercise the existing managed-rotation orchestration; they do not require
 the provider package to implement that orchestration.
 
 | Case | Mode | Required caller-observable result |
 |---|---|---|
-| Explicitly create the initial version under a compatible parent with no prior version or active key | real-capable | New remote `EC_SIGN_ED25519` version and immutable version reference; key remains locally pending with no active signer until explicit activation enables signing. |
+| Explicitly create the initial version under a compatible parent with no prior version or active key | real-capable | New remote `EC_SIGN_ED25519` version and immutable version reference; key remains locally Pending in the creating provider process with no active signer until explicit activation enables signing. |
 | Initial creation fails or has an indeterminate outcome | real-capable | No local keystore, identity-file, or temporary-key-file writes, local fallback, implicit recreate/delete, or partial activation; operator owns remote-resource reconciliation. |
-| Restart after initial creation but before local activation, with only the handed-off immutable version reference, and deliberately select it as signer | real-capable | Same key ID and public key; local signing succeeds without saved provider state or persisted proof of prior activation; no new cloud version, automatic key discovery, or implicit publication or issuance; the parent alone is not a valid configured `keyRef`. |
-| Open the same valid version across restarts | real-capable | Same key ID and public key; no new cloud version. |
+| Restart after initial creation but before local activation, with only the handed-off immutable version reference, and deliberately select it as signer | real-capable | Same key ID and public key; selected key is locally Active, `SigningKey()` returns its JWK, `ListKeyIds()` returns its ID alone, and local signing succeeds without saved provider state or persisted proof of prior activation; no new cloud version, automatic key discovery, or implicit publication or issuance; the parent alone is not a valid configured `keyRef`. |
+| Open the same valid version across restarts | real-capable | Same key ID and public key; no new cloud version; ordinary existing-key Active signer behavior. |
 | Supply a parent-only or mutable reference, or a non-Ed25519 version | real-capable | Opening fails without replacement generation or fallback. |
 | Version is unavailable, access is denied, or the KMS service fails | real-capable | Operation fails; no substituted signer or successful signature. |
 | Explicitly generate a key | real-capable | New `EC_SIGN_ED25519` version under the configured parent; configuration, active signer, active listing, and live publication unchanged; `JWK` and rotation `SignKey` work for the pending key. |

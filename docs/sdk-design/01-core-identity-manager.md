@@ -1305,7 +1305,8 @@ use `validated`. Deployments that require DNS-rooted origin authentication use
 #### KMS-first operational key creation
 
 This subsection applies to AWS KMS and Google Cloud KMS; it does not define
-Azure Key Vault first-key provisioning or reference semantics.
+Azure Key Vault first-key provisioning or reference semantics; those remain an
+[open question](08-open-questions.md#azure-key-vault-first-key-provisioning-and-references).
 
 Before constructing the initial local-identity manager, an operator explicitly
 creates the operational key through the selected provider's native KMS creation
@@ -1325,8 +1326,8 @@ Successful creation exposes the provider and its immutable KMS resource referenc
 through the result or inspectable provider state, after validating the requested
 resource, algorithm, readiness, and public key. This reference is the created AWS
 key ARN (not a mutable alias) or Google Cloud KMS version name, not public-key
-bytes. The key remains locally pending until explicit operator activation.
-The operator activates it locally before
+bytes. In the creating provider process, the key remains locally Pending until
+explicit operator activation. The operator activates it locally before
 supplying the provider as `deps.keyProvider` for the initial setup below.
 Local activation enables signing; it is not protocol ISSUANCE or activation of
 identity status and does not bypass publication or issuance checks.
@@ -1340,9 +1341,14 @@ the SDK MUST NOT implicitly persist state files. After restart, deliberate
 operator or application selection of the handed-off immutable reference is
 sufficient to use that existing key as the local signer, even if it was never
 locally activated before restart. No saved provider state or persisted proof of
-prior activation is required for this reference-only startup. Opening validates
-the resource, algorithm, readiness, public key, and same key binding without
-recreating the key. The explicit selection authorizes local signing; neither
+prior activation is required for this reference-only startup. The reopened,
+explicitly selected key is locally Active, as with an ordinary existing-key
+open: `SigningKey()` returns its JWK and `ListKeyIds()` returns its key ID alone.
+`GetKeySet()` therefore exposes that public key for initial publication under
+the existing KeyProvider contract; it does not publish it externally.
+Opening validates the resource, algorithm, readiness, and public-key binding to
+the selected immutable reference without recreating the key. The explicit
+selection authorizes local signing; neither
 creation nor cloud-enabled state alone does so. The SDK MUST NOT automatically
 discover or select keys. DNS publication, verification-resource publication,
 ISSUANCE, and protocol status remain separate requirements.
@@ -1353,6 +1359,16 @@ remains open-only. Reference selection MUST NOT replace an established signer
 without authorized rotation or bypass saved pending or superseded provider state
 and the [managed-rotation recovery checks](#managed-rotation-recovery-contract).
 Initial creation MUST NOT implicitly replace an established signer.
+
+Reference-only startup cannot reconstruct unavailable supersession history.
+The operator or application chooses the immutable key version; validation binds
+the cryptographic key and public key to that selected reference, not to proof
+that it is currently published or eligible for rotation. Without saved state,
+this startup path does not protect against deliberately selecting a previously
+superseded but still usable cloud key. When saved provider or rotation state is
+present it MUST be honored; reference-only selection is not a recovery path
+that may discard it. Publication and authorized-rotation requirements remain
+unchanged; current publication is not a prerequisite for this local open.
 
 A failed or indeterminate remote create may still leave a billable remote key or
 version. The SDK MUST NOT implicitly recreate or delete it, fall back to a local

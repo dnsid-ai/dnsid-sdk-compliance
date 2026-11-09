@@ -8,6 +8,21 @@ Scope reminder: these are libraries. Nothing runs unless the integrator calls it
 anywhere the integrator (or the domain being verified) did not designate. No telemetry, usage
 reporting, update checks, or crash reporting exist in any SDK.
 
+## Provider coverage and availability
+
+Cloud-provider entries identify implementation/source-coverage surfaces to
+inventory, not released-package availability in every listed SDK. In particular,
+the Google KMS entries do not establish that companion Go, TypeScript, and
+Python provider changes have merged or been released. Availability claims require
+the corresponding companion implementation merges and releases, plus coverage
+review under the [shared implementation-coverage procedure](../sdk-design/AGENTS.md#updating-sdk-implementation-coverage).
+The [implementation trackers](../sdk-design/implementations/README.md) record
+exact reviewed baselines. Inventory entries, tracker omissions, and placeholder
+wording cannot establish availability beyond those baselines. Reconciling them
+requires a separate source audit; tracker coverage must not be marked complete
+from this inventory. All-SDK availability requires both reviewed implementation
+coverage and release evidence.
+
 ## Network destinations
 
 Not a destination: `witness.dnsid.ai` / `witness.dev.dnsid.ai` appear in source only as witness *key names* inside
