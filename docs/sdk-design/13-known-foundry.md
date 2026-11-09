@@ -456,6 +456,7 @@ the cross-SDK daily workflow. Server persistence proof stays in
 |---|---|
 | Name and hash vectors | Same bytes across bindings; no normalization. |
 | Configuration from file, environment, code; invalid provider or algorithm | Same bindings; fail before mutation; no fallback. |
+| Configuration contains `dnsid.identity` (for example `DNSID_GOVERNANCE_ID` in the environment) | `ArgumentError` before any registry call. |
 | Wrong organization or onboarding not ready | Fail before create. |
 | Registry without the onboarding endpoint | `UnsupportedRegistry`; no mutation. |
 | Empty provider | `KEY_MISSING`; no key generated or selected; no registry mutation. |
