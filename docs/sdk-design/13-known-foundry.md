@@ -191,9 +191,13 @@ the next mutation. Each call uses one finite deadline.
 
 1. Validate the name, configuration, provider, and algorithm. Read onboarding.
    Lock, load, and validate named state.
-2. Obtain the signing key. If the provider has no key and supports
-   `EnsureSigningKey()`, call it; the provider owns how it provisions or converges
-   keys. Otherwise return `KEY_MISSING`. The Live adapter requires Ed25519. Persist
+2. Obtain the signing key. The provider has no key when `SigningKey()` returns no
+   active key (each binding's no-key result). If the provider has no key, no
+   creation intent is saved, and it supports `EnsureSigningKey()`, call it; the
+   provider owns how it provisions or converges keys. `EnsureSigningKey()` is
+   provisional until E6 settles its name and semantics
+   ([open decision](08-open-questions.md#known-foundry-create)). Otherwise return
+   `KEY_MISSING`. The Live adapter requires Ed25519. Persist
    bindings, creation intent, provider reference, and the public JWK before creation.
 3. Creation is unresolved until both the ID and the domain are saved. If it is
    unresolved, derive `registrationKey`, rebuild the identical

@@ -92,8 +92,9 @@ Foundry create does not load an entity private key.
   project/location, vault URL, or credential references; credentials come from
   ambient chains or referenced sources, never raw secrets/private JWKs in the file.
 - Foundry create uses the provider's signing key. If the provider has none
-  and supports `EnsureSigningKey()`, `Create` calls it; the provider (E6) decides
-  how it provisions keys and converges replicas. Otherwise `Create` returns
+  and supports `EnsureSigningKey()` (provisional, pending E6 in
+  [08](08-open-questions.md#known-foundry-create)), `Create` calls it; the provider
+  (E6) decides how it provisions keys and converges replicas. Otherwise `Create` returns
   `KEY_MISSING`. A binding conflict is a typed error, never a reason to generate.
 - Injected `keyProvider` wins; displaced source settings/packages are not resolved.
   Otherwise an unavailable provider returns `ArgumentError` naming the provider

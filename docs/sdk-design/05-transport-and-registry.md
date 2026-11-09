@@ -241,10 +241,11 @@ allowlist the local entity, or expose a public acceptance-bypass option. Public
 acceptance. The internal helper below is conceptual, not a new public API.
 
 Polling MUST retain the immutable ID/domain, publication authority, creation
-publication snapshot, and any saved OIDC issuer. Compare authoritative reads
-with those facts; omission of `oidc_issuer_url` when an issuer was saved is a mismatch,
-not permission to clear it. An issuer omitted at creation need not be present later.
-An authenticated authoritative read MUST establish the retained bindings before
+publication snapshot, and any saved OIDC issuer. Compare every authoritative read,
+including the first, with the facts saved at creation; omission of `oidc_issuer_url`
+when an issuer was saved is a mismatch, not permission to clear it. An issuer omitted
+at creation need not be present later. Other facts not saved at creation come from
+the first authenticated authoritative read, which MUST establish them before
 reporting success. A key change is accepted only as an authorized rotation under
 the core [rotation contract](01-core-identity-manager.md#operational-key-rotation).
 Optional progress callbacks neither establish success nor extend the finite
@@ -254,12 +255,14 @@ recovery must reconcile its outcome.
 
 ```
 FUNCTION AwaitRegistryManagedPublication(registryClient: RegistryClient) -> PublishedRecord
+  saved = SavedCreationFacts(config.identity) // ID, domain, authority, snapshot, OIDC issuer saved at creation
   registration = registryClient.GetRegistration(config.identity.domain)
+  AssertRetainedBindings(registration, saved) // The first read is checked too.
   IF registration.publicationAuthority != "registry" THEN
     RAISE ValidationError("client controls accountable-entity publication")
   END
 
-  retained = RetainedBindings(registration) // ID, domain, authority, snapshot, saved OIDC issuer
+  retained = saved.FillUnsavedFrom(registration) // Never fills the OIDC issuer.
 
   LOOP
     registration = registryClient.GetRegistration(config.identity.domain)
@@ -848,6 +851,8 @@ governance persistence also require server integration tests, not SDK coordinati
 | Key-only, exact-domain, root, and GI-selected creation | Correct wire selectors and returned domain/GI; no inferred hosting or injected legacy defaults. |
 | Invalid inputs | Reject conflicting selectors, missing keys for assigned names, invalid URLs, and private JWK members, including nested JWKS material. |
 | Authenticated read or mutation returns a redirect, including to the same origin | Reject; no request or credential reaches the redirect target. |
+| Registry-managed publication poll, including the first read, changes the ID, domain, authority, or snapshot, or omits a saved OIDC issuer | Fail with a binding mismatch; do not adopt the new value or report success. |
+| Registry or discovery response carries unknown JSON members, including unknown readiness or authority values | Ignore the members; they never satisfy readiness or authority checks or authorize replacement. |
 | Invalid response or root/admission failure | Fail closed, preserve known creation facts and server errors, and make no fallback request. |
 | Supported existing selectors and managed Live | Preserve existing request behavior; Live still returns 202 provisioning, not ordinary 201 registration. |
 | Keyed ordinary replay, including stale GI or changed input | Preserve the original request/key and known identity; retain governance/mismatch errors without replacement allocation or cross-organization replay. |
