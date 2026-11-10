@@ -63,7 +63,7 @@ SDK exposes but cannot make for them.
 
 | # | Threat | Impact | Mitigation | Residual |
 |---|---|---|---|---|
-| B1 | **Local key file read** by another local user or leaked backup | Attacker signs as the integrator's agent | `0600`, `O_EXCL`, atomic write; `DNSID_CONFIG_DIR` relocatable; KMS providers keep keys in HSM | **Plaintext at rest — accepted; local provider is for development/single-host use, KMS for production.** Same-user malware or root reads it |
+| B1 | **Local key file read** by another local user or leaked backup | Attacker signs as the integrator's agent | `0600`, `O_EXCL`, atomic write; `DNSID_CONFIG_DIR` relocatable; KMS providers keep private key material in the remote KMS service; the Google implementation requires SOFTWARE Ed25519 protection, not HSM protection | **Plaintext at rest — accepted; local provider is for development/single-host use, KMS for production.** Same-user malware or root reads it |
 | B2 | **Key material in logs / errors** | Leak via integrator's log pipeline | SDKs emit no logs; errors carry thumbprints and domains only; denial messages never echo allowlist or pins | — |
 | B3 | **Cloud credential misuse** via KMS providers | Attacker with the integrator's cloud creds signs | Not SDK-mitigable; SDK never handles the creds, cloud SDK reads env | **Integrator** IAM scoping |
 

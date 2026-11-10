@@ -1066,7 +1066,7 @@ INTERFACE KeyProvider
   // require proof of possession from the pending new key.
   SignKey(kid: string, payload: bytes) -> bytes
 
-  // --- Management methods (called by operator code during key rotation) ---
+  // --- Management methods (called by operator code during setup or rotation) ---
 
   GenerateKey() -> kid
   Activate(kid: string)
@@ -1305,6 +1305,98 @@ use `validated`. Deployments that require DNS-rooted origin authentication use
 This is the publisher-owned flow. Known Foundry's registry-held entity signing and
 publication use [Create/Active](13-known-foundry.md) in a separate module above core, with
 durable key/proof/issuance recovery and independent public readiness checks.
+
+#### KMS-first operational key creation
+
+This subsection applies to AWS KMS and Google Cloud KMS; it does not define
+Azure Key Vault first-key provisioning or reference semantics; those remain an
+[open question](08-open-questions.md#azure-key-vault-first-key-provisioning-and-references).
+
+Before constructing the initial local-identity manager, an operator explicitly
+creates the operational key through the selected provider's native KMS creation
+operation. AWS KMS and Google Cloud KMS bootstrap MUST NOT require an existing
+active operational key or a prior key version. Google Cloud KMS parent
+prerequisites are defined in
+[12](12-configuration-loading.md#google-cloud-kms-ed25519).
+These are semantic operations, not prescribed per-binding API names or a new
+shared provisioning interface.
+
+The private key MUST be generated inside the KMS and remain there: no local
+keypair generation, private-key export/import, file-provider fallback, or local
+keystore, identity-file, or temporary-key-file writes on success or failure.
+This does not govern unrelated cloud-authentication cache behavior.
+
+Successful creation exposes the provider and its immutable KMS resource reference,
+through the result or inspectable provider state, after validating the requested
+resource, algorithm, readiness, and public key. This reference is the created AWS
+key ARN (not a mutable alias) or Google Cloud KMS version name, not public-key
+bytes. In the creating provider process, the key remains locally Pending until
+explicit operator activation. The operator activates it locally before
+supplying the provider as `deps.keyProvider` for the initial setup below.
+Local activation enables signing; it is not protocol ISSUANCE or activation of
+identity status and does not bypass publication or issuance checks.
+The caller still supplies distinct accountable-entity custody through
+`deps.entityKeyProvider`, as required by the existing
+[KeyProvider contract](#keyprovider-interface); operational-key creation does not
+change that separation.
+
+The application owns the reference handoff and any durable storage it chooses;
+the SDK MUST NOT implicitly persist state files. After restart, deliberate
+operator or application selection of the handed-off immutable reference is
+sufficient to use that existing key as the local signer, even if it was never
+locally activated before restart. No saved provider state or persisted proof of
+prior activation is required for this reference-only startup. The reopened,
+explicitly selected key is locally Active, as with an ordinary existing-key
+open: `SigningKey()` returns its JWK and `ListKeyIds()` returns its key ID alone.
+`GetKeySet()` therefore exposes that public key for initial publication under
+the existing KeyProvider contract; it does not publish it externally.
+Opening validates the resource, algorithm, readiness, and public-key binding to
+the selected immutable reference without recreating the key. The explicit
+selection authorizes local signing; neither
+creation nor cloud-enabled state alone does so. The SDK MUST NOT automatically
+discover or select keys. DNS publication, verification-resource publication,
+ISSUANCE, and protocol status remain separate requirements.
+
+Ordinary
+[configuration construction](12-configuration-loading.md#operational-key-source-selection)
+remains open-only. Reference selection MUST NOT replace an established signer
+without authorized rotation or bypass saved pending or superseded provider state
+and the [managed-rotation recovery checks](#managed-rotation-recovery-contract).
+Initial creation MUST NOT implicitly replace an established signer.
+
+Local provider open and local Active signing eligibility, including successful
+configuration-managed `Construct`, do not establish identity continuity or
+authorize application signing for an established identity. The
+[setup/recovery binding-error rule in 12](12-configuration-loading.md#operational-key-source-selection)
+applies before application signing, including a conflict with an existing verified
+`ku` publication.
+Initial unpublished identity construction remains allowed in the ordered setup
+below; it does not require prior publication.
+
+Startup identity discovery, policy for absent or unreachable publication evidence,
+and SDK-versus-application ownership remain an
+[open question in 08](08-open-questions.md#startup-identity-discovery-publication-evidence-and-ownership).
+That question does not relax the no-replacement requirements or the setup/recovery
+binding-error result before application signing for a selected key conflicting
+with an existing verified `ku` publication.
+
+Reference-only startup cannot reconstruct unavailable supersession history.
+The operator or application chooses the immutable key version; validation binds
+the cryptographic key and public key to that selected reference, not to proof
+that it is currently published or eligible for rotation. Without saved state,
+this startup path does not protect against deliberately selecting a previously
+superseded but still usable cloud key. When saved provider or rotation state is
+present it MUST be honored; reference-only selection is not a recovery path
+that may discard it. Publication and authorized-rotation requirements remain
+unchanged; current publication is not a prerequisite for this local open.
+
+A failed or indeterminate remote create may still leave a billable remote key or
+version. The SDK MUST NOT implicitly recreate or delete it, fall back to a local
+signer, or partially activate it. The operator owns resource discovery,
+reconciliation, and any explicit cleanup, including resources whose creation
+response was lost. Creation does not promise idempotent provisioning.
+
+#### Publication and issuance
 
 ```
 1. IdentityManager.new(config{identity, verification, transport}, deps{keyProvider, entityKeyProvider, logRegistry})

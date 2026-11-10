@@ -8,6 +8,21 @@ Scope reminder: these are libraries. Nothing runs unless the integrator calls it
 anywhere the integrator (or the domain being verified) did not designate. No telemetry, usage
 reporting, update checks, or crash reporting exist in any SDK.
 
+## Provider coverage and availability
+
+Cloud-provider entries identify implementation/source-coverage surfaces to
+inventory, not released-package availability in every listed SDK. In particular,
+the Google KMS entries do not establish that companion Go, TypeScript, and
+Python provider changes have merged or been released. Availability claims require
+the corresponding companion implementation merges and releases, plus coverage
+review under the [shared implementation-coverage procedure](../sdk-design/AGENTS.md#updating-sdk-implementation-coverage).
+The [implementation trackers](../sdk-design/implementations/README.md) record
+exact reviewed baselines. Inventory entries, tracker omissions, and placeholder
+wording cannot establish availability beyond those baselines. Reconciling them
+requires a separate source audit; tracker coverage must not be marked complete
+from this inventory. All-SDK availability requires both reviewed implementation
+coverage and release evidence.
+
 ## Network destinations
 
 Not a destination: `witness.dnsid.ai` / `witness.dev.dnsid.ai` appear in source only as witness *key names* inside
@@ -22,8 +37,8 @@ SDK ever opens a connection to a witness.
 | `api.dnsid.ai` / `api.dev.dnsid.ai` | Registry client (issuance, rotation, publication) | **Opt-in** — `DEFAULT_REGISTRY_URL` in ts/py registry packages; go has no default and requires the URL. Only reached from control-plane calls, never from `verify` | Signed publication requests: domain, public keys, governance ID | Status, receipts | ts, py (go: caller-supplied URL only) |
 | `log.dnsid.ai` / `log.dev.dnsid.ai` | C2SP transparency-log read/write | **Opt-in** — only when a `c2sptlog` log registry is configured. Public trust roots for these logs are bundled in source | Log entries (public keys, domain, event type); checkpoint reads | Checkpoints (with embedded witness cosignatures), inclusion proofs | go, ts, py |
 | OIDC issuer / `token_endpoint` (integrator-supplied) | OIDC token exchange helper | **Opt-in** — integrator passes the issuer | Signed client assertion (DNSid JWT) | Access token | go, ts, py |
-| AWS KMS (`kms.<region>.amazonaws.com`) | Signing with `key/aws` (go), `@dnsid-ai/key-aws` (ts), `AwsKmsKeyProvider` (py) | **Opt-in** — only if that provider is constructed | Digest to sign; AWS credentials from the integrator's environment | Signature | go, ts, py |
-| GCP Cloud KMS | Signing with `@dnsid-ai/key-gcp` | **Opt-in** | Digest to sign; GCP credentials from the integrator's environment | Signature | ts |
+| AWS KMS (`kms.<region>.amazonaws.com`) | Signing with `key/aws` (go), `@dnsid-ai/key-aws` (ts), `AwsKmsKeyProvider` (py) | **Opt-in** — only if that provider is constructed | Raw message for Ed25519; raw message or digest for ECDSA; AWS credentials from the integrator's environment | Signature | go, ts, py |
+| GCP Cloud KMS | Signing with `key/gcp` (go), `@dnsid-ai/key-gcp` (ts), `GoogleKmsKeyProvider` (py) | **Opt-in** — only if that provider is constructed | Raw Ed25519 message; GCP credentials from the integrator's environment | Signature | go, ts, py |
 
 Every default that reaches the network can be changed or disabled: resolver, HTTP transport, proxy, TLS options,
 timeouts, and registry/log URLs are all injectable (`OPERATIONS.md` in go, `docs/security.md` in ts/py).
@@ -59,7 +74,7 @@ key material or tokens.
 | Permissions | Files created `0600`, `O_EXCL`, written atomically via temp file + rename (go `keyprovider.go`, ts `local-key-provider.ts`, py `local_key_provider.py`) |
 | Format | Plaintext JSON (JWK private keys) |
 | Encryption at rest | **None. No passphrase option.** Protection is file mode + OS user boundary only |
-| Production alternative | AWS KMS (go, ts, py) / GCP KMS (ts) providers: private key never leaves the HSM |
+| Production alternative | AWS KMS (go, ts, py) / GCP KMS (go, ts, py) providers: private key material remains in the remote KMS service; the Google implementation requires SOFTWARE Ed25519 protection, not HSM protection. |
 
 **Position:** local keys are stored unencrypted. Accepted: the local provider is for development/single-host use;
 KMS providers are recommended for production. Same posture as `ssh-keygen` without a passphrase, `gcloud`, `aws`
