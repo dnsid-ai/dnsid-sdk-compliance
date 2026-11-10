@@ -1302,6 +1302,10 @@ use `validated`. Deployments that require DNS-rooted origin authentication use
 
 ### Initial Setup of Local Identity
 
+This is the publisher-owned flow. Known Foundry's registry-held entity signing and
+publication use [Create/Active](13-known-foundry.md) in a separate module above core, with
+durable key/proof/issuance recovery and independent public readiness checks.
+
 #### KMS-first operational key creation
 
 This subsection applies to AWS KMS and Google Cloud KMS; it does not define
@@ -1360,19 +1364,21 @@ without authorized rotation or bypass saved pending or superseded provider state
 and the [managed-rotation recovery checks](#managed-rotation-recovery-contract).
 Initial creation MUST NOT implicitly replace an established signer.
 
-Local provider open and local Active signing eligibility are distinct from
-successful configuration-managed `Construct`. Opening the selected key does not
-authorize `Construct` to replace an existing identity's signer; the
-[binding-error rule in 12](12-configuration-loading.md#operational-key-source-selection)
-still applies, including a conflict with an existing verified `ku` publication.
+Local provider open and local Active signing eligibility, including successful
+configuration-managed `Construct`, do not establish identity continuity or
+authorize application signing for an established identity. The
+[setup/recovery binding-error rule in 12](12-configuration-loading.md#operational-key-source-selection)
+applies before application signing, including a conflict with an existing verified
+`ku` publication.
 Initial unpublished identity construction remains allowed in the ordered setup
 below; it does not require prior publication.
 
 Startup identity discovery, policy for absent or unreachable publication evidence,
 and SDK-versus-application ownership remain an
 [open question in 08](08-open-questions.md#startup-identity-discovery-publication-evidence-and-ownership).
-That question does not relax the no-replacement requirements or the binding-error
-result for a selected key conflicting with an existing verified `ku` publication.
+That question does not relax the no-replacement requirements or the setup/recovery
+binding-error result before application signing for a selected key conflicting
+with an existing verified `ku` publication.
 
 Reference-only startup cannot reconstruct unavailable supersession history.
 The operator or application chooses the immutable key version; validation binds

@@ -79,6 +79,20 @@ SDK exposes but cannot make for them.
 | C6 | **Compromised CI / release pipeline** | Poisoned artifact with a valid-looking release | All actions SHA-pinned (readiness ❌ otherwise); reusable workflows `on: pull_request` so forks get no secrets; GitHub-hosted runners; SBOM generated in-pipeline; **ts: npm trusted publisher allows `stage publish` only — CI stages, a maintainer approves with 2FA (`npm stage approve`), so repo + CI compromise alone cannot make a package live** | go/py: repo + CI compromise together could still publish — go signing deferred |
 | C7 | **Secrets in history** | Credential leak on publish | gitleaks full history in readiness, clean on all repos | Full history published (verified clean) |
 
+### Known Foundry design (not shipped coverage)
+
+Required mitigations for the [Foundry design](../sdk-design/13-known-foundry.md).
+They are not claims about released SDKs or the current server. The registry is
+trusted to allocate domains and sign publication with the entity key.
+
+| Threat | Required mitigation | Residual / owner |
+|---|---|---|
+| A compromised host uses the setup credential against other agents | Keep credentials out of configuration and recovery files; reject redirects; public checks use a client without credentials | Organization API keys have broad privileges. Scopes and expiry belong to E4. |
+| Registry substitutes an operational key or another tenant's identity | Compare organization and saved identity before mutation; validate prepared signatures; check that signed `ku` matches the provider key before enabling signing | A compromised registry can still misrepresent identities. |
+| Concurrent startup, lost responses, or cache expiry creates a second identity | Persist the public key before create; recover with exact bytes; server keeps name ownership beyond cache expiry | Same-key replicas converge. Replicas with different keys get `KEY_MISMATCH`; E6 owns key convergence. |
+| An invalid countersignature consumes the shared submission key | Server validates signatures before admission; clients verify accepted history | Server acceptance gate. |
+| A crafted name or modified recovery file changes bindings | Digest paths, escape diagnostics, owner-only atomic files, validate schema and bindings; no secrets in recovery files | Same-user or root compromise is out of scope. |
+
 ### D. Why a fork cannot inherit trust
 
 A DNSid identity is established by three things the software does not contain: control of the DNS zone

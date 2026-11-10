@@ -255,6 +255,12 @@ These are Python binding capabilities, not new language-agnostic design requirem
 | WBA rotation/recovery guidance and signing-key authority | [10: Operational guidance](../10-web-bot-auth.md#operational-guidance), [10: Key reuse decision](../10-web-bot-auth.md#key-reuse-decision) | Implemented for the injected-provider boundary: WBA guidance requires shared durable rotation, pause/drain and revoke/reissue for compromise; ku also authorizes rotation (`README.md:299`, `:317`). Manager recovery validates publication and restores signing before unpause (`dnsid/manager.py:1109`, `:1136`); no separate WBA rotation transaction. | No overlapping live ku grace; short TTLs and mismatch refresh do not revoke a compromised key. |
 | WBA native and shared validation | [10: Directory verification requirements](../10-web-bot-auth.md#directory-verification-requirements) | Implemented: shared 150-case corpus and native metadata, exact coverage, ambiguity, zero-TTL/TLS/key-age, replay, HTTP coding/availability, key mismatch and numeric/snapshot tests (`tests/test_wba_contracts.py:58`, `:89`, `:166`, `:216`, `:287`, `:301`, `:321`, `tests/test_wba_refresh.py:25`, `:105`). | No external WBA partner/version or crawler-volume performance claim was validated. |
 
+### Known Foundry Create (13)
+
+| Design Item | Design Link | Evidence | Notes |
+| --- | --- | --- | --- |
+| Separate Foundry module and call | [13: Module Placement](../13-known-foundry.md#module-placement) | Missing: not on the default branch. | Planned module and call: `dnsid.foundry`, `foundry.create(name)` (dnsid-py #125). Core, the registry client, and configuration loading must not import it. |
+
 ## Findings
 
 - **Partial — profile configuration ownership:** JOSE, HTTP and OIDC retain caller dataclasses (`dnsid/jose.py:113`, `dnsid/http_signatures.py:157`, `dnsid/oidc.py:261`). WBA copies/validates its own settings. This is now declared in conformance metadata.

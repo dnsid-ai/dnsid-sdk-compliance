@@ -221,6 +221,12 @@
 | WBA rotation/recovery guidance and signing-key authority | [10: Operational guidance](../10-web-bot-auth.md#operational-guidance), [10: Key reuse decision](../10-web-bot-auth.md#key-reuse-decision) | Partial: shared guidance (`webbotauth/doc.go:58`); same-provider recovery now verifies local publication and saved key state (`log/c2sptlog/managed_rotation.go:503`, `:539`). | WBA adds no separate transaction. Cross-provider recovery and explicit rotation algorithm selection remain incomplete; no overlapping live ku grace. |
 | WBA native and shared validation | [10: Directory verification requirements](../10-web-bot-auth.md#directory-verification-requirements) | Implemented: shared 150-case corpus plus native metadata/coverage, transport, replay, zero-TTL/certificate, backdate, cooldown and key-refresh regressions (`webbotauth/design_contract_test.go:24`, `:115`, `:286`, `:312`, `:346`, `:383`, `webbotauth/rotation_test.go:27`, `:208`). | No external WBA partner/version or crawler-volume performance claim was validated. |
 
+### Known Foundry Create (13)
+
+| Design Item | Design Link | Evidence | Notes |
+| --- | --- | --- | --- |
+| Separate Foundry module and call | [13: Module Placement](../13-known-foundry.md#module-placement) | Missing: not on the default branch. | Planned module and call: `github.com/dnsid-ai/dnsid-go/foundry`, `foundry.Create(ctx, name)` (dnsid-go #132). Core, the registry client, and configuration loading must not import it. |
+
 ## Findings
 
 - **Partial — revised rotation contract:** generation still uses only the previous algorithm and ignores the returned generated algorithm (`log/c2sptlog/managed_rotation.go:177`, `:181`, `:186`). Explicit algorithm selection and generated-algorithm agreement remain absent.
