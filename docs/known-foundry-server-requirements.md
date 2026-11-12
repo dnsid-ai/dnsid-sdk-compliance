@@ -20,6 +20,18 @@ the SDK and CLI, E6 owns key providers, E7 owns rotation, E8 owns terminal servi
 Named creation uses the direct Live registration workflow. The SDK does not
 select a domain or choose a fallback.
 
+## Registration Evidence
+
+Source review dated 2026-11-12; no hosted acceptance run or deployed support is
+claimed. [PR #3554](https://github.com/Identity-Digital/dnsid/pull/3554) is open at
+reviewed revision `0e4871e82b824f81a58b59c79d690103dec71d43`.
+
+| Requirement | Evidence / release status |
+|---|---|
+| SR-5 creation/replay wire response | `internal/api/agent_create_live.go` returns HTTP 201 with identity ID, assigned domain, registry status, publication configuration, issuer, and response Idempotency-Key. Wire shape is source-checked, not hosted acceptance. |
+| SR-4 terminal name retention | Not established at the reviewed revision. Retention across revoke, retire, and soft deletion remains a release gate; no fix is claimed. |
+| SR-4/SR-5 durable named replay | Not established beyond replay-cache retention or after rotation. [#45](https://github.com/Identity-Digital/known-foundry/issues/45), [#47](https://github.com/Identity-Digital/known-foundry/issues/47), and [#48](https://github.com/Identity-Digital/known-foundry/issues/48) require E2 acceptance evidence before enablement. |
+
 ## Workflow Overview
 
 ```mermaid
@@ -77,22 +89,22 @@ are distinct from ordinary sandbox registration.
 | ID | Required behavior | Status / gap |
 |---|---|---|
 | SR-1 | Authorize the organization; enforce verified-domain gates, tenant isolation, key validation, and quotas before effects. Do not expose other tenants' facts. | E2/E4, ABU-1. API-key authentication alone is not authorization. |
-| SR-2 | Exact organization/name ownership, including pending rows. Matching concurrent requests return one identity. A different key fails without changing the identity or consuming a domain. | PR #3150. Further name policy needs server agreement. |
+| SR-2 | Exact organization/name ownership, including pending rows. Matching concurrent requests return one identity. A different key fails without changing the identity or consuming a domain. | [PR #3150](https://github.com/Identity-Digital/dnsid/pull/3150). Further name policy needs server agreement. |
 | SR-3 | Commit identity, domain reservation, and workflow handoff together. Publish the signed identity while PROVISIONING, then wait for accepted bilateral ISSUANCE. Recover unfinished server work without a client call. | E2 admission and durable workflow. Caller-key countersigning waits for the client. |
-| SR-4 | Identity bindings outlive the replay cache. Delayed requests, cleanup, and terminal transitions never allocate a replacement or revive an old identity. | E2 named recovery gate; terminal replacement requires SR-8. |
-| SR-5 | Caller-key Live create and replay return HTTP 201 with `id`, `domain`, current registry `status`, `publication_config`, and `oidc_issuer_url`. The response Idempotency-Key equals the submitted key. A matching organization, name, and public key resolves to the same identity, including READY, so a replica without local state can resume. | Registration response contract; named replay guarantees require E2 acceptance. |
-| SR-6 | Validate signatures before durably admitting submitted ISSUANCE bytes. An invalid signature does not consume the issuance key. Expose accepted-entry and preparation-reclaim facts. When an ISSUANCE is already accepted, reject a new preparation or different submitted bytes with a structured error; never accept a second ISSUANCE. The SDK relies on this rejection to find another replica's ISSUANCE. | #46. Different bytes under an accepted issuance key are rejected, not given its receipt. Open: whether `TLOG_INVALID_ENTRY` can be transient, and whether the same issuance key may prepare again after it; 11 never reclaims a preparation that entered submission. |
+| SR-4 | Identity bindings outlive the replay cache. Delayed requests, cleanup, and terminal transitions never allocate a replacement or revive an old identity. | Unverified release gate; see [Registration Evidence](#registration-evidence). Terminal replacement requires SR-8. |
+| SR-5 | Caller-key Live create and replay return HTTP 201 with `id`, `domain`, current registry `status`, `publication_config`, and `oidc_issuer_url`. The response Idempotency-Key equals the submitted key. A matching organization, name, and public key resolves to the same identity, including READY, so a replica without local state can resume. | Wire shape source-checked; named replay guarantees remain unverified. See [Registration Evidence](#registration-evidence). |
+| SR-6 | Validate signatures before durably admitting submitted ISSUANCE bytes. An invalid signature does not consume the issuance key. Expose accepted-entry and preparation-reclaim facts. When an ISSUANCE is already accepted, reject a new preparation or different submitted bytes with a structured error; never accept a second ISSUANCE. The SDK relies on this rejection to find another replica's ISSUANCE. | [#46](https://github.com/Identity-Digital/known-foundry/issues/46). Different bytes under an accepted issuance key are rejected, not given its receipt. Open: whether `TLOG_INVALID_ENTRY` can be transient, and whether the same issuance key may prepare again after it; 11 never reclaims a preparation that entered submission. |
 | SR-7 | Report registry progress, customer-action outcomes, structured errors, and publication fields (including `ek_url`). Activation requires an accepted bilateral entry and receipt matching the current identity, key, and GI, plus publication and applicable JWKS/TLS/serving readiness under the identity guard. | Wrong key is 409 `KEY_MISMATCH`; full error matrix belongs to E2. |
 | SR-8 | Replacement after revoke or retire gets a new domain and log stream; the old identity stays terminal. Delayed old creates do not trigger it. | Not agreed; see the [proposal](#proposal-name-reuse-and-failed-provisioning). Separate gate. |
 
 ## Decisions Still Owned Outside the SDK Design
 
-- **E2 #45/#47:** Replacement intent, historical lookup, and the error matrix.
-- **E2 #46:** Detailed provisioning error and staff-disposition policy. Live waits
+- **E2 [#45](https://github.com/Identity-Digital/known-foundry/issues/45) / [#47](https://github.com/Identity-Digital/known-foundry/issues/47):** Replacement intent, historical lookup, and the error matrix.
+- **E2 [#46](https://github.com/Identity-Digital/known-foundry/issues/46):** Detailed provisioning error and staff-disposition policy. Live waits
   for eligible ISSUANCE without a server deadline; ordinary issuance retains its
   absolute 48-hour deadline. Explicit self-managed `/verify` retry is available
   for every ERROR code; managed terminal failures require staff disposition.
-- **E2 #47 / E5:** Compatibility negotiation.
+- **E2 [#47](https://github.com/Identity-Digital/known-foundry/issues/47) / E5:** Compatibility negotiation.
 - **Product / E2:** A Foundry-specific selector, only if Foundry and Live
   organizations need different rules in one deployment.
 - **E2 / ABU-1:** Quota values, quota release, and failed-provisioning cleanup.

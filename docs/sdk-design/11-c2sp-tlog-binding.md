@@ -362,7 +362,6 @@ INTERFACE C2spTlogBinding
                     role: C2spSignerRole,
                     keyProvider: KeyProvider) -> PreparedC2spTlogEvent
   EntryBytes(prepared: PreparedC2spTlogEvent) -> bytes
-  OwnerIssuanceBytes(prepared: PreparedC2spTlogEvent) -> bytes
   WritePreparedEvent(prepared: PreparedC2spTlogEvent,
                      idempotencyKey: string) -> LogRef
 END
@@ -487,7 +486,9 @@ governance service and the operational key at the agent. The SDK flow is:
 The `sigs.op` signature over the identity-bound ISSUANCE proves operational-key
 possession. The accountable-entity and operational keys MUST be distinct. For
 caller-held operational keys, the service MUST NOT require private-key custody
-or add an operational signature on the caller's behalf.
+or add an operational signature on the caller's behalf. In the adapter-specific
+custody flow below, the registry acts as the operational key holder; the appended
+entry still requires both distinct-key signatures over the same signed payload.
 
 ### Owner-Produced ISSUANCE
 
@@ -503,6 +504,13 @@ The registry admits owner-produced genesis after validating live signed
 publication; this flow does not require `PrepareIssuance`.
 
 ### Owner-Only Custody ISSUANCE
+
+The Identity Digital registry adapter provides this serialization helper; it is
+not part of the portable `C2spTlogBinding` interface:
+
+```
+OwnerIssuanceBytes(prepared: PreparedC2spTlogEvent) -> bytes
+```
 
 When the registry holds the operational key and the owner controls the
 accountable-entity key:
@@ -531,6 +539,14 @@ accountable-entity key:
 Missing accepted-entry evidence is resumable; invalid evidence fails closed.
 An owner-only envelope is never appended. Operational-key claim is not a
 prerequisite for this flow and does not establish issuance or activation.
+
+Adapters implementing this custody flow provide tests for:
+
+- owner-only serialization that validates `sigs.ae` without permitting partial
+  entries through complete-entry serialization or safe append;
+- unchanged signed payload and entity signature, verified completed-entry hash
+  and inclusion, and resumable missing evidence; and
+- exact owner-envelope replay after private-key claim.
 
 ## Split KEY_ROTATION Flow
 
@@ -1569,11 +1585,6 @@ Each SDK implementation provides tests for:
 - all signer-role success and failure cases;
 - split ISSUANCE across independent accountable-entity and operational
   providers;
-- owner-only ISSUANCE serialization that validates `sigs.ae` without permitting
-  partial entries through complete-entry serialization or safe append;
-- registry-adapter custody handoff: unchanged signed payload and entity signature,
-  verified completed-entry hash and inclusion, resumable missing evidence, and
-  exact owner-envelope replay after private-key claim;
 - KEY_ROTATION with both `prev_op` and `new_op`;
 - exact-byte idempotent append and crash recovery;
 - checkpoint, inclusion proof, consistency, witness quorum, and policy failures;

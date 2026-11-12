@@ -203,12 +203,14 @@ the next mutation. Each call uses one finite deadline.
    complete creation facts is not success; retain known facts and the original
    request/key for recovery. Once ID and domain are saved, use authenticated reads,
    not another create. Validate that publication authority is registry-managed.
-4. Read authenticated progress and wait for signed identity publication while
-   registration is `PROVISIONING`, or return a customer-action or error result.
-   Read the entity key from saved `publicationConfig.ekUrl`. This prerequisite
-   uses publication progress, not `VerifyDomain` or
-   `AwaitRegistryManagedPublication`, which require `ACTIVE`. Apply
-   [Registry States](#registry-states).
+4. Read authenticated agent detail and wait for `dnsPublished == true`
+   (wire `dns_published`), including while registration is `PROVISIONING`, or
+   return a customer-action or error result. `false` uses bounded polling;
+   absent or non-boolean returns `UnsupportedRegistry` with known facts and no
+   preparation or replacement. Read the entity key from saved
+   `publicationConfig.ekUrl`. This prerequisite does not require `READY`,
+   `VerifyDomain`, or `AwaitRegistryManagedPublication`; the latter two perform
+   final public checks after ISSUANCE. Apply [Registry States](#registry-states).
 5. If saved state records an accepted ISSUANCE, verify it. If the registry reports
    `READY` and no ISSUANCE is saved, recover it under [Issuance Recovery](#issuance-recovery);
    never prepare another. Otherwise run the shared
@@ -469,7 +471,9 @@ the cross-SDK daily workflow. Server persistence proof stays in
 | Different-key replicas | One wins; others get `KEY_MISMATCH` with known facts. |
 | Caller exits after `Create` | Signing paused; next call resumes. |
 | Lost create responses, issuance timeouts, replay-cache expiry | Same operation; no new domain or key. |
-| Published `PROVISIONING` identity awaiting caller signature | Prepare, validate, countersign, persist, and submit ISSUANCE before waiting for READY. |
+| `PROVISIONING` with authenticated `dnsPublished == true` | Prepare, validate, countersign, persist, and submit ISSUANCE before waiting for READY. |
+| Authenticated `dnsPublished == false` | Bounded polling; no preparation or signing enabled. |
+| Authenticated registry-managed detail omits `dnsPublished` or returns a non-boolean | `UnsupportedRegistry` with known facts; no preparation or replacement. |
 | `ERROR`, `REJECTED`, `CANCELLED`, terminal, unknown states | Correct typed outcome; no name release or replacement. |
 | Competing valid countersignatures; invalid then valid local countersignature | Losing bytes rejected; winner recovered; an invalid local signature is never persisted or submitted, and the next attempt countersigns the same prepared bytes. |
 | Interruption at each phase | Same-bytes recovery; no recreation. |

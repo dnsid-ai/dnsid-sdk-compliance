@@ -232,8 +232,12 @@ The returned `PublishedRecord` describes the observed DNS record and retains the
 registry's raw workflow response. A registry `READY` state without an observed,
 valid record is not publication success. This final confirmation follows
 ISSUANCE; it is not the publication prerequisite for preparing ISSUANCE. That
-prerequisite uses authenticated publication progress while `PROVISIONING`,
-without requiring a successful `VerifyDomain` or `ACTIVE` status.
+prerequisite is `dnsPublished == true` on authenticated agent detail while
+`PROVISIONING`; it does not require `READY`, a successful `VerifyDomain`, or
+`ACTIVE`. The Identity Digital adapter decodes this field from `dns_published`.
+A false value means publication is pending and uses bounded polling. An absent
+or non-boolean value is an unsupported response: return `UnsupportedRegistry`
+with known facts and do not prepare ISSUANCE or create a replacement.
 
 Publication confirmation uses the same internal protocol-evidence verification
 as `VerifyDomain`, preserving configured DNSSEC, transport/log trust, status,
@@ -500,7 +504,9 @@ RegistryClient.PrepareIssuance(domain: string,
   // The registry uses the authenticated identity's previously registered
   // operational public key and returns the exact partially signed canonical JCS
   // entry bytes as the response body. Treat the body as untrusted input.
-  // Managed publication must be complete while PROVISIONING before preparation.
+  // For registry-managed publication, authenticated agent detail must report
+  // dnsPublished == true before preparation, including while PROVISIONING.
+  // False uses bounded polling; absent or non-boolean is UnsupportedRegistry.
   // Parse the entry with the bound log implementation against the reference in
   // its signed lr field, independently reproduce signedBytes, verify the domain,
   // governance identity, accountable-entity key and signature, local operational
@@ -759,7 +765,7 @@ Registry registration or verification result for a local identity.
 | `publicationConfig` | PublicationConfig | conditional | Authoritative publication snapshot; required for the Identity Digital adapter, decoded from `publication_config`. Retained with the immutable ID and domain. |
 | `publicationAuthority` | `"client"` or `"registry"` | yes | Registry declaration of who controls the accountable-entity key and signs the DNSid record. For the current product API, `managed="dnsid"` maps to `"registry"` and `managed="self"` maps to `"client"`; other implementations MUST report this explicitly rather than infer it solely from DNS hosting, profile tags, or key availability. |
 | `registryStatus` | string | yes | Registry-controlled registration workflow state exactly as returned by the management API, such as `PENDING`, `PROVISIONING`, `READY`, `REJECTED`, `CANCELLED`, `ERROR`, `REVOKED`, or `RETIRED`. This is not protocol `AgentStatus.state`. |
-| `dnsPublished` | boolean | no | Registry observation that DNS publication completed. Meaningful for registry-managed publication; successful SDK publication still requires resolving and validating the record. |
+| `dnsPublished` | boolean | conditional | Decoded from `dns_published`; required on authenticated agent detail for Identity Digital registry-managed publication. `true` permits ISSUANCE preparation during `PROVISIONING`; `false` means poll within the call deadline. Absent or non-boolean is `UnsupportedRegistry`, not publication readiness. Public completion still requires resolving and validating the record. |
 | `protocolStatus` | AgentStatus | no | Complete protocol-facing lifecycle status, when the registry response supplies authoritative state, transition time, and conditional revocation reason. SDKs MUST NOT construct this object solely by mapping `registryStatus`; they MAY obtain it from the identity's `su` endpoint or an equivalent complete protocol-status object returned by the registry. |
 | `oidcIssuerUrl` | string | no | Exact `oidc_issuer_url` returned by the registry. Persist it for OIDC operations rather than deriving an issuer from the registry hostname. |
 | `registryUrl` | string | yes | Registry base URL that produced the result. |
@@ -829,6 +835,9 @@ governance persistence also require server integration tests, not SDK coordinati
 | Owner handoff accepted-entry evidence is not yet available | Resumable outcome; retain the same owner envelope and idempotency key. |
 | Management reports VERIFICATION or VERIFIED | Preserve the readable value; no nonce request and no inference of completion. |
 | Management failure, terminal state, or permanent read error during ISSUANCE or public-readiness polling | Stop the call with known facts; preserve exact envelopes and idempotency keys without cancellation or replacement. |
+| Registry-managed detail reports `PROVISIONING` and `dnsPublished == true` | Prepare ISSUANCE without waiting for READY or public ACTIVE. |
+| Registry-managed detail reports `dnsPublished == false` | Bounded publication polling; no preparation or activation. |
+| Identity Digital registry-managed detail omits `dnsPublished` or returns a non-boolean | `UnsupportedRegistry` with known facts; no preparation or replacement. |
 | Missing publication or serving readiness | No activation; retain the same identity, key, and operation for recovery. |
 
 #### PublishedRecord
