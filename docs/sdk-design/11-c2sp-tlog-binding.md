@@ -483,10 +483,75 @@ governance service and the operational key at the agent. The SDK flow is:
 8. The service returns the assigned log index, final `LogRef`, and any available
    acceptance or proof status.
 
-The initial challenge or registration signature is not a substitute for
-`sigs.op`; it generally covers different bytes. The service MUST NOT reuse the
-accountable-entity key as the operational key, synthesize `sigs.op`, or require
-custody of the operational private key.
+ISSUANCE requires distinct accountable-entity and operational keys. For caller-held
+operational keys, the service MUST NOT require custody or add `sigs.op` on the
+caller's behalf. In the [custody flow](#owner-only-custody-issuance), the registry
+acts as the operational key holder; both signatures still cover the same payload.
+
+### Owner-Produced ISSUANCE
+
+These flows are specific to Identity Digital's registry product. C2SP does not
+define registration or private-key custody.
+
+With client-controlled publication, the owner can construct ISSUANCE using the
+registry-assigned identity and log reference. The owner validates the publication
+snapshot, builds a canonical genesis with `seq=0`, and signs with the
+accountable-entity key. A caller that holds the operational key also adds `sigs.op`, verifies
+both signatures, and persists the completed bytes before `SubmitPreparedEvent`.
+The registry admits owner-produced genesis after validating live signed
+publication; this flow does not require `PrepareIssuance`.
+
+### Owner-Only Custody ISSUANCE
+
+`OwnerIssuanceBytes(prepared: PreparedC2spTlogEvent) -> bytes` is a binding-owned,
+Identity Digital-specific serialization helper in this document's C2SP module.
+It is not a `RegistryClient` method or part of the portable `C2spTlogBinding`
+interface. It validates binding-owned prepared events and returns opaque bytes
+for [SubmitOwnerIssuance](05-transport-and-registry.md#registryclient); 05 does not import 11.
+
+**Blocked on server.** Steps 2 and 4 require the owner to know the custodied
+operational public key: the genesis carries it, and client-controlled
+registration checks it against the owner's published JWKS. The Identity Digital
+management API does not expose that key before READY-only claim
+([open question](08-open-questions.md#known-foundry-create)). Until the registry
+exposes the public key or removes this combination, SDKs MUST NOT ship this flow
+as supported, and client-controlled creation SHOULD supply `public_key`.
+
+When the registry holds the operational key and the owner controls the
+accountable-entity key:
+
+1. The owner signs and publishes the identity record while `PROVISIONING`.
+2. The owner prepares the assigned identity's ISSUANCE genesis and adds only
+   `sigs.ae`. `OwnerIssuanceBytes` validates canonical context, `seq=0`, all event
+   key material, and the entity signature, requires `sigs.op` to be absent, and
+   serializes the canonical partial envelope. It does not append or satisfy the
+   complete-entry contract of `EntryBytes` or `WritePreparedEvent`.
+3. The owner durably saves that exact envelope and idempotency key, scoped to the
+   immutable agent ID, before calling `SubmitOwnerIssuance`.
+4. The registry validates owner authorization, live signed publication, current
+   GI, operational key, and assigned stream. It adds only `sigs.op` with the
+   unclaimed custodied key, verifies both signatures, and durably freezes the
+   completed bytes before append. Signed fields and `sigs.ae` remain unchanged.
+5. The receipt's `entryHash` identifies the completed bilateral entry. The SDK
+   fetches that entry through the receipt's log reference, verifies inclusion,
+   both signatures, expected identity/key bindings, and equality of `signedBytes`
+   and `sigs.ae` to its saved owner envelope. It checks the receipt hash against
+   the fetched completed bytes before recording local completion.
+6. Unknown outcomes retry the identical owner envelope and idempotency key. The
+   registry reuses persisted completed bytes and returns the original receipt,
+   including after READY-only private-key claim. No retry signs another entry.
+
+Missing accepted-entry evidence is resumable; invalid evidence fails closed.
+An owner-only envelope is never appended. Operational-key claim is not a
+prerequisite for this flow and does not establish issuance or activation.
+
+Product integrations implementing this custody flow provide tests for:
+
+- owner-only serialization that validates `sigs.ae` without permitting partial
+  entries through complete-entry serialization or safe append;
+- unchanged signed payload and entity signature, verified completed-entry hash
+  and inclusion, and resumable missing evidence; and
+- exact owner-envelope replay after private-key claim.
 
 ## Split KEY_ROTATION Flow
 
@@ -533,14 +598,9 @@ never an administrative signature substitute.
 ## Submission and Idempotency
 
 C2SP standardizes verification resources, not DNSid event submission. A
-deployment-specific submission adapter MAY be exposed through `RegistryClient`
-or another operator client, but its SDK contract is typed and explicit:
-
-```
-PrepareIssuance(domain, idempotencyKey) -> PreparedRegistryEvent
-PrepareKeyRotation(domain, previousKeyId, newPublicKey, idempotencyKey) -> PreparedRegistryEvent
-SubmitPreparedEvent(domain, entryBytes, idempotencyKey) -> SubmissionResult
-```
+deployment-specific adapter MAY expose the typed preparation and submission
+operations in [RegistryClient](05-transport-and-registry.md#registryclient)
+or another operator client.
 
 The common registry client does not expose prepared `REVOCATION` or
 `RETIREMENT`: a managed registry owns those status transitions, entity
@@ -551,46 +611,38 @@ part of the portable `RegistryClient` contract. Every event after genesis still
 uses an authoritative predecessor reservation and exact-byte submission
 contract.
 
-`PreparedRegistryEvent` is the untrusted transport container defined by the
-registry design: exact `entryBytes`. The SDK passes them to `ParsePreparedEvent`
-with a bound reference. For issuance, the reference is the strict parse of the
-entry's signed `lr`. For later events, it is the identity's verified reference
-from stream state. Only the resulting validated
-`PreparedC2spTlogEvent` may be countersigned. This type boundary prevents an
-authenticated registry response from being mistaken for a binding-validated
-event.
+[`PreparedRegistryEvent`](05-transport-and-registry.md#registryclient) contains
+untrusted exact `entryBytes`. Only a `PreparedC2spTlogEvent` validated by
+[ParsePreparedEvent](#parsepreparedevent) may be countersigned: bind ISSUANCE to
+the strict parse of its signed `lr`, and later events to the identity's verified
+reference from stream state. Countersigning follows [Split ISSUANCE Flow](#split-issuance-flow).
+Other operator APIs may gather inputs differently, but MUST preserve this
+validation boundary; authenticated transport does not replace binding validation.
 
-For the current registry adapter, `PrepareIssuance` sends an empty request body.
-The service derives the operational public key from the authenticated identity's
-previously registered key and returns exact partially signed canonical entry
-bytes. The SDK treats that response as
-untrusted and verifies it against the expected domain, governance identity,
-accountable-entity key, local operational key, log context, and `seq=0` before
-countersigning. Other operator APIs may gather issuance inputs differently, but
-MUST expose the same prepared-event validation boundary rather than asking the
-SDK to trust server-supplied signed bytes.
-
-The service authenticates and authorizes preparation and submission. Submission
-accepts already prepared canonical entry bytes and MUST NOT add, remove, or
-rewrite signed fields.
+The service authenticates and authorizes preparation and submission.
+`SubmitPreparedEvent` accepts complete canonical entry bytes and appends them
+unchanged. `SubmitOwnerIssuance` accepts the canonical owner-only ISSUANCE and
+adds the operational signature under the [custody contract](#owner-only-custody-issuance).
+Neither operation may add, remove, or rewrite signed fields.
 
 The idempotency mapping is durable:
 
-- the same identity, idempotency key, and entry-byte hash returns the original
+- the same identity, idempotency key, and uploaded-byte hash returns the original
   submission state or accepted result;
 - reuse of the key with different bytes is rejected; and
 - retries after timeout or process restart reuse the identical persisted bytes.
 
 Logical event deduplication is not submission idempotency. An equal `eventId`
-never permits replacing durable bytes with a different signature or accepting
-a receipt whose exact entry hash does not match the submitted bytes.
+never permits replacing durable bytes with a different signature. Receipt
+validation below binds acceptance to exact completed entry bytes.
 
 The adapter preserves structured failure semantics. A non-2xx response becomes
 a typed `indeterminate`/`rejected` `SubmissionResult` or a typed
 `RegistrySubmissionError`, never a generic failure or a successful result. Both
 representations retain the registry error code and whether the same bytes are
-retryable. Busy, indeterminate, timeout, and unknown transport outcomes retry
-only the identical persisted entry with the same idempotency key. Validation,
+retryable. Busy, indeterminate, timeout, unknown transport outcomes, and the
+Identity Digital `TLOG_PUBLICATION_REQUIRED` code are pending and retry only the
+identical persisted entry with the same idempotency key. Validation,
 preparation mismatch, and idempotency mismatch failures are terminal for that
 prepared entry. In [Known Foundry create](13-known-foundry.md#issuance-recovery),
 the SDK MUST recover and verify any accepted ISSUANCE before making the operation
@@ -619,13 +671,12 @@ TYPE SubmissionResult
 END
 ```
 
-The current product returns `SubmissionResult` for successful accepted or
-replayed submissions and uses structured non-2xx errors for busy, rejected, and
-indeterminate outcomes. Other adapters may return the full state union directly,
-but callers apply the same retry rules in either representation. On every
-accepted response, including the first attempt, the SDK verifies `entryHash`
-against the exact submitted bytes before activating a new key or advancing local
-state.
+The product returns `SubmissionResult` on acceptance or replay and structured
+non-2xx errors otherwise; other adapters MAY return the full state union under
+the same retry rules. On every acceptance, including the first, the SDK verifies
+`entryHash` before activating a key or advancing local state. `SubmitPreparedEvent`
+requires the uploaded-byte hash; `SubmitOwnerIssuance` requires
+[verified completed-entry bytes](#owner-only-custody-issuance).
 
 If an authorized event with invalid chain fields is nevertheless included, the
 stream is in terminal verification failure. Neither the registry nor an SDK
