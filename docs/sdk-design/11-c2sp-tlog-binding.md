@@ -509,6 +509,14 @@ It is not a `RegistryClient` method or part of the portable `C2spTlogBinding`
 interface. It validates binding-owned prepared events and returns opaque bytes
 for [SubmitOwnerIssuance](05-transport-and-registry.md#registryclient); 05 does not import 11.
 
+**Blocked on server.** Steps 2 and 4 require the owner to know the custodied
+operational public key: the genesis carries it, and client-controlled
+registration checks it against the owner's published JWKS. The Identity Digital
+management API does not expose that key before READY-only claim
+([open question](08-open-questions.md#known-foundry-create)). Until the registry
+exposes the public key or removes this combination, SDKs MUST NOT ship this flow
+as supported, and client-controlled creation SHOULD supply `public_key`.
+
 When the registry holds the operational key and the owner controls the
 accountable-entity key:
 
@@ -632,8 +640,9 @@ The adapter preserves structured failure semantics. A non-2xx response becomes
 a typed `indeterminate`/`rejected` `SubmissionResult` or a typed
 `RegistrySubmissionError`, never a generic failure or a successful result. Both
 representations retain the registry error code and whether the same bytes are
-retryable. Busy, indeterminate, timeout, and unknown transport outcomes retry
-only the identical persisted entry with the same idempotency key. Validation,
+retryable. Busy, indeterminate, timeout, unknown transport outcomes, and the
+Identity Digital `TLOG_PUBLICATION_REQUIRED` code are pending and retry only the
+identical persisted entry with the same idempotency key. Validation,
 preparation mismatch, and idempotency mismatch failures are terminal for that
 prepared entry. In [Known Foundry create](13-known-foundry.md#issuance-recovery),
 the SDK MUST recover and verify any accepted ISSUANCE before making the operation

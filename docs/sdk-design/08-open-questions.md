@@ -16,6 +16,7 @@ Design: [13](13-known-foundry.md). Server assumptions and gates:
 | Final error codes, including `NAME_IN_USE` and the refusal of a new key on a REVOKED or RETIRED name (status, code, and whether it carries the ID, domain, and status) | E2 / E4 |
 | Replica key convergence on an empty key store (known-foundry #62) and how it relates to explicit KMS-first creation (dnsid-sdk-compliance #57). Until decided, Foundry `Create` provisions no keys. | E6 |
 | Foundry-specific routing selector, if needed | Product / E2 |
+| Self-managed registration with registry-custodied operational key: the management API does not expose the custodied public key before READY-only claim, so the owner cannot publish JWKS or build the genesis. Expose the public JWK on create/detail, or reject self-managed create without `public_key` and drop [owner-only custody](11-c2sp-tlog-binding.md#owner-only-custody-issuance) | E2 ([dnsid#3554](https://github.com/Identity-Digital/dnsid/pull/3554)) |
 
 ## Open Questions
 

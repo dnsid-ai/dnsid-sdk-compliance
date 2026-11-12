@@ -307,14 +307,22 @@ Publication authority and operational-key custody are independent:
 | Registry-managed | Caller-held | Registry publishes and prepares an entity-signed ISSUANCE; the caller validates it, adds the operational signature, and submits the completed bytes. |
 | Registry-managed | Registry custody | Registry publishes, signs with the distinct entity and operational keys, and submits the completed bilateral entry. |
 | Client-controlled | Caller-held | Owner signs and publishes the identity record, constructs and signs the bilateral genesis, and submits the completed bytes. |
-| Client-controlled | Registry custody | Owner signs and publishes the identity record and submits an entity-signed genesis; the registry validates publication and adds the custodied operational signature. |
+| Client-controlled | Registry custody | Owner signs and publishes the identity record and submits an entity-signed genesis; the registry validates publication and adds the custodied operational signature. Blocked: see [custody key availability](11-c2sp-tlog-binding.md#owner-only-custody-issuance). |
 
 Client-controlled record signing is available during `PROVISIONING`. Before new
 owner-produced ISSUANCE is admitted, the registry checks the live signed DNS
 record against the assigned domain, GI, log stream, accountable-entity key, and
 current operational key. A record-signature response alone is not proof of DNS
-publication. A publication failure returns `TLOG_PUBLICATION_REQUIRED`; the SDK
-retains the exact envelope and idempotency key for retry.
+publication. A publication failure returns HTTP 409 `TLOG_PUBLICATION_REQUIRED`.
+SDKs classify it as pending, not rejected: retain the exact envelope and
+idempotency key and retry them after the record is live.
+
+Ordinary client-controlled registration also requires the owner's explicit
+`VerifyAgent` after the identity record, JWKS, and TLS are served. The registry
+waits in `PROVISIONING` for that request, then checks TLS and the published JWKS
+against the registered operational key. ISSUANCE can be submitted before or after
+`VerifyAgent`; activation needs both. Without `VerifyAgent`, registration remains
+`PROVISIONING` until the provisioning timeout moves it to `ERROR`.
 
 Activation requires an accepted bilateral entry and receipt bound to the current
 identity, operational key, and GI, together with publication and applicable
@@ -322,8 +330,10 @@ JWKS, TLS, and serving readiness. The registry checks these conditions under the
 identity's activation guard. Assignment, publication, a submitted envelope, or a
 workflow notification alone does not establish protocol `ACTIVE`.
 
-Ordinary registration has a 48-hour ISSUANCE deadline after preparation/publication;
-continuation retains the absolute deadline. Live waits for ISSUANCE while the
+Ordinary registration has a 48-hour ISSUANCE deadline. It starts after
+registry publication for registry-managed identities, and after the
+`VerifyAgent` TLS and JWKS checks pass for client-controlled identities.
+Continuation retains the absolute deadline. Live waits for ISSUANCE while the
 operation remains eligible, without a server-side issuance deadline. Each SDK
 call still has a finite deadline, and cancellation preserves recovery state.
 
@@ -468,16 +478,20 @@ RegistryClient.RegisterLiveAgent(input: LiveAgentRegistrationInput,
   // supplies public_key, omits domain, zone_id, governance_domain, and root_domain,
   // and omits environment or sets it to production.
   // Accept only HTTP 201, including replay, and decode the assigned identity,
-  // domain, registry status, publication_config, and oidc_issuer_url.
+  // domain, registry status, and publication_config, plus oidc_issuer_url when
+  // present (single-issuer deployments omit it).
   // Validate the response Idempotency-Key header against the submitted key.
   // Persist creation facts before authenticated detail reads; 201 does not
-  // establish publication, accepted ISSUANCE, or protocol ACTIVE.
+  // establish publication, accepted ISSUANCE, or protocol ACTIVE. A response
+  // that fails validation is diagnostic only: its ID and domain never bind
+  // the identity, and recovery replays the original request and key.
 
 RegistryClient.VerifyAgent(domain: string) -> LifecycleResponse
   // POST {baseUrl}/api/v1/agent/{domain}/verify with an empty body and
   // an owning-organization session credential or organization API key.
   // Explicit owner request: advances PENDING/PROVISIONING or retries ERROR;
-  // never an automatic ERROR restart. Managed terminal failures require staff.
+  // never an automatic ERROR restart. Required once for ordinary client-controlled
+  // registration after the record, JWKS, and TLS are served. Managed terminal failures require staff.
   // Live returns HTTP 409 INVALID_TRANSITION; its existing operation owns progress.
   // Success reports workflow progress, not publication, accepted ISSUANCE, or ACTIVE.
 
@@ -802,7 +816,10 @@ governance persistence also require server integration tests, not SDK coordinati
 | Authenticated read or mutation returns a redirect, including to the same origin | Reject; no request or credential reaches the redirect target. |
 | Registry or discovery response carries unknown JSON members, including unknown readiness or authority values | Ignore the members; they never satisfy readiness or authority checks or authorize replacement. |
 | Invalid response or root/admission failure | Fail closed, preserve known creation facts and server errors, and make no fallback request. |
-| Managed Live create and replay | HTTP 201 with ID, domain, registry status, publication configuration, issuer, and matching response Idempotency-Key; no inference of ACTIVE. |
+| Managed Live create and replay | HTTP 201 with ID, domain, registry status, publication configuration, optional issuer, and matching response Idempotency-Key; no inference of ACTIVE. A missing `oidc_issuer_url` is not a failure. |
+| Live create response fails validation | Fail closed; keep the response as diagnostics only, never bind its ID or domain, and replay the original request and key. |
+| Client-controlled registration without `VerifyAgent` | Remains `PROVISIONING`; accepted ISSUANCE alone does not activate. |
+| Owner-produced ISSUANCE returns `TLOG_PUBLICATION_REQUIRED` | Pending; retain and retry the exact bytes and idempotency key. |
 | Keyed ordinary replay, including stale GI or changed input | Preserve the original request/key and known identity; retain governance/mismatch errors without replacement allocation or cross-organization replay. |
 | Foundry named Live create and durable operation recovery | [Server acceptance checks](../known-foundry-server-requirements.md#acceptance-checks) establish tenant isolation, atomic convergence and replay-expiry safety. Replacement is separately gated. |
 | Timeout or post-creation failure | Retain known facts for recovery; never imply that failure proves no identity exists. |

@@ -198,8 +198,9 @@ the next mutation. Each call uses one finite deadline.
    creation key) before creation.
 3. Until ID and domain are saved, replay the frozen request with `registrationKey`
    through [RegisterLiveAgent](05-transport-and-registry.md#registryclient), applying
-   its response-validation and persistence rules. Incomplete creation facts are
-   not success: retain known facts and the original request/key for recovery.
+   its response-validation and persistence rules. Incomplete or invalid creation
+   facts are not success: save the response only as `rejectedCreation`, never as
+   `identityId` or `domain`, and keep the original request/key for recovery.
    Once ID and domain are saved, use authenticated reads, not another create.
    Require registry-managed publication authority.
 4. Wait for authenticated [`dnsPublished == true`](05-transport-and-registry.md#agentregistration)
@@ -377,7 +378,8 @@ until known. Byte strings are unpadded base64url; timestamps are RFC 3339 UTC.
 | `keySource`, `currentKeySource` | Non-secret provider reference; current reference after rotation if different. |
 | `initialPublicKey`, `currentPublicKey` | Initial JWK; current JWK after verified rotation if different. |
 | `creationInput` | Frozen Live request fields (05 wire names). |
-| `identityId`, `domain` | Creation facts. |
+| `identityId`, `domain` | Validated creation facts. |
+| `rejectedCreation` | Optional diagnostic copy of the last creation response that failed validation. Never an identity binding. |
 | `registrationKey`, `issuanceKey` | Deterministic operation keys, retained unchanged through retries. |
 | `registryStatus`, `signingPaused` | Last observed registry status; `true` after an observed terminal state or key-binding mismatch. |
 | `publicationConfig`, `oidcIssuerUrl`, `entityPublicKey` | Publication snapshot, issuer, and entity public JWK. |
