@@ -26,6 +26,7 @@ reviewed revision `0e4871e82b824f81a58b59c79d690103dec71d43`.
 | Requirement | Evidence / release status |
 |---|---|
 | SR-5 creation/replay wire response | `internal/api/agent_create_live.go` returns HTTP 201 with identity ID, assigned domain, registry status, publication configuration, issuer, and response Idempotency-Key. Wire shape is source-checked, not hosted acceptance. |
+| SR-7 publication prerequisite | `internal/api/agent_handlers.go:146,358` emits boolean `dns_published` from `DNSIDPublished`; `internal/identitypublish/publish.go:128` sets it after signed publication, and `internal/api/tlog_handlers.go:100–103` gates preparation during PROVISIONING. Source-checked; hosted acceptance remains required. |
 | SR-4 terminal name retention | Not established at the reviewed revision. Retention across revoke, retire, and soft deletion remains a release gate; no fix is claimed. |
 | SR-4/SR-5 durable named replay | Not established beyond replay-cache retention or after rotation. [#45](https://github.com/Identity-Digital/known-foundry/issues/45), [#47](https://github.com/Identity-Digital/known-foundry/issues/47), and [#48](https://github.com/Identity-Digital/known-foundry/issues/48) require E2 acceptance evidence before enablement. |
 

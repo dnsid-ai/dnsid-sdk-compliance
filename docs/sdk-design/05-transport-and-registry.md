@@ -335,14 +335,15 @@ follow the bounded retry policy. Stopping preserves exact envelopes and
 idempotency keys without canceling registration or creating a replacement.
 
 An `ERROR` is not automatically resumed by create or polling. Self-managed
-owners can explicitly retry verification through `/api/v1/agent/{domain}/verify`
-for any error code. That retry returns to `PROVISIONING` and rechecks publication
-and ISSUANCE. Managed terminal failures require staff disposition.
+owners can explicitly retry verification through `VerifyAgent` for any error
+code. That retry returns to `PROVISIONING` and rechecks publication and ISSUANCE.
+Managed terminal failures require staff disposition.
 
 Operational private-key claim is an explicit owner action available only at
-registry `READY`, after accepted ISSUANCE. Claim and key deletion do not activate
-an identity; [custody replay](11-c2sp-tlog-binding.md#owner-only-custody-issuance)
-remains valid after claim.
+registry `READY`, after accepted ISSUANCE, through `/api/v1/agent/{domain}/claim-key`.
+Claim is outside the portable `RegistryClient` contract and automated setup.
+Claim and key deletion do not activate an identity;
+[custody replay](11-c2sp-tlog-binding.md#owner-only-custody-issuance) remains valid after claim.
 
 ### Managed Lifecycle Operation Contract
 
@@ -470,6 +471,14 @@ RegistryClient.RegisterLiveAgent(input: LiveAgentRegistrationInput,
   // Validate the response Idempotency-Key header against the submitted key.
   // Persist creation facts before authenticated detail reads; 201 does not
   // establish publication, accepted ISSUANCE, or protocol ACTIVE.
+
+RegistryClient.VerifyAgent(domain: string) -> LifecycleResponse
+  // POST {baseUrl}/api/v1/agent/{domain}/verify with an empty body and
+  // an owning-organization session credential or organization API key.
+  // Explicit owner request: advances PENDING/PROVISIONING or retries ERROR;
+  // never an automatic ERROR restart. Managed terminal failures require staff.
+  // Live returns HTTP 409 INVALID_TRANSITION; its existing operation owns progress.
+  // Success reports workflow progress, not publication, accepted ISSUANCE, or ACTIVE.
 
 RegistryClient.CanonicalRecordContent(domain: string, signingKid: string) -> CanonicalRecordContentResponse
   // POST {baseUrl}/api/v1/agent/{domain}/record with JSON body { "signingKid": signingKid }.
@@ -733,7 +742,7 @@ Registry registration or verification result for a local identity.
 | `publicationConfig` | PublicationConfig | conditional | Authoritative publication snapshot; required for the Identity Digital adapter, decoded from `publication_config`. Retained with the immutable ID and domain. |
 | `publicationAuthority` | `"client"` or `"registry"` | yes | Registry declaration of who controls the accountable-entity key and signs the DNSid record. For the current product API, `managed="dnsid"` maps to `"registry"` and `managed="self"` maps to `"client"`; other implementations MUST report this explicitly rather than infer it solely from DNS hosting, profile tags, or key availability. |
 | `registryStatus` | string | yes | Registry-controlled registration workflow state exactly as returned by the management API, such as `PENDING`, `PROVISIONING`, `READY`, `REJECTED`, `CANCELLED`, `ERROR`, `REVOKED`, or `RETIRED`. This is not protocol `AgentStatus.state`. |
-| `dnsPublished` | boolean | conditional | Decoded from `dns_published`; required on authenticated agent detail for Identity Digital registry-managed publication. `true` permits ISSUANCE preparation during `PROVISIONING`; `false` means poll within the call deadline. Absent or non-boolean returns `UnsupportedRegistry` with known facts, without preparation or replacement. Public completion still requires resolving and validating the record. |
+| `dnsPublished` | boolean | conditional | Decoded from `dns_published`; required on authenticated agent detail for Identity Digital registry-managed publication. `true` permits ISSUANCE preparation during `PROVISIONING`; `false` means poll within the call deadline. Absent or non-boolean raises [UnsupportedRegistryResponse](#unsupportedregistryresponse) with known facts, without preparation or replacement. Public completion still requires resolving and validating the record. |
 | `protocolStatus` | AgentStatus | no | Complete protocol-facing lifecycle status, when the registry response supplies authoritative state, transition time, and conditional revocation reason. SDKs MUST NOT construct this object solely by mapping `registryStatus`; they MAY obtain it from the identity's `su` endpoint or an equivalent complete protocol-status object returned by the registry. |
 | `oidcIssuerUrl` | string | no | Exact `oidc_issuer_url` returned by the registry. Persist it for OIDC operations rather than deriving an issuer from the registry hostname. |
 | `registryUrl` | string | yes | Registry base URL that produced the result. |
@@ -805,7 +814,9 @@ governance persistence also require server integration tests, not SDK coordinati
 | Management failure, terminal state, or permanent read error during ISSUANCE or public-readiness polling | Stop the call with known facts; preserve exact envelopes and idempotency keys without cancellation or replacement. |
 | Registry-managed detail reports `PROVISIONING` and `dnsPublished == true` | Prepare ISSUANCE without waiting for READY or public ACTIVE. |
 | Registry-managed detail reports `dnsPublished == false` | Bounded publication polling; no preparation or activation. |
-| Identity Digital registry-managed detail omits `dnsPublished` or returns a non-boolean | `UnsupportedRegistry` with known facts; no preparation or replacement. |
+| Identity Digital registry-managed detail omits `dnsPublished` or returns a non-boolean | `UnsupportedRegistryResponse` with known facts; no preparation or replacement. |
+| Explicit self-managed `ERROR` retry through `VerifyAgent` | Preserve the identity and key; return to PROVISIONING and recheck publication and ISSUANCE for any error code. Never retry automatically. |
+| `VerifyAgent` for a Live identity | HTTP 409 `INVALID_TRANSITION`; do not start ordinary registration. |
 | Missing publication or serving readiness | No activation; retain the same identity, key, and operation for recovery. |
 
 #### PublishedRecord
@@ -821,6 +832,12 @@ Result of a registry-managed DNS TXT publication workflow.
 | `publicationStatus` | string | yes | Registry-controlled publication workflow state exactly as returned by the signature/publication API, such as `publishing` or `ready_for_publication`. This is not protocol `AgentStatus.state`. |
 | `protocolStatus` | AgentStatus | no | Complete protocol-facing lifecycle status after publication, only when obtained from the authoritative `su` endpoint or supplied as an equivalent complete object by the registry. It MUST NOT be synthesized from `publicationStatus`. |
 | `raw` | any | no | Original registry response for diagnostics or registry-specific extensions. |
+
+#### UnsupportedRegistryResponse
+
+SDK-local error for missing or non-boolean `dns_published` on authenticated
+Identity Digital registry-managed detail. Carries known creation facts; it is
+not a server wire error code.
 
 #### RegistrySubmissionError
 

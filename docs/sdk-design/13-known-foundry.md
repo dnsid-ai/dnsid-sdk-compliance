@@ -169,12 +169,14 @@ If the onboarding read in step 1 returns 404 or 405, or a response without `org_
 or `ek.status`, `Create` returns `UnsupportedRegistry` before any mutation. A response
 without `governance_domain` or `gi` is an organization that has not started governance
 onboarding: it is not ready ([05](05-transport-and-registry.md#account-binding-discovery)),
-and `Create` returns the resumable not-ready error before any mutation. This rejects registries
-that are not Identity Digital. It does not detect an Identity Digital server
-without Foundry named create.
+and `Create` returns the resumable not-ready error before any mutation. These
+onboarding checks do not establish support for named creation.
 
-There is no other runtime capability check. A released Foundry adapter targets a server
-contract that has passed
+At step 4, `Active` maps [UnsupportedRegistryResponse](05-transport-and-registry.md#unsupportedregistryresponse)
+from missing or non-boolean `dnsPublished` to `UnsupportedRegistry`. This check
+occurs after creation; retain known facts without preparation or replacement.
+
+A released Foundry adapter targets a server contract that has passed
 [server acceptance](../known-foundry-server-requirements.md#acceptance-checks).
 Record the supported server revision with each SDK release. Do not enable creation
 against the ordinary 24-hour replay-cache contract. If E2/E5 agree a version or
@@ -406,7 +408,7 @@ text. Errors keep progress; calling `Create` or `Active` again resumes.
 | `KEY_MISMATCH` | The supplied key differs from the existing identity (server HTTP 409). Remedy text points to the one-identity-per-cloud guidance ([D9, #63](https://github.com/Identity-Digital/known-foundry/issues/63)). |
 | `KEY_REVOKED` | The organization API credential is revoked (E4). Not inferred from a generic 403. |
 | `SigningPaused` | Signing is paused; see [Signing](#signing). |
-| `UnsupportedRegistry` | The registry does not serve the Identity Digital onboarding contract; see [Server Compatibility](#server-compatibility-and-enablement). |
+| `UnsupportedRegistry` | The registry lacks the required Identity Digital onboarding or publication response contract; see [Server Compatibility](#server-compatibility-and-enablement). |
 | Busy, deadline, unsupported contract or algorithm, workflow outcome, terminal identity | Separate categories with structured causes. |
 
 Keep `422 IDEMPOTENCY_MISMATCH` and Live `409 IDEMPOTENCY_CONFLICT` as their own
@@ -463,7 +465,7 @@ the cross-SDK daily workflow. Server persistence proof stays in
 | Lost create responses, issuance timeouts, replay-cache expiry | Same operation; no new domain or key. |
 | `PROVISIONING` with authenticated `dnsPublished == true` | Prepare, validate, countersign, persist, and submit ISSUANCE before waiting for READY. |
 | Authenticated `dnsPublished == false` | Bounded polling; no preparation or signing enabled. |
-| Authenticated registry-managed detail omits `dnsPublished` or returns a non-boolean | `UnsupportedRegistry` with known facts; no preparation or replacement. |
+| Authenticated registry-managed detail omits `dnsPublished` or returns a non-boolean | Map `UnsupportedRegistryResponse` to `UnsupportedRegistry` with known facts; no preparation or replacement. |
 | `ERROR`, `REJECTED`, `CANCELLED`, terminal, unknown states | Correct typed outcome; no name release or replacement. |
 | Competing valid countersignatures; invalid then valid local countersignature | Losing bytes rejected; winner recovered; an invalid local signature is never persisted or submitted, and the next attempt countersigns the same prepared bytes. |
 | Interruption at each phase | Same-bytes recovery; no recreation. |
