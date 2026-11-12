@@ -490,8 +490,8 @@ acts as the operational key holder; both signatures still cover the same payload
 
 ### Owner-Produced ISSUANCE
 
-The owner-produced and custody flows below describe the Identity Digital
-registry adapter. C2SP does not define registration or private-key custody.
+These flows are specific to Identity Digital's registry product. C2SP does not
+define registration or private-key custody.
 
 With client-controlled publication, the owner can construct ISSUANCE using the
 registry-assigned identity and log reference. The owner validates the publication
@@ -503,8 +503,11 @@ publication; this flow does not require `PrepareIssuance`.
 
 ### Owner-Only Custody ISSUANCE
 
-`OwnerIssuanceBytes(prepared: PreparedC2spTlogEvent) -> bytes` belongs to the
-Identity Digital registry adapter, not the portable `C2spTlogBinding` interface.
+`OwnerIssuanceBytes(prepared: PreparedC2spTlogEvent) -> bytes` is a binding-owned,
+Identity Digital-specific serialization helper in this document's C2SP module.
+It is not a `RegistryClient` method or part of the portable `C2spTlogBinding`
+interface. It validates binding-owned prepared events and returns opaque bytes
+for [SubmitOwnerIssuance](05-transport-and-registry.md#registryclient); 05 does not import 11.
 
 When the registry holds the operational key and the owner controls the
 accountable-entity key:
@@ -534,7 +537,7 @@ Missing accepted-entry evidence is resumable; invalid evidence fails closed.
 An owner-only envelope is never appended. Operational-key claim is not a
 prerequisite for this flow and does not establish issuance or activation.
 
-Adapters implementing this custody flow provide tests for:
+Product integrations implementing this custody flow provide tests for:
 
 - owner-only serialization that validates `sigs.ae` without permitting partial
   entries through complete-entry serialization or safe append;

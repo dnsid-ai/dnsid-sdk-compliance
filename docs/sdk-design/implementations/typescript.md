@@ -1,9 +1,10 @@
 # TypeScript SDK Implementation Coverage
 
-> **Registration compatibility is not established.** Affected rows are Partial
-> against the current [registry](../05-transport-and-registry.md#registration-and-issuance)
-> and [Foundry](../13-known-foundry.md#durable-setup) contracts. Evidence and Analysis Details
-> retain the recorded baseline; no new binding review is claimed. Other coverage is unchanged.
+> **Registration compatibility is not established.** Registration, Foundry, and
+> C2SP submission/idempotency rows describe the recorded baseline, not current
+> [registry](../05-transport-and-registry.md#registration-and-issuance) or [Foundry](../13-known-foundry.md#durable-setup) coverage.
+> New operations and acceptance cases are unassessed, including rows still marked
+> Implemented. Analysis Details retain the baseline; no new binding review is claimed.
 
 ## Analysis Details
 

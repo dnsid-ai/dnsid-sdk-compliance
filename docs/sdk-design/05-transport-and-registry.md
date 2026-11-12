@@ -450,7 +450,8 @@ RegistryClient.RegisterAgent(input: AgentRegistrationInput,
   // Foundry Create/Active in 13 uses RegisterLiveAgent instead of this ordinary flow.
 
 RegistryClient.GetOrganizationOnboarding() -> OrganizationOnboardingResponse
-  // GET {baseUrl}/api/v1/org/onboarding with an organization API key or admin session.
+  // GET {baseUrl}/api/v1/org/onboarding with an owning-organization session
+  // (admin or member) or an organization API key when enabled.
   // Explicit account read; no agent creation or constructor/loader side effects.
   // Use the configured transport policies, deadline, and cancellation budget.
 

@@ -25,6 +25,7 @@ reviewed revision `0e4871e82b824f81a58b59c79d690103dec71d43`.
 
 | Requirement | Evidence / release status |
 |---|---|
+| SR-1 onboarding authorization | `internal/api/server.go:1570–1582` permits organization-member reads; `org_onboarding_handler_test.go:82–116` covers admin/member sessions. `apikey_handlers.go:263–272` and `middleware.go:299–311` support API-key-authenticated context when enabled. Source-checked; dedicated org-API-key onboarding acceptance remains unverified. |
 | SR-5 creation/replay wire response | `internal/api/agent_create_live.go` returns HTTP 201 with identity ID, assigned domain, registry status, publication configuration, issuer, and response Idempotency-Key. Wire shape is source-checked, not hosted acceptance. |
 | SR-7 publication prerequisite | `internal/api/agent_handlers.go:146,358` emits boolean `dns_published` from `DNSIDPublished`; `internal/identitypublish/publish.go:128` sets it after signed publication, and `internal/api/tlog_handlers.go:100–103` gates preparation during PROVISIONING. Source-checked; hosted acceptance remains required. |
 | SR-4 terminal name retention | Not established at the reviewed revision. Retention across revoke, retire, and soft deletion remains a release gate; no fix is claimed. |
@@ -74,7 +75,9 @@ cannot produce the customer countersignature. That step waits for the client.
 The SDK uses `GET /api/v1/org/onboarding` for `org_id`, GI, and entity delegation
 under [05](sdk-design/05-transport-and-registry.md#account-binding-discovery). The
 entity key URL comes from `publication_config.ek_url`. The read accepts an
-owning-organization session credential or organization API key.
+owning-organization session credential (admin or member) or organization API key
+when enabled. [Registration Evidence](#registration-evidence) records source support;
+org-API-key onboarding acceptance remains unverified.
 
 There is no capability field for named registration. Until E2/E5 agree a version
 or capability negotiation, release against a tested server revision and record it.

@@ -300,6 +300,11 @@ DNSid core does not depend on any application authentication profile.
   -> shared key and durable storage interfaces
 ```
 
+[OwnerIssuanceBytes](11-c2sp-tlog-binding.md#owner-only-custody-issuance) is an
+Identity Digital-specific helper owned by 11, outside the portable binding
+interface. It validates and serializes 11's prepared events; 05 receives only
+opaque bytes and has no dependency on 11.
+
 Configuration loading and Known Foundry depend on core, not the reverse.
 Use separate packages where needed to keep imports acyclic. Known Foundry is
 always a separate module; core, the registry client, and configuration loading
