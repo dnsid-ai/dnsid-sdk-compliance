@@ -1,11 +1,8 @@
 # TypeScript SDK Implementation Coverage
 
-> **Registration compatibility is not established.** Registration and Foundry
-> coverage below uses the recorded design baseline. HTTP 202, challenge,
-> proof-persistence, and reissue findings do not establish support for the current
-> [registry](../05-transport-and-registry.md#registration-and-issuance) or
-> [Foundry](../13-known-foundry.md#durable-setup) contract. Affected rows require
-> re-review against bilateral ISSUANCE; other coverage is unchanged.
+> **Registration compatibility is not established.** Registration and Foundry rows
+> describe the recorded baseline, not the current [registry](../05-transport-and-registry.md#registration-and-issuance)
+> and [Foundry](../13-known-foundry.md#durable-setup) contracts; they require re-review. Other coverage is unchanged.
 
 ## Analysis Details
 

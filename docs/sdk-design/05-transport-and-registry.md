@@ -230,14 +230,9 @@ After the registry reports publication complete, the SDK resolves the published
 `_dnsid` record through its configured DNS transport and validates it normally.
 The returned `PublishedRecord` describes the observed DNS record and retains the
 registry's raw workflow response. A registry `READY` state without an observed,
-valid record is not publication success. This final confirmation follows
-ISSUANCE; it is not the publication prerequisite for preparing ISSUANCE. That
-prerequisite is `dnsPublished == true` on authenticated agent detail while
-`PROVISIONING`; it does not require `READY`, a successful `VerifyDomain`, or
-`ACTIVE`. The Identity Digital adapter decodes this field from `dns_published`.
-A false value means publication is pending and uses bounded polling. An absent
-or non-boolean value is an unsupported response: return `UnsupportedRegistry`
-with known facts and do not prepare ISSUANCE or create a replacement.
+valid record is not publication success. This confirmation follows ISSUANCE.
+Preparation instead uses authenticated [`dnsPublished`](#agentregistration)
+while `PROVISIONING`, without waiting for `READY` or public `ACTIVE`.
 
 Publication confirmation uses the same internal protocol-evidence verification
 as `VerifyDomain`, preserving configured DNSSEC, transport/log trust, status,
@@ -299,14 +294,11 @@ updates; see [Counterparty Acceptance](01-core-identity-manager.md#counterparty-
 
 ### Registration and ISSUANCE
 
-The Identity Digital registration workflow remains in `PROVISIONING` through
-infrastructure setup, signed identity publication, and bilateral ISSUANCE. The
-operational signature on that identity-bound event proves possession of the
-registered operational key. Management status exposes registration progress
-without challenge or nonce fields. `VERIFICATION` and `VERIFIED` are readable
-management status values, but neither establishes registration completion nor
-authorizes a nonce exchange. SDKs MUST NOT request, sign, submit, or reissue a
-registration nonce in response to these values or saved nonce metadata.
+Identity Digital registration remains `PROVISIONING` through infrastructure
+setup, signed publication, and bilateral ISSUANCE, whose operational signature
+proves key possession. Management status has no nonce fields. `VERIFICATION`
+and `VERIFIED` remain readable but do not establish completion. SDKs MUST NOT
+request, sign, submit, or reissue registration nonces, including from saved metadata.
 
 Publication authority and operational-key custody are independent:
 
@@ -348,9 +340,9 @@ for any error code. That retry returns to `PROVISIONING` and rechecks publicatio
 and ISSUANCE. Managed terminal failures require staff disposition.
 
 Operational private-key claim is an explicit owner action available only at
-registry `READY`, after accepted ISSUANCE. Custody signs before claim; claim and
-key deletion do not activate an identity. Exact owner-envelope replay resolves
-to the persisted completed entry and original receipt even after claim.
+registry `READY`, after accepted ISSUANCE. Claim and key deletion do not activate
+an identity; [custody replay](11-c2sp-tlog-binding.md#owner-only-custody-issuance)
+remains valid after claim.
 
 ### Managed Lifecycle Operation Contract
 
@@ -501,19 +493,11 @@ RegistryClient.PrepareIssuance(domain: string,
                                idempotencyKey: string) -> PreparedRegistryEvent
   // POST {baseUrl}/api/v1/agent/{domain}/tlog/issuance/prepare with an empty
   // request body. Send idempotencyKey as the Idempotency-Key header.
-  // The registry uses the authenticated identity's previously registered
-  // operational public key and returns the exact partially signed canonical JCS
-  // entry bytes as the response body. Treat the body as untrusted input.
-  // For registry-managed publication, authenticated agent detail must report
-  // dnsPublished == true before preparation, including while PROVISIONING.
-  // False uses bounded polling; absent or non-boolean is UnsupportedRegistry.
-  // Parse the entry with the bound log implementation against the reference in
-  // its signed lr field, independently reproduce signedBytes, verify the domain,
-  // governance identity, accountable-entity key and signature, local operational
-  // public key, log context, and seq=0, then add only the operational signature.
-  // A retry uses the same idempotency key and receives byte-identical prepared
-  // content unless durable server state permits reclaiming an expired preparation
-  // under 11: Submission and Idempotency. Submission uses exact persisted completed bytes.
+  // Uses the registered operational public key; returns untrusted exact
+  // entity-signed canonical entry bytes. Requires authenticated dnsPublished == true
+  // including while PROVISIONING under AgentRegistration's publication rules.
+  // Validation, countersigning, and retry follow 11: Split ISSUANCE Flow and
+  // Submission and Idempotency.
 
 RegistryClient.PrepareKeyRotation(domain: string, request: KeyRotationPreparationRequest,
                                   idempotencyKey: string) -> PreparedRegistryEvent
@@ -545,34 +529,21 @@ RegistryClient.SubmitPreparedEvent(domain: string, entryBytes: bytes,
                                    idempotencyKey: string) -> SubmissionResult
   // POST {baseUrl}/api/v1/agent/{domain}/tlog/events with entryBytes as the exact
   // application/json request body and idempotencyKey as the Idempotency-Key header.
-  // Submits exact complete canonical bytes, including an owner-produced bilateral
-  // ISSUANCE after client-controlled publication. The accepted entry hash must
-  // equal the hash of these bytes. A timeout or indeterminate result is retried
-  // with the same bytes and idempotency key.
-  // A non-2xx response is normalized to a typed indeterminate/rejected
-  // SubmissionResult or raises RegistrySubmissionError after preserving the
-  // registry error code and retry classification. It is not reduced to a generic
-  // HTTP error and is never reported as an accepted result.
+  // Submits complete canonical bytes unchanged; entry_hash must match those bytes.
+  // Persistence, retry, and structured failures follow 11: Submission and Idempotency.
 
 RegistryClient.SubmitOwnerIssuance(domain: string, ownerEntryBytes: bytes,
                                   idempotencyKey: string) -> SubmissionResult
   // POST {baseUrl}/api/v1/agent/{domain}/tlog/events with the exact canonical
   // entity-signed ISSUANCE body and the Idempotency-Key header.
-  // Used for client-controlled publication with a registry-custodied operational key.
-  // The registry validates owner proof and live publication, adds only sigs.op,
-  // and persists and submits the completed bilateral bytes.
-  // The response entry_hash identifies the completed entry, not the uploaded body.
-  // Retry the identical owner envelope and key, including after private-key claim.
-  // Preserve structured errors and retry classification as for SubmitPreparedEvent.
+  // For client-controlled publication with a registry-custodied operational key.
+  // entry_hash identifies the server-completed entry, not the uploaded body.
+  // Validation, completion, and replay follow 11: Owner-Only Custody ISSUANCE.
 ```
 
-Owner handoff completion requires fetching the accepted entry identified by the
-receipt and verifying its inclusion, both signatures, bound identity and keys,
-and identical `signedBytes` and `sigs.ae` to the persisted owner envelope. The
-receipt hash must match those completed entry bytes. Missing evidence remains
-resumable; a hash or binding mismatch fails closed. The SDK never treats a receipt
-for different bytes as acceptance of the uploaded partial envelope. See
-[11: Owner-Only Custody ISSUANCE](11-c2sp-tlog-binding.md#owner-only-custody-issuance).
+ISSUANCE uses [11's split-signing validation](11-c2sp-tlog-binding.md#split-issuance-flow),
+[submission and idempotency](11-c2sp-tlog-binding.md#submission-and-idempotency), and,
+for owner-only envelopes, [custody verification](11-c2sp-tlog-binding.md#owner-only-custody-issuance).
 
 `PrepareKeyRotation` requires an owning-organization session credential or API key,
 not agent self-auth. This control-plane authorization does not replace the previous
@@ -737,13 +708,10 @@ The client sets `tier="live"` and `managed=true`; callers cannot override them.
 `domain`, `zoneId`, `governanceDomain`, and `rootDomain` are not fields in this
 input. The idempotency key is required transport metadata rather than a JSON field.
 
-Managed Live registration is a separate operation with fixed request selectors
-on the unified HTTP route. It returns HTTP 201 `AgentRegistration`, including on
-replay. The body contains `id`, `domain`, `status`, `publication_config`, and
-`oidc_issuer_url`; the response `Idempotency-Key` header carries the submitted
-operation key. The SDK persists that key with the identical request and public
-key across retries. The server's internal operation ID may differ; the SDK does
-not substitute or derive it.
+The [RegisterLiveAgent contract](#registryclient) defines HTTP 201 creation and
+replay responses. Retries preserve the identical request, public key, and
+idempotency key; the server's internal operation ID may differ and is never
+substituted or derived.
 
 Live registration and status reads require an owning-organization session
 credential or organization API key. Managed Live supports an `OKP`/`Ed25519`
@@ -765,7 +733,7 @@ Registry registration or verification result for a local identity.
 | `publicationConfig` | PublicationConfig | conditional | Authoritative publication snapshot; required for the Identity Digital adapter, decoded from `publication_config`. Retained with the immutable ID and domain. |
 | `publicationAuthority` | `"client"` or `"registry"` | yes | Registry declaration of who controls the accountable-entity key and signs the DNSid record. For the current product API, `managed="dnsid"` maps to `"registry"` and `managed="self"` maps to `"client"`; other implementations MUST report this explicitly rather than infer it solely from DNS hosting, profile tags, or key availability. |
 | `registryStatus` | string | yes | Registry-controlled registration workflow state exactly as returned by the management API, such as `PENDING`, `PROVISIONING`, `READY`, `REJECTED`, `CANCELLED`, `ERROR`, `REVOKED`, or `RETIRED`. This is not protocol `AgentStatus.state`. |
-| `dnsPublished` | boolean | conditional | Decoded from `dns_published`; required on authenticated agent detail for Identity Digital registry-managed publication. `true` permits ISSUANCE preparation during `PROVISIONING`; `false` means poll within the call deadline. Absent or non-boolean is `UnsupportedRegistry`, not publication readiness. Public completion still requires resolving and validating the record. |
+| `dnsPublished` | boolean | conditional | Decoded from `dns_published`; required on authenticated agent detail for Identity Digital registry-managed publication. `true` permits ISSUANCE preparation during `PROVISIONING`; `false` means poll within the call deadline. Absent or non-boolean returns `UnsupportedRegistry` with known facts, without preparation or replacement. Public completion still requires resolving and validating the record. |
 | `protocolStatus` | AgentStatus | no | Complete protocol-facing lifecycle status, when the registry response supplies authoritative state, transition time, and conditional revocation reason. SDKs MUST NOT construct this object solely by mapping `registryStatus`; they MAY obtain it from the identity's `su` endpoint or an equivalent complete protocol-status object returned by the registry. |
 | `oidcIssuerUrl` | string | no | Exact `oidc_issuer_url` returned by the registry. Persist it for OIDC operations rather than deriving an issuer from the registry hostname. |
 | `registryUrl` | string | yes | Registry base URL that produced the result. |

@@ -8,12 +8,9 @@ open. It is not a server specification and does not claim deployed support.
 
 ## Contract and Ownership
 
-Registration requires signed publication and accepted bilateral ISSUANCE. The
-operational signature proves key possession; activation additionally checks the
-current identity, key, GI, accepted receipt, and serving readiness. The
-[server registration contract](https://github.com/Identity-Digital/dnsid/pull/3554)
-and [SDK registry design](sdk-design/05-transport-and-registry.md#registration-and-issuance)
-define this flow.
+The [server registration contract](https://github.com/Identity-Digital/dnsid/pull/3554)
+and [SDK workflow](sdk-design/05-transport-and-registry.md#registration-and-issuance)
+define publication, bilateral ISSUANCE, activation, deadlines, and recovery.
 
 E1 supplies domains, E2 owns admission and recovery, E4 owns credentials, E5 owns
 the SDK and CLI, E6 owns key providers, E7 owns rotation, E8 owns terminal serving.
@@ -100,10 +97,8 @@ are distinct from ordinary sandbox registration.
 ## Decisions Still Owned Outside the SDK Design
 
 - **E2 [#45](https://github.com/Identity-Digital/known-foundry/issues/45) / [#47](https://github.com/Identity-Digital/known-foundry/issues/47):** Replacement intent, historical lookup, and the error matrix.
-- **E2 [#46](https://github.com/Identity-Digital/known-foundry/issues/46):** Detailed provisioning error and staff-disposition policy. Live waits
-  for eligible ISSUANCE without a server deadline; ordinary issuance retains its
-  absolute 48-hour deadline. Explicit self-managed `/verify` retry is available
-  for every ERROR code; managed terminal failures require staff disposition.
+- **E2 [#46](https://github.com/Identity-Digital/known-foundry/issues/46):** Detailed provisioning error and staff-disposition policy, subject to the
+  [registration recovery contract](sdk-design/05-transport-and-registry.md#registration-and-issuance).
 - **E2 [#47](https://github.com/Identity-Digital/known-foundry/issues/47) / E5:** Compatibility negotiation.
 - **Product / E2:** A Foundry-specific selector, only if Foundry and Live
   organizations need different rules in one deployment.

@@ -194,39 +194,29 @@ the next mutation. Each call uses one finite deadline.
    ([open decision](08-open-questions.md#known-foundry-create)). The Live adapter requires Ed25519. Persist
    bindings, creation intent, provider reference, and the provider's public JWK (the
    creation key) before creation.
-3. Creation is unresolved until both the ID and the domain are saved. If it is
-   unresolved, derive `registrationKey`, rebuild the identical
-   request, and call `RegisterLiveAgent` with `registrationKey` as the
-   `Idempotency-Key` header. Accept HTTP 201 `AgentRegistration` and validate the
-   response `Idempotency-Key` header. Persist ID, domain, publication configuration,
-   OIDC issuer, and registry status before any detail read. A response without
-   complete creation facts is not success; retain known facts and the original
-   request/key for recovery. Once ID and domain are saved, use authenticated reads,
-   not another create. Validate that publication authority is registry-managed.
-4. Read authenticated agent detail and wait for `dnsPublished == true`
-   (wire `dns_published`), including while registration is `PROVISIONING`, or
-   return a customer-action or error result. `false` uses bounded polling;
-   absent or non-boolean returns `UnsupportedRegistry` with known facts and no
-   preparation or replacement. Read the entity key from saved
-   `publicationConfig.ekUrl`. This prerequisite does not require `READY`,
-   `VerifyDomain`, or `AwaitRegistryManagedPublication`; the latter two perform
-   final public checks after ISSUANCE. Apply [Registry States](#registry-states).
+3. Until ID and domain are saved, replay the frozen request with `registrationKey`
+   through [RegisterLiveAgent](05-transport-and-registry.md#registryclient), applying
+   its response-validation and persistence rules. Incomplete creation facts are
+   not success: retain known facts and the original request/key for recovery.
+   Once ID and domain are saved, use authenticated reads, not another create.
+   Require registry-managed publication authority.
+4. Wait for authenticated [`dnsPublished == true`](05-transport-and-registry.md#agentregistration)
+   including during `PROVISIONING`, using its bounded-polling and unsupported-response
+   rules and [Registry States](#registry-states). Read the entity key from saved
+   `publicationConfig.ekUrl`; public verification belongs to step 6, not this gate.
 5. If saved state records an accepted ISSUANCE, verify it. If the registry reports
    `READY` and no ISSUANCE is saved, recover it under [Issuance Recovery](#issuance-recovery);
-   never prepare another. Otherwise run the shared
-   issuance coordinator: prepare, validate, countersign, verify the completed entry
-   including its own signature, persist exact bytes, submit with
-   `issuanceKey` as the `Idempotency-Key` header. Apply
-   [Issuance Recovery](#issuance-recovery) before reporting a final failure.
+   never prepare another. Otherwise run [11's split ISSUANCE coordinator](11-c2sp-tlog-binding.md#split-issuance-flow)
+   with durable storage and `issuanceKey` as the submission Idempotency-Key.
+   Apply [Issuance Recovery](#issuance-recovery) before reporting a final failure.
 6. Wait for registry convergence, then verify public DNS, HTTPS, and log evidence: domain,
    profile, GI, entity key, log, current provider key, protocol `ACTIVE` at signed
    `su`, and fresh lifecycle evidence through `VerifyLogEvidence`. Use signed current
    `ku`. Bound propagation polling, including `RecordNotFound`.
 7. Persist completion, enable signing, and return.
 
-Live issuance waits while the server operation remains eligible, without a
-server-side issuance deadline. Each `Active` call is bounded; a deadline or
-cancellation retains the same identity, key, and issuance progress.
+Apply [registration deadlines and recovery](05-transport-and-registry.md#registration-and-issuance)
+and the [per-call bounds](#retry-deadlines-and-errors) throughout setup.
 
 ## Organization and Creation Replay
 
@@ -318,10 +308,9 @@ resumable error that keeps the registry code.
 
 ## Registry States
 
-Registry states and protocol `AgentStatus.state` are separate. During issuance
-and public-readiness waits, each polling cycle refreshes authenticated management
-state and applies the outcomes below. Permanent management-read errors stop the
-call; transient read failures follow the bounded retry policy.
+Registry states and protocol `AgentStatus.state` are separate. Apply
+[05's management polling rules](05-transport-and-registry.md#registration-and-issuance)
+throughout setup, with these Foundry outcomes:
 
 | Registry state | Handle behavior |
 |---|---|
