@@ -230,7 +230,10 @@ After the registry reports publication complete, the SDK resolves the published
 `_dnsid` record through its configured DNS transport and validates it normally.
 The returned `PublishedRecord` describes the observed DNS record and retains the
 registry's raw workflow response. A registry `READY` state without an observed,
-valid record is not publication success.
+valid record is not publication success. This final confirmation follows
+ISSUANCE; it is not the publication prerequisite for preparing ISSUANCE. That
+prerequisite uses authenticated publication progress while `PROVISIONING`,
+without requiring a successful `VerifyDomain` or `ACTIVE` status.
 
 Publication confirmation uses the same internal protocol-evidence verification
 as `VerifyDomain`, preserving configured DNSSEC, transport/log trust, status,
@@ -267,10 +270,10 @@ FUNCTION AwaitRegistryManagedPublication(registryClient: RegistryClient) -> Publ
 END
 ```
 
-The current product API uses registry-managed publication for managed draft 01
-identities: the registry holds the entity signer and publishes automatically
-after accepted lifecycle issuance. For self-managed identities, `/record`
-selects the single current accountable-entity key at the registration's
+The Identity Digital API uses registry-managed publication for managed draft 01
+identities: the registry holds the entity signer and publishes while registration
+is `PROVISIONING`, before ISSUANCE preparation and operational countersigning.
+For self-managed identities, `/record` selects the single current accountable-entity key at the registration's
 [`PublicationConfig.ekUrl`](#publicationconfig), and `/signature` accepts the
 bare draft 01 signature produced by that key. The operational key at `ku`
 remains separate and does not sign the TXT record.
@@ -289,6 +292,61 @@ provides no automatic pin-update or rotation-notification guarantee.
 These are product deployment considerations, not DNSid protocol requirements.
 Relying parties using pins must arrange authenticated enrollment and coordinated
 updates; see [Counterparty Acceptance](01-core-identity-manager.md#counterparty-acceptance).
+
+### Registration and ISSUANCE
+
+The Identity Digital registration workflow remains in `PROVISIONING` through
+infrastructure setup, signed identity publication, and bilateral ISSUANCE. The
+operational signature on that identity-bound event proves possession of the
+registered operational key. Management status exposes registration progress
+without challenge or nonce fields. `VERIFICATION` and `VERIFIED` are readable
+management status values, but neither establishes registration completion nor
+authorizes a nonce exchange. SDKs MUST NOT request, sign, submit, or reissue a
+registration nonce in response to these values or saved nonce metadata.
+
+Publication authority and operational-key custody are independent:
+
+| Publication authority | Operational key | ISSUANCE workflow |
+|---|---|---|
+| Registry-managed | Caller-held | Registry publishes and prepares an entity-signed ISSUANCE; the caller validates it, adds the operational signature, and submits the completed bytes. |
+| Registry-managed | Registry custody | Registry publishes, signs with the distinct entity and operational keys, and submits the completed bilateral entry. |
+| Client-controlled | Caller-held | Owner signs and publishes the identity record, constructs and signs the bilateral genesis, and submits the completed bytes. |
+| Client-controlled | Registry custody | Owner signs and publishes the identity record and submits an entity-signed genesis; the registry validates publication and adds the custodied operational signature. |
+
+Client-controlled record signing is available during `PROVISIONING`. Before new
+owner-produced ISSUANCE is admitted, the registry checks the live signed DNS
+record against the assigned domain, GI, log stream, accountable-entity key, and
+current operational key. A record-signature response alone is not proof of DNS
+publication. A publication failure returns `TLOG_PUBLICATION_REQUIRED`; the SDK
+retains the exact envelope and idempotency key for retry.
+
+Activation requires an accepted bilateral entry and receipt bound to the current
+identity, operational key, and GI, together with publication and applicable
+JWKS, TLS, and serving readiness. The registry checks these conditions under the
+identity's activation guard. Assignment, publication, a submitted envelope, or a
+workflow notification alone does not establish protocol `ACTIVE`.
+
+Ordinary registration has a 48-hour ISSUANCE deadline after preparation/publication;
+continuation retains the absolute deadline. Live waits for ISSUANCE while the
+operation remains eligible, without a server-side issuance deadline. Each SDK
+call still has a finite deadline, and cancellation preserves recovery state.
+
+During publication, ISSUANCE, and public-readiness waits, each polling cycle
+MUST refresh authenticated management state and check for failure or terminal
+outcomes. `ERROR`, `REJECTED`, `CANCELLED`, `REVOKED`, and `RETIRED` stop polling;
+permanent management-read errors also stop the call. Transient read failures
+follow the bounded retry policy. Stopping preserves exact envelopes and
+idempotency keys without canceling registration or creating a replacement.
+
+An `ERROR` is not automatically resumed by create or polling. Self-managed
+owners can explicitly retry verification through `/api/v1/agent/{domain}/verify`
+for any error code. That retry returns to `PROVISIONING` and rechecks publication
+and ISSUANCE. Managed terminal failures require staff disposition.
+
+Operational private-key claim is an explicit owner action available only at
+registry `READY`, after accepted ISSUANCE. Custody signs before claim; claim and
+key deletion do not activate an identity. Exact owner-envelope replay resolves
+to the persisted completed entry and original receipt even after claim.
 
 ### Managed Lifecycle Operation Contract
 
@@ -350,9 +408,10 @@ history.
 ### Known Foundry Create
 
 [13: Known Foundry Create](13-known-foundry.md) defines the Identity Digital product
-facade `Create(name)` and its handle, in a separate module. It is built on the low-level methods below and uses named caller-key
-Live registration, never sandbox creation. Ordinary registry defaults and replay
-behavior stay unchanged.
+facade `Create(name)` and its handle, in a separate module. It is built on the
+low-level methods below and uses named caller-key Live registration, never
+sandbox creation. Ordinary registry defaults and replay behavior are defined
+separately below.
 
 ### RegistryClient
 
@@ -400,42 +459,21 @@ RegistryClient.GetOrganizationOnboarding() -> OrganizationOnboardingResponse
 
 RegistryClient.GetRegistration(domain: string) -> AgentRegistration
   // GET {baseUrl}/api/v1/agent/{domain}/status using an owning-organization
-  // session credential or organization API key. Live responses can contain a
-  // proof nonce. SDKs MUST NOT retry a failed authenticated read anonymously.
+  // session credential or organization API key. SDKs MUST NOT retry a failed
+  // authenticated read anonymously.
   // This management route is distinct from the record's public su endpoint.
 
 RegistryClient.RegisterLiveAgent(input: LiveAgentRegistrationInput,
-                                 idempotencyKey: string) -> LiveProvisioningResponse
+                                 idempotencyKey: string) -> AgentRegistration
   // POST {baseUrl}/api/v1/agent with tier="live" and managed=true.
   // Send idempotencyKey as the required Idempotency-Key header. The request
   // supplies public_key, omits domain, zone_id, governance_domain, and root_domain,
   // and omits environment or sets it to production.
-  // Only HTTP 202 is decoded as LiveProvisioningResponse,
-  // never AgentRegistration; Live provisioning has not completed at this point.
-  // While status is challenge_pending, domain is parsed from the validated
-  // challenge transcript so it can address the proof routes. Otherwise domain
-  // comes from the response `domain` field when present (see Live Provisioning Types).
-
-RegistryClient.SubmitLiveProof(domain: string, request: LiveProofRequest,
-                               idempotencyKey: string) -> LiveProofResponse
-  // POST {baseUrl}/api/v1/agent/{domain}/proof. request.requestId must equal
-  // idempotencyKey. The signature is unpadded base64url over the exact bytes
-  // obtained by base64url-decoding the latest registration or reissue response's
-  // challengeMessage. The current product adapter accepts only HTTP 202 and
-  // rejects private JWK members before network I/O.
-
-RegistryClient.ReissueLiveProof(domain: string, requestId: string,
-                                publicKeyJwk: Ed25519 JWK,
-                                idempotencyKey: string) -> LiveProofReissueResponse
-  // POST {baseUrl}/api/v1/agent/{domain}/proof/reissue with JSON body
-  // { "request_id": requestId }. requestId must equal idempotencyKey.
-  // publicKeyJwk is the same public key submitted during registration; it is
-  // local validation context and MUST NOT be serialized into the request body.
-  // The SDK rejects invalid or private key material before network I/O and
-  // rejects a replacement transcript unless keyId equals this key's RFC 7638
-  // thumbprint. This operation only replaces an expired, unused proof challenge
-  // and accepts only HTTP 202. Its replacement challengeMessage supersedes every
-  // earlier one.
+  // Accept only HTTP 201, including replay, and decode the assigned identity,
+  // domain, registry status, publication_config, and oidc_issuer_url.
+  // Validate the response Idempotency-Key header against the submitted key.
+  // Persist creation facts before authenticated detail reads; 201 does not
+  // establish publication, accepted ISSUANCE, or protocol ACTIVE.
 
 RegistryClient.CanonicalRecordContent(domain: string, signingKid: string) -> CanonicalRecordContentResponse
   // POST {baseUrl}/api/v1/agent/{domain}/record with JSON body { "signingKid": signingKid }.
@@ -462,6 +500,7 @@ RegistryClient.PrepareIssuance(domain: string,
   // The registry uses the authenticated identity's previously registered
   // operational public key and returns the exact partially signed canonical JCS
   // entry bytes as the response body. Treat the body as untrusted input.
+  // Managed publication must be complete while PROVISIONING before preparation.
   // Parse the entry with the bound log implementation against the reference in
   // its signed lr field, independently reproduce signedBytes, verify the domain,
   // governance identity, accountable-entity key and signature, local operational
@@ -500,13 +539,34 @@ RegistryClient.SubmitPreparedEvent(domain: string, entryBytes: bytes,
                                    idempotencyKey: string) -> SubmissionResult
   // POST {baseUrl}/api/v1/agent/{domain}/tlog/events with entryBytes as the exact
   // application/json request body and idempotencyKey as the Idempotency-Key header.
-  // Submits the exact complete canonical bytes. A timeout or indeterminate result
-  // is retried with the same bytes and idempotency key.
+  // Submits exact complete canonical bytes, including an owner-produced bilateral
+  // ISSUANCE after client-controlled publication. The accepted entry hash must
+  // equal the hash of these bytes. A timeout or indeterminate result is retried
+  // with the same bytes and idempotency key.
   // A non-2xx response is normalized to a typed indeterminate/rejected
   // SubmissionResult or raises RegistrySubmissionError after preserving the
   // registry error code and retry classification. It is not reduced to a generic
   // HTTP error and is never reported as an accepted result.
+
+RegistryClient.SubmitOwnerIssuance(domain: string, ownerEntryBytes: bytes,
+                                  idempotencyKey: string) -> SubmissionResult
+  // POST {baseUrl}/api/v1/agent/{domain}/tlog/events with the exact canonical
+  // entity-signed ISSUANCE body and the Idempotency-Key header.
+  // Used for client-controlled publication with a registry-custodied operational key.
+  // The registry validates owner proof and live publication, adds only sigs.op,
+  // and persists and submits the completed bilateral bytes.
+  // The response entry_hash identifies the completed entry, not the uploaded body.
+  // Retry the identical owner envelope and key, including after private-key claim.
+  // Preserve structured errors and retry classification as for SubmitPreparedEvent.
 ```
+
+Owner handoff completion requires fetching the accepted entry identified by the
+receipt and verifying its inclusion, both signatures, bound identity and keys,
+and identical `signedBytes` and `sigs.ae` to the persisted owner envelope. The
+receipt hash must match those completed entry bytes. Missing evidence remains
+resumable; a hash or binding mismatch fails closed. The SDK never treats a receipt
+for different bytes as acceptance of the uploaded partial envelope. See
+[11: Owner-Only Custody ISSUANCE](11-c2sp-tlog-binding.md#owner-only-custody-issuance).
 
 `PrepareKeyRotation` requires an owning-organization session credential or API key,
 not agent self-auth. This control-plane authorization does not replace the previous
@@ -671,100 +731,22 @@ The client sets `tier="live"` and `managed=true`; callers cannot override them.
 `domain`, `zoneId`, `governanceDomain`, and `rootDomain` are not fields in this
 input. The idempotency key is required transport metadata rather than a JSON field.
 
-Managed Live registration is a separate operation, even though it uses the same
-HTTP route. It requires a public key, an omitted domain and zone, and either an
-omitted environment or `environment="production"`. It also requires an
-`Idempotency-Key` and returns HTTP 202 `LiveProvisioningResponse`, not the HTTP
-201 `AgentRegistration` shape. The returned `requestId` is retained for every
-retry and proof operation. [Known Foundry create](13-known-foundry.md) also
-requires it to equal the caller's Idempotency-Key (server gate SR-5); ordinary
-Live calls do not check this. The server's internal canonical operation ID may
-differ; the SDK does not substitute or derive it. The base64url-decoded `challengeMessage` is the exact byte sequence signed by the registered private key. Parsing it for routing or
-validation MUST NOT change the bytes that are signed.
+Managed Live registration is a separate operation with fixed request selectors
+on the unified HTTP route. It returns HTTP 201 `AgentRegistration`, including on
+replay. The body contains `id`, `domain`, `status`, `publication_config`, and
+`oidc_issuer_url`; the response `Idempotency-Key` header carries the submitted
+operation key. The SDK persists that key with the identical request and public
+key across retries. The server's internal operation ID may differ; the SDK does
+not substitute or derive it.
 
-The server retains a legacy local Live mode selected by `tier="live"` and
-`managed=false`, returning HTTP 201 through a different challenge workflow. It
-is intentionally outside this portable SDK contract. Generic registration
-methods MUST reject `tier="live"` rather than accidentally selecting or parsing
-that legacy mode; a product-specific legacy adapter may expose it separately.
+Live registration and status reads require an owning-organization session
+credential or organization API key. Managed Live supports an `OKP`/`Ed25519`
+public key with `alg="EdDSA"`. SDKs reject other algorithms and private JWK
+members before network I/O, including private members nested in a JWKS-shaped
+input. Public-key fields must never serialize a source object's private material.
 
-#### Live Provisioning Types
-
-```
-TYPE LiveChallengeTranscript
-  protocol: string  // exactly "dnsid-live-provisioning-pop/v1"
-  orgId: string
-  agentId: string
-  fqdn: string
-  keyId: string
-  nonce: string
-  expiresAt: timestamp
-END
-
-TYPE LiveProvisioningResponse
-  requestId: string
-  agentId: string
-  status: string
-  challenge: string
-  challengeMessage: string // unpadded base64url-encoded bytes
-  domain?: string          // from transcript while challenge_pending; else wire `domain` if present
-  challengeTranscript: LiveChallengeTranscript // derived; present while challenge_pending
-END
-
-TYPE LiveProofRequest
-  requestId: string
-  challenge: string
-  publicKeyJwk: Ed25519 JWK
-  signature: string        // unpadded base64url Ed25519 signature
-END
-
-TYPE LiveProofResponse
-  requestId: string
-  agentId: string
-  status: string
-END
-
-TYPE LiveProofReissueResponse
-  requestId: string
-  agentId: string
-  status: string
-  challenge: string
-  challengeMessage: string // unpadded base64url-encoded bytes
-  domain: string           // derived from challengeTranscript.fqdn
-  challengeTranscript: LiveChallengeTranscript
-END
-```
-
-For `challenge_pending`, the SDK base64url-decodes `challengeMessage`, parses its
-UTF-8 JSON object, and rejects the response unless every transcript field is
-present, `protocol` has the value above, `agentId` and `nonce` equal the outer
-response, `keyId` equals the RFC 7638 thumbprint of the submitted public key,
-`fqdn` is a valid agent domain, and `expiresAt` is a valid timestamp. It then
-exposes `fqdn` as normalized `domain`. A successful reissue has the same
-requirements, using the required reissue `publicKeyJwk` to validate `keyId`.
-Other replay statuses may carry empty `challenge` and
-`challengeMessage` strings; required wire fields do not imply non-empty values,
-and `challengeTranscript` is then absent. On such a replay, `domain` is the wire
-`domain` field. A missing, null, or empty `domain` member is absent, not an error;
-a present value that is not a valid agent domain rejects the response, as an invalid
-transcript `fqdn` does.
-The current server omits it; adding it is pending server gate SR-5 in the
-[server requirements](../known-foundry-server-requirements.md). If both a
-transcript and a wire `domain` are present, they MUST match after normalization.
-
-The transcript's current wire names are `org_id`, `agent_id`, `key_id`, and
-`expires_at`. Other current Live wire names are `request_id`, `agent_id`,
-`public_key`, and `challenge_message`. Live registration, status, proof, and
-proof reissue require an owning-organization session credential or organization
-API key. SDKs MUST preserve the same request ID/idempotency key and public key
-across retries, and callers MUST supply that original public key when requesting
-a replacement challenge. Managed Live currently supports only an
-`OKP`/`Ed25519` public key with `alg="EdDSA"`; SDKs reject other algorithms before
-network I/O. Every
-registration and proof entry point MUST also reject private JWK members before
-network I/O, including private members nested in a JWKS-shaped input; public-key
-fields must never silently serialize the source object's raw private
-representation.
+The portable Live adapter is caller-key and managed. Generic registration methods
+reject `tier="live"`; callers use `RegisterLiveAgent` with its explicit contract.
 
 #### AgentRegistration
 
@@ -776,7 +758,7 @@ Registry registration or verification result for a local identity.
 | `domain` | string | yes | Registered agent FQDN. |
 | `publicationConfig` | PublicationConfig | conditional | Authoritative publication snapshot; required for the Identity Digital adapter, decoded from `publication_config`. Retained with the immutable ID and domain. |
 | `publicationAuthority` | `"client"` or `"registry"` | yes | Registry declaration of who controls the accountable-entity key and signs the DNSid record. For the current product API, `managed="dnsid"` maps to `"registry"` and `managed="self"` maps to `"client"`; other implementations MUST report this explicitly rather than infer it solely from DNS hosting, profile tags, or key availability. |
-| `registryStatus` | string | yes | Registry-controlled registration workflow state exactly as returned by the management API, such as `PENDING`, `PROVISIONING`, `VERIFICATION`, `VERIFIED`, `READY`, `REJECTED`, `CANCELLED`, `ERROR`, `REVOKED`, or `RETIRED`. This is not protocol `AgentStatus.state`. |
+| `registryStatus` | string | yes | Registry-controlled registration workflow state exactly as returned by the management API, such as `PENDING`, `PROVISIONING`, `READY`, `REJECTED`, `CANCELLED`, `ERROR`, `REVOKED`, or `RETIRED`. This is not protocol `AgentStatus.state`. |
 | `dnsPublished` | boolean | no | Registry observation that DNS publication completed. Meaningful for registry-managed publication; successful SDK publication still requires resolving and validating the record. |
 | `protocolStatus` | AgentStatus | no | Complete protocol-facing lifecycle status, when the registry response supplies authoritative state, transition time, and conditional revocation reason. SDKs MUST NOT construct this object solely by mapping `registryStatus`; they MAY obtain it from the identity's `su` endpoint or an equivalent complete protocol-status object returned by the registry. |
 | `oidcIssuerUrl` | string | no | Exact `oidc_issuer_url` returned by the registry. Persist it for OIDC operations rather than deriving an issuer from the registry hostname. |
@@ -826,7 +808,7 @@ a publication workflow; a failed read must not cause guessing.
 
 ##### Unified Registration Acceptance Cases
 
-Registry-client tests cover the changed behavior below. Identity replay and
+Registry-client tests cover the behavior below. Identity replay and
 governance persistence also require server integration tests, not SDK coordination.
 
 | Case | Expectation |
@@ -836,10 +818,18 @@ governance persistence also require server integration tests, not SDK coordinati
 | Authenticated read or mutation returns a redirect, including to the same origin | Reject; no request or credential reaches the redirect target. |
 | Registry or discovery response carries unknown JSON members, including unknown readiness or authority values | Ignore the members; they never satisfy readiness or authority checks or authorize replacement. |
 | Invalid response or root/admission failure | Fail closed, preserve known creation facts and server errors, and make no fallback request. |
-| Supported existing selectors and managed Live | Preserve existing request behavior; Live still returns 202 provisioning, not ordinary 201 registration. |
+| Managed Live create and replay | HTTP 201 with ID, domain, registry status, publication configuration, issuer, and matching response Idempotency-Key; no inference of ACTIVE. |
 | Keyed ordinary replay, including stale GI or changed input | Preserve the original request/key and known identity; retain governance/mismatch errors without replacement allocation or cross-organization replay. |
 | Foundry named Live create and durable operation recovery | [Server acceptance checks](../known-foundry-server-requirements.md#acceptance-checks) establish tenant isolation, atomic convergence and replay-expiry safety. Replacement is separately gated. |
 | Timeout or post-creation failure | Retain known facts for recovery; never imply that failure proves no identity exists. |
+| Caller-key and registry-custodied ISSUANCE | Distinct entity and operational signatures over the same identity-bound event; publication and accepted ISSUANCE precede ACTIVE. |
+| Client-controlled publication and owner-only custody handoff | Verify live signed publication, preserve exact owner bytes, and verify the receipt against the completed bilateral entry. |
+| Owner-envelope replay after READY-only claim | Original completed bytes and receipt; no new signature or append. |
+| Owner handoff receipt has a different signed payload, entity signature, key binding, or completed-entry hash | Fail closed; no local completion or key activation. |
+| Owner handoff accepted-entry evidence is not yet available | Resumable outcome; retain the same owner envelope and idempotency key. |
+| Management reports VERIFICATION or VERIFIED | Preserve the readable value; no nonce request and no inference of completion. |
+| Management failure, terminal state, or permanent read error during ISSUANCE or public-readiness polling | Stop the call with known facts; preserve exact envelopes and idempotency keys without cancellation or replacement. |
+| Missing publication or serving readiness | No activation; retain the same identity, key, and operation for recovery. |
 
 #### PublishedRecord
 

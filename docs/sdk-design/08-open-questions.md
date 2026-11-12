@@ -10,9 +10,8 @@ Design: [13](13-known-foundry.md). Server assumptions and gates:
 | Decision | Owner |
 |---|---|
 | Name reuse, replacement intent, failed-provisioning recovery (see the [proposal](../known-foundry-server-requirements.md#proposal-name-reuse-and-failed-provisioning)) | E2 #45–#47 |
-| Confirm that create after rotation with the current key (no local state) returns the existing identity, as PR #3304 does; superseded-key lookup | E2 #47 |
-| E2 confirmation of the SR-5 `domain` member on replay; compatibility negotiation | E2 #47 / E5 |
-| Whether the Live proof challenge stays | E2 #46 |
+| Confirm that create after rotation with the current key (no local state) returns the existing identity; superseded-key lookup | E2 #47 |
+| Named replay guarantees beyond cache retention; compatibility negotiation | E2 #47 / E5 |
 | After `TLOG_INVALID_ENTRY` for an ISSUANCE: whether it can be transient, and whether the same issuance key may prepare again (SR-6 versus the reclaim rule in [11](11-c2sp-tlog-binding.md#submission-and-idempotency)) | E2 #46 |
 | Final error codes, including `NAME_IN_USE` and the refusal of a new key on a REVOKED or RETIRED name (status, code, and whether it carries the ID, domain, and status) | E2 / E4 |
 | Replica key convergence on an empty key store (known-foundry #62) and how it relates to explicit KMS-first creation (dnsid-sdk-compliance #57). Until decided, Foundry `Create` provisions no keys. | E6 |

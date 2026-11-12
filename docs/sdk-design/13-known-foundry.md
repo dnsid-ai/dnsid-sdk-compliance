@@ -11,14 +11,14 @@ it returns. Owner: [E5](https://github.com/Identity-Digital/known-foundry/issues
 ([design issue #49](https://github.com/Identity-Digital/known-foundry/issues/49)).
 It builds on [core](01-core-identity-manager.md), [registry](05-transport-and-registry.md),
 [log binding](11-c2sp-tlog-binding.md), and [configuration](12-configuration-loading.md).
-It does not change protocol wire rules, ordinary registration, or counterparty acceptance.
+It is separate from protocol wire rules, ordinary registration, and counterparty acceptance.
 
 Assumptions about server behavior are recorded in the
 [server requirements](../known-foundry-server-requirements.md).
 
 ## Scope and Ownership
 
-Foundry create uses the named caller-key Live/pool path from
+Foundry create uses the named caller-key Live path from
 [E2](https://github.com/Identity-Digital/known-foundry/issues/2). The adapter sends
 `tier="live"`, `managed=true`, `name`, and `public_key` through `RegisterLiveAgent`.
 The server selects the domain. The SDK never selects, buys, or guesses a domain, and
@@ -26,7 +26,7 @@ never falls back to sandbox registration.
 
 | Owner | Responsibility |
 |---|---|
-| SDK (E5) | Provider wiring, durable recovery state, registry/proof/issuance adapters, bounded retries, typed errors, public readiness checks, CLI. |
+| SDK (E5) | Provider wiring, durable recovery state, registry/issuance adapters, bounded retries, typed errors, public readiness checks, CLI. |
 | Operator | Supplies the operational key, created before `Create` runs. Supplies credentials and configuration. |
 | Server (E2) | Authentication, authorization, quotas, name ownership, domain allocation, durable workflow recovery. |
 | E6 | Key providers, provisioning, and key convergence across replicas. |
@@ -73,9 +73,10 @@ creates or reopens one server identity, and durably records its ID and domain. I
 does not wait for protocol `ACTIVE`. If the server accepted the operation but no
 domain is known yet, `Create` returns a resumable error with the known facts.
 
-`Active` completes the required proof and issuance, then waits for the public checks
-in [Durable Setup](#durable-setup). Each call makes a new public observation. Registry
-`READY`, `VERIFIED`, or workflow completion alone does not satisfy `Active`. `state`
+`Active` completes bilateral ISSUANCE, then waits for the public checks in
+[Durable Setup](#durable-setup). Its operational signature proves possession of
+the registered key. Each call makes a new public observation. Registry `READY`
+or workflow completion alone does not satisfy `Active`. `state`
 holds only a real public observation, never a value mapped from `registryStatus`.
 
 The SDK starts no background task. If the process stops after `Create`, the server
@@ -92,7 +93,7 @@ profile helpers (JWT, HTTP message signatures, Web Bot Auth) follow the same rul
 
 `IdentityManager()` builds the manager with the normal core constructor from the
 saved domain, GI, and publication configuration. Until the publication
-configuration is saved (step 5 of [Durable Setup](#durable-setup)),
+configuration is saved (step 3 of [Durable Setup](#durable-setup)),
 `IdentityManager()` returns `SigningPaused` and builds nothing. Core keeps its
 construction rules; the handle never passes placeholder values. Later calls
 return the same manager.
@@ -182,7 +183,7 @@ and E7 rotation hosting have separate gates.
 
 ## Durable Setup
 
-`Create` does steps 1–3. `Active` does steps 4–8. Each step persists progress before
+`Create` does steps 1–3. `Active` does steps 4–7. Each step persists progress before
 the next mutation. Each call uses one finite deadline.
 
 1. Validate the name, configuration, provider, and algorithm. Read onboarding.
@@ -196,36 +197,34 @@ the next mutation. Each call uses one finite deadline.
 3. Creation is unresolved until both the ID and the domain are saved. If it is
    unresolved, derive `registrationKey`, rebuild the identical
    request, and call `RegisterLiveAgent` with `registrationKey` as the
-   `Idempotency-Key` header. Validate `requestId` and any challenge
-   against the sent request. Take the domain from the validated challenge, or from
-   the response `domain` field on a challenge-free replay
-   ([05](05-transport-and-registry.md#live-provisioning-types)). Persist ID, domain,
-   and proof facts. If no domain is known, persist the ID and status and return the
-   resumable error; the next call replays the same request. Once the ID and domain
-   are saved, use authenticated reads, not another create.
-4. If the server requires a proof challenge, use `SubmitLiveProof` and
-   `ReissueLiveProof` with the saved `requestId`. Persist the exact challenge and
-   signature before submission. Sign the decoded `challengeMessage` bytes unchanged.
-   Reissue only after the challenge expires, on the same operation and key. If a
-   submitted proof's outcome is unknown and the registry still waits for proof
-   after expiry, request a reissue: the server refuses a used challenge (HTTP 409),
-   and the SDK then waits for the registry status. A successful reissue replaces
-   the saved challenge and signature.
-5. Wait for `VERIFIED` or `READY`, or a customer-action or error result. Read the
-   publication configuration and entity key from `ekUrl`. Apply
+   `Idempotency-Key` header. Accept HTTP 201 `AgentRegistration` and validate the
+   response `Idempotency-Key` header. Persist ID, domain, publication configuration,
+   OIDC issuer, and registry status before any detail read. A response without
+   complete creation facts is not success; retain known facts and the original
+   request/key for recovery. Once ID and domain are saved, use authenticated reads,
+   not another create. Validate that publication authority is registry-managed.
+4. Read authenticated progress and wait for signed identity publication while
+   registration is `PROVISIONING`, or return a customer-action or error result.
+   Read the entity key from saved `publicationConfig.ekUrl`. This prerequisite
+   uses publication progress, not `VerifyDomain` or
+   `AwaitRegistryManagedPublication`, which require `ACTIVE`. Apply
    [Registry States](#registry-states).
-6. If saved state records an accepted ISSUANCE, verify it. If the registry reports
+5. If saved state records an accepted ISSUANCE, verify it. If the registry reports
    `READY` and no ISSUANCE is saved, recover it under [Issuance Recovery](#issuance-recovery);
    never prepare another. Otherwise run the shared
    issuance coordinator: prepare, validate, countersign, verify the completed entry
    including its own signature, persist exact bytes, submit with
    `issuanceKey` as the `Idempotency-Key` header. Apply
    [Issuance Recovery](#issuance-recovery) before reporting a final failure.
-7. Wait for publication, then verify public DNS, HTTPS, and log evidence: domain,
+6. Wait for registry convergence, then verify public DNS, HTTPS, and log evidence: domain,
    profile, GI, entity key, log, current provider key, protocol `ACTIVE` at signed
    `su`, and fresh lifecycle evidence through `VerifyLogEvidence`. Use signed current
    `ku`. Bound propagation polling, including `RecordNotFound`.
-8. Persist completion, enable signing, and return.
+7. Persist completion, enable signing, and return.
+
+Live issuance waits while the server operation remains eligible, without a
+server-side issuance deadline. Each `Active` call is bounded; a deadline or
+cancellation retains the same identity, key, and issuance progress.
 
 ## Organization and Creation Replay
 
@@ -241,10 +240,11 @@ issuanceKey = base64url-no-pad(SHA-256(JCS([
 ])))
 ```
 
-The Live `request_id` equals `registrationKey`; the server's internal operation ID
-can differ. When saved state exists, keep its initial key binding through retries,
-credential changes, and rotation. Without saved state, use the provider's current
-key. Freeze creation input while the outcome is unknown.
+The Live request and response `Idempotency-Key` headers equal `registrationKey`;
+the server's internal operation ID can differ. When saved state exists, keep its
+initial key binding through retries, credential changes, and rotation. Without
+saved state, use the provider's current key. Freeze creation input while the
+outcome is unknown.
 
 Replicas that use the same key and name converge on one server identity. They also
 converge on one ISSUANCE through [Issuance Recovery](#issuance-recovery). A replica
@@ -316,13 +316,17 @@ resumable error that keeps the registry code.
 
 ## Registry States
 
-Registry states and protocol `AgentStatus.state` are separate. Existing registry
-wait helpers stay unchanged.
+Registry states and protocol `AgentStatus.state` are separate. During issuance
+and public-readiness waits, each polling cycle refreshes authenticated management
+state and applies the outcomes below. Permanent management-read errors stop the
+call; transient read failures follow the bounded retry policy.
 
 | Registry state | Handle behavior |
 |---|---|
-| `PENDING`, `PROVISIONING`, `VERIFICATION` | Complete required proof or wait. |
-| `VERIFIED`, `READY` | Continue issuance and public checks. Not proof of `ACTIVE`. |
+| `PENDING` | Wait for provisioning progress. |
+| `PROVISIONING` | Wait for publication, then complete bilateral ISSUANCE. |
+| `VERIFICATION`, `VERIFIED` | Preserve as readable management values and wait for current registration progress. Never request a nonce or treat either value as completion. |
+| `READY` | Recover or verify accepted ISSUANCE and run public checks. Not proof of `ACTIVE`. |
 | `ERROR` | Return a workflow error with known facts. Resume only through an agreed server recovery path. |
 | `REJECTED`, `CANCELLED` | Return a typed workflow outcome. The name stays owned. |
 | `REVOKED`, `RETIRED` | Terminal. Pause signing, stop waiting, keep history. |
@@ -373,23 +377,22 @@ base64url; timestamps are RFC 3339 UTC.
 
 | Member | Value |
 |---|---|
-| `schemaVersion`, `phase` | `1`; `creation-pending`, `identity-known`, `proof-pending`, `issuance-accepted`, or `complete`. |
+| `schemaVersion`, `phase` | `1`; `creation-pending`, `identity-known`, `issuance-accepted`, or `complete`. |
 | `registryUrl`, `organizationId`, `name` | Operation key. |
 | `governanceId`, `logTrust` | Resolved expected bindings, using 12's names. |
 | `keySource`, `currentKeySource` | Non-secret provider reference; current reference after rotation if different. |
 | `initialPublicKey`, `currentPublicKey` | Initial JWK; current JWK after verified rotation if different. |
 | `creationInput` | Frozen Live request fields (05 wire names). |
-| `identityId`, `domain`, `requestId` | Creation facts. |
+| `identityId`, `domain` | Creation facts. |
+| `registrationKey`, `issuanceKey` | Deterministic operation keys, retained unchanged through retries. |
 | `registryStatus`, `signingPaused` | Last observed registry status; `true` after an observed terminal state or key-binding mismatch. |
-| `proof` | Exact challenge, signature request, and latest outcome. |
 | `publicationConfig`, `oidcIssuerUrl`, `entityPublicKey` | Publication snapshot, issuer, and entity public JWK. |
 | `issuance` | Prepared and completed bytes, `entryHash`, submission state (per 11), log reference and index, acceptance facts. |
 
-`proof-pending` lasts until the proof outcome is saved. `identity-known` covers a
-saved ID and domain with no unsettled proof, including ISSUANCE preparation and
-submission; the `issuance` member records that progress. Each phase requires the
-members needed to resume it. Drop proof and issuance bytes
-only after their outcome is durably known. Documents never contain private keys or
+`identity-known` covers a saved ID and domain, publication waiting, and ISSUANCE
+preparation and submission; the `issuance` member records that progress. Each
+phase requires the members needed to resume it. Drop issuance bytes only after
+their outcome is durably known. Documents never contain private keys or
 credentials; the destination reopens the same provider key or a verified successor.
 
 ## Retry, Deadlines, and Errors
@@ -408,7 +411,7 @@ text. Errors keep progress; calling `Create` or `Active` again resumes.
 | Error | Meaning |
 |---|---|
 | `KEY_MISSING` | The provider has no active key (`ListKeyIds()` is empty). |
-| `KEY_MISMATCH` | The supplied key differs from the existing identity (server HTTP 409, PR #3304). Remedy text points to the one-identity-per-cloud guidance ([D9, #63](https://github.com/Identity-Digital/known-foundry/issues/63)). |
+| `KEY_MISMATCH` | The supplied key differs from the existing identity (server HTTP 409). Remedy text points to the one-identity-per-cloud guidance ([D9, #63](https://github.com/Identity-Digital/known-foundry/issues/63)). |
 | `KEY_REVOKED` | The organization API credential is revoked (E4). Not inferred from a generic 403. |
 | `SigningPaused` | Signing is paused; see [Signing](#signing). |
 | `UnsupportedRegistry` | The registry does not serve the Identity Digital onboarding contract; see [Server Compatibility](#server-compatibility-and-enablement). |
@@ -465,7 +468,8 @@ the cross-SDK daily workflow. Server persistence proof stays in
 | Same-key replicas, with and without saved state | One identity, one ISSUANCE. |
 | Different-key replicas | One wins; others get `KEY_MISMATCH` with known facts. |
 | Caller exits after `Create` | Signing paused; next call resumes. |
-| Proof expiry, lost responses, replay-cache expiry | Same operation; no new domain or key. |
+| Lost create responses, issuance timeouts, replay-cache expiry | Same operation; no new domain or key. |
+| Published `PROVISIONING` identity awaiting caller signature | Prepare, validate, countersign, persist, and submit ISSUANCE before waiting for READY. |
 | `ERROR`, `REJECTED`, `CANCELLED`, terminal, unknown states | Correct typed outcome; no name release or replacement. |
 | Competing valid countersignatures; invalid then valid local countersignature | Losing bytes rejected; winner recovered; an invalid local signature is never persisted or submitted, and the next attempt countersigns the same prepared bytes. |
 | Interruption at each phase | Same-bytes recovery; no recreation. |

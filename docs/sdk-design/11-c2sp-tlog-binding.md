@@ -362,6 +362,7 @@ INTERFACE C2spTlogBinding
                     role: C2spSignerRole,
                     keyProvider: KeyProvider) -> PreparedC2spTlogEvent
   EntryBytes(prepared: PreparedC2spTlogEvent) -> bytes
+  OwnerIssuanceBytes(prepared: PreparedC2spTlogEvent) -> bytes
   WritePreparedEvent(prepared: PreparedC2spTlogEvent,
                      idempotencyKey: string) -> LogRef
 END
@@ -483,10 +484,53 @@ governance service and the operational key at the agent. The SDK flow is:
 8. The service returns the assigned log index, final `LogRef`, and any available
    acceptance or proof status.
 
-The initial challenge or registration signature is not a substitute for
-`sigs.op`; it generally covers different bytes. The service MUST NOT reuse the
-accountable-entity key as the operational key, synthesize `sigs.op`, or require
-custody of the operational private key.
+The `sigs.op` signature over the identity-bound ISSUANCE proves operational-key
+possession. The accountable-entity and operational keys MUST be distinct. For
+caller-held operational keys, the service MUST NOT require private-key custody
+or add an operational signature on the caller's behalf.
+
+### Owner-Produced ISSUANCE
+
+The owner-produced and custody flows below describe the Identity Digital
+registry adapter. C2SP does not define registration or private-key custody.
+
+With client-controlled publication, the owner can construct ISSUANCE using the
+registry-assigned identity and log reference. The owner validates the publication
+snapshot, builds a canonical genesis with `seq=0`, and signs with the
+accountable-entity key. A caller that holds the operational key also adds `sigs.op`, verifies
+both signatures, and persists the completed bytes before `SubmitPreparedEvent`.
+The registry admits owner-produced genesis after validating live signed
+publication; this flow does not require `PrepareIssuance`.
+
+### Owner-Only Custody ISSUANCE
+
+When the registry holds the operational key and the owner controls the
+accountable-entity key:
+
+1. The owner signs and publishes the identity record while `PROVISIONING`.
+2. The owner prepares the assigned identity's ISSUANCE genesis and adds only
+   `sigs.ae`. `OwnerIssuanceBytes` validates canonical context, `seq=0`, all event
+   key material, and the entity signature, requires `sigs.op` to be absent, and
+   serializes the canonical partial envelope. It does not append or satisfy the
+   complete-entry contract of `EntryBytes` or `WritePreparedEvent`.
+3. The owner durably saves that exact envelope and idempotency key, scoped to the
+   immutable agent ID, before calling `SubmitOwnerIssuance`.
+4. The registry validates owner authorization, live signed publication, current
+   GI, operational key, and assigned stream. It adds only `sigs.op` with the
+   unclaimed custodied key, verifies both signatures, and durably freezes the
+   completed bytes before append. Signed fields and `sigs.ae` remain unchanged.
+5. The receipt's `entryHash` identifies the completed bilateral entry. The SDK
+   fetches that entry through the receipt's log reference, verifies inclusion,
+   both signatures, expected identity/key bindings, and equality of `signedBytes`
+   and `sigs.ae` to its saved owner envelope. It checks the receipt hash against
+   the fetched completed bytes before recording local completion.
+6. Unknown outcomes retry the identical owner envelope and idempotency key. The
+   registry reuses persisted completed bytes and returns the original receipt,
+   including after READY-only private-key claim. No retry signs another entry.
+
+Missing accepted-entry evidence is resumable; invalid evidence fails closed.
+An owner-only envelope is never appended. Operational-key claim is not a
+prerequisite for this flow and does not establish issuance or activation.
 
 ## Split KEY_ROTATION Flow
 
@@ -540,6 +584,7 @@ or another operator client, but its SDK contract is typed and explicit:
 PrepareIssuance(domain, idempotencyKey) -> PreparedRegistryEvent
 PrepareKeyRotation(domain, previousKeyId, newPublicKey, idempotencyKey) -> PreparedRegistryEvent
 SubmitPreparedEvent(domain, entryBytes, idempotencyKey) -> SubmissionResult
+SubmitOwnerIssuance(domain, ownerEntryBytes, idempotencyKey) -> SubmissionResult
 ```
 
 The common registry client does not expose prepared `REVOCATION` or
@@ -570,20 +615,25 @@ countersigning. Other operator APIs may gather issuance inputs differently, but
 MUST expose the same prepared-event validation boundary rather than asking the
 SDK to trust server-supplied signed bytes.
 
-The service authenticates and authorizes preparation and submission. Submission
-accepts already prepared canonical entry bytes and MUST NOT add, remove, or
-rewrite signed fields.
+The service authenticates and authorizes preparation and submission.
+`SubmitPreparedEvent` accepts complete canonical entry bytes and appends them
+unchanged. `SubmitOwnerIssuance` accepts the canonical owner-only ISSUANCE and
+adds the operational signature under the [custody contract](#owner-only-custody-issuance).
+Neither operation may add, remove, or rewrite signed fields.
 
 The idempotency mapping is durable:
 
-- the same identity, idempotency key, and entry-byte hash returns the original
+- the same identity, idempotency key, and uploaded-byte hash returns the original
   submission state or accepted result;
 - reuse of the key with different bytes is rejected; and
 - retries after timeout or process restart reuse the identical persisted bytes.
 
 Logical event deduplication is not submission idempotency. An equal `eventId`
 never permits replacing durable bytes with a different signature or accepting
-a receipt whose exact entry hash does not match the submitted bytes.
+a receipt whose exact entry hash does not match the completed entry bytes.
+For `SubmitPreparedEvent`, those are the uploaded bytes. Owner-only handoff
+binds the uploaded partial envelope to immutable completed bytes; its receipt
+hash is checked against the verified completed entry, not the partial envelope.
 
 The adapter preserves structured failure semantics. A non-2xx response becomes
 a typed `indeterminate`/`rejected` `SubmissionResult` or a typed
@@ -624,8 +674,10 @@ replayed submissions and uses structured non-2xx errors for busy, rejected, and
 indeterminate outcomes. Other adapters may return the full state union directly,
 but callers apply the same retry rules in either representation. On every
 accepted response, including the first attempt, the SDK verifies `entryHash`
-against the exact submitted bytes before activating a new key or advancing local
-state.
+against the exact completed entry bytes before activating a new key or advancing
+local state. `SubmitPreparedEvent` requires equality with the uploaded bytes;
+`SubmitOwnerIssuance` requires the completed-entry verification defined in
+[Owner-Only Custody ISSUANCE](#owner-only-custody-issuance).
 
 If an authorized event with invalid chain fields is nevertheless included, the
 stream is in terminal verification failure. Neither the registry nor an SDK
@@ -1517,6 +1569,11 @@ Each SDK implementation provides tests for:
 - all signer-role success and failure cases;
 - split ISSUANCE across independent accountable-entity and operational
   providers;
+- owner-only ISSUANCE serialization that validates `sigs.ae` without permitting
+  partial entries through complete-entry serialization or safe append;
+- registry-adapter custody handoff: unchanged signed payload and entity signature,
+  verified completed-entry hash and inclusion, resumable missing evidence, and
+  exact owner-envelope replay after private-key claim;
 - KEY_ROTATION with both `prev_op` and `new_op`;
 - exact-byte idempotent append and crash recovery;
 - checkpoint, inclusion proof, consistency, witness quorum, and policy failures;
