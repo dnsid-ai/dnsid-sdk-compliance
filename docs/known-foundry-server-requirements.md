@@ -94,7 +94,7 @@ are distinct from ordinary sandbox registration.
 | SR-4 | Identity bindings outlive the replay cache. Delayed requests, cleanup, and terminal transitions never allocate a replacement or revive an old identity. | Unverified release gate; see [Registration Evidence](#registration-evidence). Terminal replacement requires SR-8. |
 | SR-5 | Caller-key Live create and replay return HTTP 201 with `id`, `domain`, current registry `status`, `publication_config`, and `oidc_issuer_url`. The response Idempotency-Key equals the submitted key. A matching organization, name, and public key resolves to the same identity, including READY, so a replica without local state can resume. | Wire shape source-checked; named replay guarantees remain unverified. See [Registration Evidence](#registration-evidence). |
 | SR-6 | Validate signatures before durably admitting submitted ISSUANCE bytes. An invalid signature does not consume the issuance key. Expose accepted-entry and preparation-reclaim facts. When an ISSUANCE is already accepted, reject a new preparation or different submitted bytes with a structured error; never accept a second ISSUANCE. The SDK relies on this rejection to find another replica's ISSUANCE. | [#46](https://github.com/Identity-Digital/known-foundry/issues/46). Different bytes under an accepted issuance key are rejected, not given its receipt. Open: whether `TLOG_INVALID_ENTRY` can be transient, and whether the same issuance key may prepare again after it; 11 never reclaims a preparation that entered submission. |
-| SR-7 | Report registry progress, customer-action outcomes, structured errors, and publication fields (including `ek_url`). Activation requires an accepted bilateral entry and receipt matching the current identity, key, and GI, plus publication and applicable JWKS/TLS/serving readiness under the identity guard. | Wrong key is 409 `KEY_MISMATCH`; full error matrix belongs to E2. |
+| SR-7 | Report registry progress, customer-action outcomes, structured errors, and publication fields (including `ek_url`). For registry-managed publication, authenticated agent detail includes required boolean `dns_published`: false while publication is pending, then true once signed publication completes during `PROVISIONING`, before ISSUANCE preparation. Activation requires an accepted bilateral entry and receipt matching the current identity, key, and GI, plus publication and applicable JWKS/TLS/serving readiness under the identity guard. | Wrong key is 409 `KEY_MISMATCH`; full error matrix belongs to E2. |
 | SR-8 | Replacement after revoke or retire gets a new domain and log stream; the old identity stays terminal. Delayed old creates do not trigger it. | Not agreed; see the [proposal](#proposal-name-reuse-and-failed-provisioning). Separate gate. |
 
 ## Decisions Still Owned Outside the SDK Design
@@ -157,8 +157,10 @@ needed. Record server and SDK revisions.
 - [ ] SR-6: interrupted submissions reuse exact bytes; a competing
   signature is rejected and its replica recovers the accepted entry;
   invalid then valid submission succeeds.
-- [ ] SR-7: all error and customer-action cases return structured outcomes; public
-  `ACTIVE` is checked separately from `READY`.
+- [ ] SR-7: authenticated registry-managed detail always includes boolean
+  `dns_published`; it changes from false to true after signed publication during
+  `PROVISIONING`, before ISSUANCE preparation. All error and customer-action cases
+  return structured outcomes; public `ACTIVE` is checked separately from `READY`.
 - [ ] SR-8 (separate gate): replacement and late retries keep terminal history and
   allocate exactly one new domain.
 - [ ] E5: all SDK bindings and CLI pass the shared hosted scenarios.

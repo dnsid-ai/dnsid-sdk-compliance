@@ -372,14 +372,15 @@ backup needs and the limits of container-local storage.
 
 ### Portable Recovery Document
 
-Stores import and export UTF-8 RFC 8785 JSON. `schemaVersion` is `1`. Reject
-duplicate members, invalid Unicode, and unknown versions or phases. Preserve unknown
-members on rewrite. Omit optional members until known. Byte strings are unpadded
-base64url; timestamps are RFC 3339 UTC.
+Stores import and export UTF-8 RFC 8785 JSON. `schemaVersion` is `2`. Reject
+duplicate members, invalid Unicode, and unsupported versions or phases before
+mutation. A rejection never overwrites saved state, creates a replacement identity,
+or generates a new key. Preserve unknown members on rewrite. Omit optional members
+until known. Byte strings are unpadded base64url; timestamps are RFC 3339 UTC.
 
 | Member | Value |
 |---|---|
-| `schemaVersion`, `phase` | `1`; `creation-pending`, `identity-known`, `issuance-accepted`, or `complete`. |
+| `schemaVersion`, `phase` | `2`; `creation-pending`, `identity-known`, `issuance-accepted`, or `complete`. |
 | `registryUrl`, `organizationId`, `name` | Operation key. |
 | `governanceId`, `logTrust` | Resolved expected bindings, using 12's names. |
 | `keySource`, `currentKeySource` | Non-secret provider reference; current reference after rotation if different. |
@@ -477,6 +478,7 @@ the cross-SDK daily workflow. Server persistence proof stays in
 | `ERROR`, `REJECTED`, `CANCELLED`, terminal, unknown states | Correct typed outcome; no name release or replacement. |
 | Competing valid countersignatures; invalid then valid local countersignature | Losing bytes rejected; winner recovered; an invalid local signature is never persisted or submitted, and the next attempt countersigns the same prepared bytes. |
 | Interruption at each phase | Same-bytes recovery; no recreation. |
+| Unsupported recovery-document version or phase | Reject before mutation; no saved-state overwrite, replacement identity, or generated key. |
 | `READY` without public `ACTIVE`; wrong GI, key, or log | Bounded wait or failure; signing paused. |
 | Restart of a `complete` operation; rotated or superseded key | Signing enabled only for the verified current key; no reissuance. |
 | Replica without saved state after rotation, using the current key | Existing identity; earlier ISSUANCE recovered, none prepared; signing only after the current key matches signed `ku` through verified rotation history. |
