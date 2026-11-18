@@ -231,7 +231,6 @@ class PyAdapter:
         agent = config.get("signatureAgent", {})
         cfg = wba.WebBotAuthConfig(
             signature_agent_uri=agent.get("uri", ""),
-            signature_agent_type=agent.get("type", "directory"),
             include_signature_agent=config.get("includeSignatureAgent", True),
             signature_ttl=config.get("signatureTTL", 60),
             directory_signature_ttl=config.get("directorySignatureTTL", 300),

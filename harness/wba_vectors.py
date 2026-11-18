@@ -190,7 +190,6 @@ def check_signed_output(
                     {
                         **public,
                         "kid": thumbprint(public),
-                        "alg": "ed25519",
                         "use": "sig",
                     }
                 ],
@@ -207,11 +206,10 @@ def check_signed_output(
                 expected_components.append('"content-digest"')
             expected_components.append('"signature-agent";key="sig1"')
             agent = config.get("signatureAgent", {})
-            uri = agent.get("uri", "https://" + case_input["domain"])
-            kind = agent.get("type", "directory")
+            uri = agent.get("uri", f'https://{case_input["domain"]}/.well-known/http-message-signatures-directory')
             require(
                 message["headers"].get("signature-agent")
-                == f'sig1="{uri}";type={kind}',
+                == f'sig1="{uri}"',
                 "required discovery member",
             )
             expected_components.extend(

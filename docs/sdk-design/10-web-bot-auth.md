@@ -4,15 +4,14 @@
 
 Web Bot Auth (WBA) is an application profile over RFC 9421, not DNSid core.
 This design targets
-[draft-ietf-webbotauth-httpsig-protocol-00](https://datatracker.ietf.org/doc/html/draft-ietf-webbotauth-httpsig-protocol-00)
-(September 1, 2026), including directory discovery, plus RFCs 8941, 9530, 7638,
+[draft-ietf-webbotauth-httpsig-protocol-01](https://datatracker.ietf.org/doc/html/draft-ietf-webbotauth-httpsig-protocol-01)
+(October 29, 2026), including directory discovery, plus RFCs 8941, 9530, 7638,
 and 8037. `dnsid-draft-01` names the DNSid key-role profile, not a WBA revision.
 
-The [editor's copy](https://webbotauth.github.io/draft-ietf-webbotauth-httpsig-protocol/)
-at [commit `be12662`](https://github.com/webbotauth/draft-ietf-webbotauth-httpsig-protocol/tree/be12662f3c5cc97e10e65a37355bdb33ba0d2fc4)
-requires direct JWKS URLs without member parameters and separates JWK and HTTP
-signature algorithm registries. Those unpublished changes are not adopted:
-typed discovery and directory JWK `alg="ed25519"` follow WG revision `00`.
+Revision `01` is not wire-compatible with `00`. Replace origin-based settings
+with the full directory URL and remove the discovery type. A `01` verifier
+ignores parameterized members, including `00` members with `type=directory` or
+`type=jwks_uri`. Coordinate the upgrade with deployed peers.
 
 Bindings MUST provide request signing, signed-directory serving, and request
 verification including directory verification. These requirements, identity
@@ -34,8 +33,8 @@ This **DNSid WBA profile** intentionally narrows the draft:
 | Area | WBA draft | DNSid WBA profile |
 |---|---|---|
 | Target coverage | `@authority` or `@target-uri` | Exact unparameterized `@authority` |
-| Algorithms | Registered asymmetric algorithms | Ed25519; `alg="ed25519"` required |
-| HTTPS discovery | `directory`, `jwks_uri`, `cimd` | `directory`, `jwks_uri`; covered header required |
+| Algorithms | Separate JOSE and HTTP signature algorithm registries | Ed25519; HTTP signature `alg="ed25519"` required; optional JWK `alg="Ed25519"` |
+| HTTPS discovery | Direct JWKS URL, no member parameters | Covered direct URL required; fragments forbidden |
 | Labels and count | Any label; multiple signatures | Signers default to `sig1`; verifier accepts any label but exactly one complete WBA candidate |
 | Content | No universal digest requirement | Supplied content requires covered SHA-256 `Content-Digest` |
 | Lifetime | Request expiry within 24 hours recommended | Request and directory signatures at most 300 seconds |
@@ -64,8 +63,7 @@ required here.
 
 | Field | Type | Default | Requirement |
 |---|---|---|---|
-| `webBotAuth.signatureAgent.uri` | HTTPS URI | `https://{domain}` | Origin for `directory`; endpoint for `jwks_uri`. |
-| `webBotAuth.signatureAgent.type` | `directory` or `jwks_uri` | `directory` | Discovery interpretation. |
+| `webBotAuth.signatureAgent.uri` | HTTPS URI | `https://{domain}/.well-known/http-message-signatures-directory` | Direct signed key directory endpoint. |
 | `webBotAuth.signatureTTL` | seconds | 60 | Positive, at most 300. |
 | `webBotAuth.directorySignatureTTL` | seconds | 300 | Positive, at most 300. |
 | `webBotAuth.clockSkew` | seconds | 5 | Non-negative; never allows future directory `created`. |
@@ -79,7 +77,7 @@ snapshotting nested discovery settings against caller mutation.
 
 `{domain}` is the agent identity FQDN, not `gi` or the request destination.
 The WBA directory is separate from the live `ku` JWKS. Signing configuration
-MUST reject `jwks_uri` identifying local `ku`; verifiers MUST reject discovery
+MUST reject a URL identifying local `ku`; verifiers MUST reject discovery
 identifying authenticated signer `ku`. Compare normalized WBA identifiers without
 query or fragment, not URL path-name conventions.
 
@@ -89,22 +87,15 @@ query or fragment, not URL path-name conventions.
 member keyed to their signature label:
 
 ```http
-Signature-Agent: sig1="https://agent.example";type=directory
+Signature-Agent: sig1="https://agent.example/.well-known/http-message-signatures-directory"
 ```
 
-- `directory`: require an ASCII HTTPS origin without userinfo, path, query,
-  fragment, or trailing `/`. Fetch
-  `/.well-known/http-message-signatures-directory` at that origin. Signers reject
-  invalid configuration before network work; verifiers MUST NOT strip components
-  to repair invalid origins.
-- `jwks_uri`: fetch the HTTPS directory/JWKS endpoint as supplied. `type` is an
-  RFC 8941 Token, not a String.
-
-Signers emit `type` explicitly; absent `type` means `directory`, never a custom
-endpoint. Ignore unsupported types and invalid origins during member selection;
-an invalid, unsupported, missing, or uncovered selected member rejects before
-network work, even with trusted caller discovery. Do not infer type from path,
-media type, or body. Legacy bare String discovery is unsupported.
+Each selected member MUST be a String containing an absolute HTTPS URL without
+userinfo, fragments, or Structured Field parameters. Fetch that URL directly,
+including any query. Do not append a path to an origin-only URL. Reject missing,
+uncovered, or invalid selected members before network work, even with trusted
+caller discovery. Unrelated members do not contribute to discovery. Legacy bare
+String discovery is unsupported.
 
 Verifiers select by WBA tag, not a hard-coded label, and resolve the exact covered
 `"signature-agent";key="member"`. An intermediary may relabel `Signature` and
@@ -112,8 +103,8 @@ Verifiers select by WBA tag, not a hard-coded label, and resolve the exact cover
 key. Verifiers MUST NOT relabel that member or attribute a signature to an
 uncovered one.
 
-The WBA identifier is the resolved well-known URL for `directory`, or the supplied
-`jwks_uri` without query and fragment. Normalize per WBA section 5.5 (RFC 3986
+The WBA identifier is the fetched URL without its query. Normalize per WBA
+section 5.5 (RFC 3986
 sections 6.2.2 and 6.2.3). Key lookup and cached attribution MUST use the normalized
 URL and thumbprint together within the verification policy context, not either
 alone or just the hostname. Normalize an empty HTTPS path to `/`.
@@ -138,6 +129,13 @@ alone or just the hostname. Normalize an empty HTTPS path to `/`.
 
 Shared RFC 9421 content rules govern stream replay, cleanup, and digest handling.
 
+Agents can sign up front or only when asked. An origin that expects a signature
+SHOULD send `Accept-Signature` when one is missing, following WBA section 5.3.
+Do not automatically retry non-idempotent requests in response to a challenge.
+Stable `Signature-Agent` URLs allow correlation across origins even after key
+rotation. Use separate DNSid identities and directory URLs when origins need to
+distinguish crawler traffic from user-directed traffic.
+
 ## Directory serving
 
 `ServeHttpMessageSignaturesDirectory(req)` serves an uncoded JWKS object at
@@ -145,10 +143,11 @@ Shared RFC 9421 content rules govern stream replay, cleanup, and digest handling
 `Content-Type: application/http-message-signatures-directory+json`. The helper
 MUST NOT emit `Content-Encoding` or apply content coding.
 
-Each JWK contains public material only, `use="sig"`, `alg="ed25519"` (the HTTP
-signature name, not JOSE `EdDSA`), and `kid` equal to its recomputed unpadded RFC
-7638 thumbprint. Hash only the required public members: `crv`, `kty`, and `x` for
-Ed25519; exclude metadata, private material, and extensions.
+Each JWK contains public material only, `use="sig"`, and `kid` equal to its
+recomputed unpadded RFC 7638 thumbprint. Directory issuers omit the optional JWK
+`alg`. When present in a received JWK, `alg` is the JOSE name `Ed25519`, not the
+HTTP signature name `ed25519`. Hash only the required public members: `crv`,
+`kty`, and `x` for Ed25519; exclude metadata, private material, and extensions.
 
 Set SHA-256 `Content-Digest` over exact JSON bytes and
 `Cache-Control: max-age=N, must-revalidate`, with `N` no greater than remaining
@@ -361,7 +360,7 @@ For each candidate key:
 
 1. Require directory transport/media type, bounded JSON, and a valid public
    OKP/Ed25519 JWK without private members. If present, `use` MUST be `sig`, `alg`
-   MUST be `ed25519`, and `key_ops` MUST be an array of distinct strings including
+   MUST be `Ed25519`, and `key_ops` MUST be an array of distinct strings including
    `verify`, with no operations outside `sign`/`verify`. Reject malformed or empty
    arrays; algorithm translation MUST preserve metadata restrictions.
 2. Recompute the RFC 7638 thumbprint and require matching `kid` and signature
@@ -424,8 +423,8 @@ Native validation MUST cover:
   denial without fallback; explicit generic-mode selection/results if offered.
   Cached bindings recheck acceptance and changed keys; uncached bindings test
   repeated fresh discovery with later denial and changed current keys.
-- Missing/uncovered/unsupported discovery and non-origin `directory` URLs before
-  network work, even with trusted discovery; URL/key-pair isolation; `ku` discovery
+- Direct well-known and custom URLs; missing, uncovered, or parameterized
+  discovery before network work, even with trusted discovery; URL/key-pair isolation; `ku` discovery
   including empty-path, query, and fragment variants; SSRF, invalid TLS, and
   same-host redirects.
 - Future directory `created` by one second despite five-second skew; serving TTLs

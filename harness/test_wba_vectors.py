@@ -64,14 +64,14 @@ class WbaVectorsTest(unittest.TestCase):
 
     def test_wg_discovery_and_timestamp_cases(self):
         self.assertEqual(
-            self.vectors["drafts"], ["draft-ietf-webbotauth-httpsig-protocol-00"]
+            self.vectors["drafts"], ["draft-ietf-webbotauth-httpsig-protocol-01"]
         )
         cases = {case["id"]: case for case in self.vectors["verificationCases"]}
         for name in (
             "missing-signature-agent",
             "uncovered-agent",
-            "directory-path",
-            "directory-query",
+            "legacy-typed-agent",
+            "parameterized-agent",
             "directory-fragment",
         ):
             with self.subTest(name=name):

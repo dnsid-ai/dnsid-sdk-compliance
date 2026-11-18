@@ -90,7 +90,7 @@ export async function verifyWba(req, sdk, wba, sdkDir) {
     const verifier = new wba.WebBotAuthProfile({ identityResolver: resolver, discoveryFetch, webBotAuth: config });
     Object.assign(config, s.configMutation ?? {});
     const opts = {
-      signerDomain: domain, discovery: { uri: s.trustedDiscoveryUri, type: 'directory' },
+      signerDomain: domain, discovery: { uri: s.trustedDiscoveryUri },
       requiredComponents: s.requiredComponents,
       timeoutMs: s.timeoutMs,
       consumeNonce: s.replayEnabled ? async ({ signerDomain, keyid, nonce }) => {

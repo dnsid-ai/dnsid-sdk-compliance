@@ -129,7 +129,7 @@ func TestComplianceWBAAdapter(t *testing.T) {
 				cfg.ClockSkew = time.Duration(*s.ConfigMutation.ClockSkew) * time.Second
 			}
 			f.opts.SignerDomain = s.SignerDomain
-			f.opts.DirectoryURL = s.TrustedDiscoveryURI + DirectoryPath
+			f.opts.DirectoryURL = s.TrustedDiscoveryURI
 			for _, c := range s.RequiredComponents {
 				f.opts.RequiredComponents = append(f.opts.RequiredComponents, httpsig.ComponentIdentifier{Name: c})
 			}
