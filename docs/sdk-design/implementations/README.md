@@ -4,51 +4,50 @@ This directory tracks the [SDK Design](../README.md) across Go, TypeScript, and
 Python. Each tracker's `Analysis Details` table is the authoritative baseline.
 Historical findings and review changes remain in Git.
 
-## Latest Review — 2026-11-11
+## Latest Review — 2026-11-24
 
 | SDK | Coverage File | Reviewed Branch | Reviewed Commit | Package Version | Open Findings |
 | --- | --- | --- | --- | --- | --- |
-| Go | [go.md](./go.md) | `main` | `fa1bd01` | `v0.47.0` | Active-only key inventory, response no-content verification, registry transport, profile ownership, publication snapshots, cross-provider/algorithm rotation, shared-kid preparation, construction ordering, unavailable TTL, KMS recovery coverage, Foundry acceptance, conformance metadata |
-| TypeScript | [typescript.md](./typescript.md) | `main` | `9652ed6` | `0.36.0` | Active-only key inventory, registry defaults, obsolete loader fields, profile ownership, cross-provider/empty-target rotation, Google saved-state recovery, Foundry successor reconciliation/acceptance, conformance metadata; three moderate development-dependency audit findings |
-| Python | [python.md](./python.md) | `main` | `4ac4d2a` | `0.34.0` | Active-only key inventory, response header bounds/no-content signing, profile ownership, JWT bearer naming, OIDC decoded allocation, Google saved-state recovery, Foundry successor reconciliation/acceptance, conformance metadata |
+| Go | [go.md](./go.md) | `main` | `4c08b87` | `v0.48.0` | Active-only key inventory, response no-content verification, registry transport, profile ownership, publication snapshots, cross-provider/algorithm rotation, shared-kid preparation, construction ordering, unavailable TTL, KMS recovery coverage, Foundry acceptance, conformance metadata |
+| TypeScript | [typescript.md](./typescript.md) | `main` | `2606e02` | `0.37.0` | Active-only key inventory, registry defaults, obsolete loader fields, profile ownership, cross-provider/empty-target rotation, Google saved-state recovery, Foundry successor reconciliation/acceptance, conformance metadata; prior dependency audit findings not rechecked |
+| Python | [python.md](./python.md) | `main` | `2248785` | `0.36.0` | Active-only key inventory, response header bounds/no-content signing, profile ownership, JWT bearer naming, OIDC decoded allocation, Google saved-state recovery, Foundry successor reconciliation/acceptance, conformance metadata |
 
-Design baseline: `8a5139751b08371cd608ea7ab263540a0ed86394` (`main`, before
-this tracker update). Go and TypeScript are exact release-tag checkouts; Python
-is three commits after `v0.34.0`. Full commits and actual validation commands
-are recorded per SDK. Published artifacts were not inspected; TypeScript's
-locally packed packages passed smoke validation.
+Design baseline: `a9940979e6df63315b6eb49b2b487b485d0133cd` (`main`, before
+this tracker update). All three SDKs are main checkouts after their release tags.
+Full commits and actual validation commands are recorded per SDK. Published
+artifacts and packed consumers were not checked in this review.
 
 ## Review Scope
 
-The prior full-review SDK/design commits resolved and were ancestors of the
-reviewed heads. Feature tables were reconciled with the full design set, with
-full review of the new negotiated-response, Foundry and KMS areas and affected
-existing contracts/callers. Entire SDK commit subjects/name-status changes and
-aggregate changes were considered. Unaffected coverage retains baseline
-evidence after impact review; citations in changed files were refreshed.
-No uncommitted SDK, normative-design or fixture changes were included.
+This incremental review starts at each tracker's recorded SDK commit and design
+commit `8a5139751b08371cd608ea7ab263540a0ed86394`. All baseline commits resolve
+and are ancestors of the reviewed heads. Review covered all SDK commit subjects,
+name/status changes and aggregate diffs, plus normative design, conformance and
+root-fixture changes. Affected callers were reviewed; unaffected coverage retains
+baseline evidence. Citations in changed files were refreshed. Reviewed SDK,
+normative-design and fixture checkouts were clean.
 
-The design range
-`ed80183256383ee299bf57f8ff098a15a955acde`..`8a5139751b08371cd608ea7ab263540a0ed86394`
-adds negotiated response authentication, product-specific Known Foundry
-Create/Active and recovery, KMS-first creation and reference-only restart,
-active-only key inventory, Google local supersession, protected registry
-defaults and managed-log transport propagation. Conformance vectors changed;
-root fixtures did not. No identity-record profile or wire selector changed.
+The design delta replaces WBA draft 00 with draft 01: parameterless direct
+directory URLs, no emitted JWK `alg`, and optional received JOSE `Ed25519`.
+All three SDKs now implement the updated WBA behavior. Conformance vectors
+changed; root fixtures did not. No DNSid identity-record profile or wire selector
+changed. WBA draft 01 is not wire-compatible with draft 00; deployed peers need
+a coordinated upgrade.
 
-Resolved gaps include Go configured-signer and setup-onboarding checks,
-TypeScript/Python managed-log transport propagation, and Python durable
-initial issuance. TypeScript recursive migration and the concrete Google
-provider are now reviewed on main; earlier focused follow-ups are superseded.
-New boundary findings remain open despite passing suites.
+SDK changes add staging/Known managed trust, overflow bundle keys, registry
+`policy_violation`, regional KMS evidence and NAT64 destination guards.
+TypeScript/Python validate returned AWS key references. Go also fixes canonical
+host boundaries and separates identity-name and general DNS limits across
+record, publication, acceptance, issuance and Foundry callers.
+Unrelated findings remain open despite passing suites.
 
-Native validation passed for all three SDKs, including Go's race, optional
-AWS/GCP and tagged Foundry suites; TypeScript's typecheck/build, 1,938 tests
-(1 skipped) and packed consumers; and Python's 3,237 tests, lint and type checks.
-Existing TypeScript/Python dependency environments were used, not fresh locked
-installations. Toolchains: Go 1.27.3, Node 22.23.4 and Python 3.13.15.
-TypeScript's audit exited 1 with three moderate development-dependency findings.
-No SDK code or dependency fixes were made.
+Native validation passed for all three SDKs, including Go vet, race, optional
+AWS/GCP and tagged Foundry suites; TypeScript typecheck/build and 1,979 tests
+(1 skipped); and Python's 3,271 tests, lint and type checks.
+Existing dependency environments were used. No fresh installation, dependency
+audit, packed-artifact validation, SDK code change or dependency fix was made.
+The previous TypeScript audit reported three moderate development-dependency
+findings; current vulnerability status is not established.
 
 Foundry availability is separate from source coverage: Go requires the
 `dnsid_foundry` build tag, TypeScript's package is private, and Python excludes
@@ -57,14 +56,15 @@ supported released server or hosted acceptance.
 
 ## Shared Compliance Harness
 
-All **1,788 expectations per SDK** matched: 1,777 passes and 11 fail-closed
+All **1,791 expectations per SDK** matched: 1,780 passes and 11 fail-closed
 retired-selector rejections, with zero FAIL, XFAIL or MISSING results.
-This includes all eight shared migration-chain cases and the negotiated-response
-preparation, signature-base and server-signing vectors. Typed Python JWKS errors
-and optional no-directory-cache behavior use declared expectations.
+This includes all 153 updated WBA cases, all eight shared migration-chain cases
+and the negotiated-response preparation, signature-base and server-signing
+vectors. Typed Python JWKS errors and optional no-directory-cache behavior use
+declared expectations.
 
 All 63 harness unit tests, both fixture reproducibility checks and 33 focused
-event-identity checks passed. Three writers matched the canonical golden
+event-identity checks passed. Three writers matched both canonical golden
 ISSUANCE/KEY_ROTATION entries; three verifiers accepted the golden stream and
 each rejected all six mutations. The Python-to-TypeScript split-signing handoff
 matched. Shared vectors do not establish every native response-verifier,
@@ -76,22 +76,21 @@ Commands ran from the compliance root:
 export DNSID_GO_DIR="$HOME/dnsid-go"
 export DNSID_TS_DIR="$HOME/dnsid-ts"
 export DNSID_PY_DIR="$HOME/dnsid-py"
-uv pip install -p .venv -e "$DNSID_PY_DIR"
 (cd shims/go && go build -o dnsid-shim .)
 .venv/bin/python harness/generate_c2sp_fixtures.py --check
 .venv/bin/python harness/generate_wba_fixtures.py --check
 .venv/bin/python -m unittest discover -s harness -p 'test_*.py'
 .venv/bin/python harness/c2sp_event_identity_check.py
-.venv/bin/python harness/run.py --out /tmp/dnsid-review-2026-11-11/harness.md
+.venv/bin/python harness/run.py --out /tmp/dnsid-review-2026-11-24/harness.md
 .venv/bin/python harness/c2sp_matrix.py
 ```
 
-The initial harness unit run failed because the shared Python environment
-imported `dnsid-formal/results/diff/src/py`. With user approval, the editable
-install was rebound to the reviewed `~/dnsid-py` checkout; the complete shared
-run then passed. Logs/reports are under `/tmp/dnsid-review-2026-11-11/`.
-Earlier focused probes cited in trackers are historical unless listed in the
-current validation commands.
+The shared Python import resolved to `~/dnsid-py` without rebinding the
+environment. The first unit/matrix invocation omitted SDK environment variables:
+four unit cases skipped and the matrix stopped. Both were rerun with the
+variables; all 63 unit tests and the matrix passed. Logs/reports are under
+`/tmp/dnsid-review-2026-11-24/`. Earlier focused probes cited in trackers are
+historical unless listed in the current validation commands.
 
 Passing suites do not close the findings. No live cloud/IAM or hosted server,
 shared Foundry daily scenario matrix, external CLI, cross-binding recovery
