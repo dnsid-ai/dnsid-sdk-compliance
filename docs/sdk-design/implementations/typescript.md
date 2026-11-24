@@ -14,36 +14,11 @@
 | Analysis date | 2026-11-24 |
 | Prior reviewed SDK baseline | `2606e02c86ab79f75f98779ff0265575d0874ff5` |
 | Prior reviewed design baseline | `a9940979e6df63315b6eb49b2b487b485d0133cd` |
-| Review scope | Incremental registry compatibility review: all SDK commit subjects/name-status and aggregate diffs since the recorded baseline, design/conformance/root-fixture changes, and affected issuance/rotation callers. Baselines resolve and are ancestors. Unrelated rows and open findings retain prior review evidence; changed-file citations are refreshed. |
+| Review scope | Registry compatibility delta and issuance/rotation callers; other coverage retains prior review evidence. |
 | Native validation | `npm test -- test/registry-client.test.ts test/managed-issuance.test.ts test/managed-key-rotation.test.ts test/foundry-registry.test.ts` — 220 passed; `npm run typecheck:packages` — passed |
-| Shared validation | Not rerun. The 1,791/1,791 expectation result and shared matrix below belong to the prior full review, not the current SDK commit. |
+| Shared validation | Not rerun; previous results below are historical. |
 
-### Registry Compatibility Review
-
-All three SDKs now use GET for issuance preparation with the caller's
-`Idempotency-Key` and recognize `submission_busy` and `TLOG_SUBMISSION_BUSY`
-as retryable with identical signed bytes. The result model now accepts `submitting`;
-issuance and rotation callers retain incomplete state and activate only after
-acceptance and existing verification gates.
-
-The design delta is limited to those registry contracts in documents 05 and 11.
-No conformance vectors or root fixtures changed. The recorded native checks
-were run at the merged SDK commit above. The earlier direct busy-code and
-submission-state probes ran on the pre-merge compatibility branches; they were
-not rerun for this tracker update. No new regression tests were added.
-
-Other coverage and findings below retain the prior full review's evidence.
-References to shared compliance, race tests, full TypeScript/Python suites or
-hosted behavior do not imply new validation at this commit. No live registry,
-release artifact, or broader alternate-registry compatibility was tested.
-Foundry and registry transport findings remain unchanged.
-
-### Prior Full Review and Validation Notes (Historical)
-
-Full-review SDK baseline: `2606e02c86ab79f75f98779ff0265575d0874ff5`; design baseline:
-`a9940979e6df63315b6eb49b2b487b485d0133cd`.
-
-Historical native validation: `npm run typecheck`, `npm test`, `npm run build` — passed; 1,979 tests passed, 1 skipped.
+### Prior Review Notes (Historical)
 
 The design delta replaces WBA draft 00 with draft 01: parameterless direct
 directory URLs, no emitted JWK alg, and optional received JOSE Ed25519.
@@ -298,7 +273,7 @@ was performed. Checkpoint durability remains caller-owned.
 | Prepared event model and immutable signed bytes | [11: Prepared Event Model](../11-c2sp-tlog-binding.md#prepared-event-model) | Implemented: packages/log-c2sp-tlog/src/writer.ts:38, packages/log-c2sp-tlog/src/writer.ts:95, packages/log-c2sp-tlog/src/writer.ts:251, packages/log-c2sp-tlog/src/writer.ts:407 | Prepared references, frozen envelopes, independently reproduced signed bytes, derived `eventId` (`packages/log-c2sp-tlog/src/writer.ts:288`, `:462`), required roles, and integrity checks are exposed. |
 | Prepared-event parsing and existing-signature validation | [11: ParsePreparedEvent](../11-c2sp-tlog-binding.md#parsepreparedevent) | Implemented: packages/log-c2sp-tlog/src/writer.ts:118, packages/log-c2sp-tlog/src/writer.ts:178, packages/log-c2sp-tlog/src/writer.ts:318, packages/log-c2sp-tlog/src/writer.ts:403 | Canonical parsing, expected FQDN/governance context, trusted role keys, unknown-field preservation, and existing signatures are validated before either ISSUANCE role signs, preventing a prepared-event confused deputy. Trusted prior-state keys remain explicit caller inputs. |
 | Registry preparation reference binding | [05: RegistryClient](../05-transport-and-registry.md#registryclient), [11: ParsePreparedEvent](../11-c2sp-tlog-binding.md#parsepreparedevent) | Implemented: exact transport bytes only (`packages/registry/src/index.ts:256`, `:666`, `:681`); issuance derives strict signed lr and checks all four expected identity/key bindings (`packages/log-c2sp-tlog/src/writer.ts:148`), used by managed issuance (`packages/sdk/src/managed-issuance.ts:201`); rotation parses against the saved verified reference (`packages/sdk/src/managed-key-rotation.ts:169`). Tests `test/managed-key-rotation.test.ts:176`, `test/c2sp-tlog.test.ts:337`. | GET preparation retains the caller's Idempotency-Key; no DNSID-Log-Reference response-header dependency remains. Unknown signed fields and exact response bytes are preserved. |
-| Registry compatibility: GET, busy codes and incomplete submission states | [05: RegistryClient](../05-transport-and-registry.md#registryclient), [05: RegistrySubmissionError](../05-transport-and-registry.md#registrysubmissionerror), [11: Submission and Idempotency](../11-c2sp-tlog-binding.md#submission-and-idempotency) | Implemented for the SDK boundary: GET transport (`packages/registry/src/index.ts:666`, `:671`); result union/parser (`:279`, `:712`); both busy codes (`:1050`); issuance/rotation acceptance gates (`packages/sdk/src/managed-issuance.ts:284`, `packages/sdk/src/managed-key-rotation.ts:286`). | Pending/submitting outcomes preserve exact signed bytes and the idempotency key without activation. Accepted receipts still require hash binding. Live interoperability and server replay guarantees were not established. |
+| Registry compatibility: GET, busy codes and incomplete submission states | [05: RegistryClient](../05-transport-and-registry.md#registryclient), [05: RegistrySubmissionError](../05-transport-and-registry.md#registrysubmissionerror), [11: Submission and Idempotency](../11-c2sp-tlog-binding.md#submission-and-idempotency) | Implemented for the SDK boundary: GET transport (`packages/registry/src/index.ts:666`, `:671`); result union/parser (`:279`, `:712`); both busy codes (`:1050`); issuance/rotation acceptance gates (`packages/sdk/src/managed-issuance.ts:284`, `packages/sdk/src/managed-key-rotation.ts:286`). | Incomplete results retain exact bytes without activation. Accepted receipts require hash binding. Live interoperability untested. |
 | Provider-isolated prepared signing and entry serialization | [11: SignPreparedEvent](../11-c2sp-tlog-binding.md#signpreparedevent), [EntryBytes](../11-c2sp-tlog-binding.md#entrybytes) | Implemented: packages/log-c2sp-tlog/src/writer.ts:177, packages/log-c2sp-tlog/src/writer.ts:194, packages/log-c2sp-tlog/src/writer.ts:209 | Providers are matched by `kid`, `alg`, and thumbprint; complete signatures are reverified before exact canonical entry serialization. |
 | Safe prepared append and chain precondition | [11: WritePreparedEvent](../11-c2sp-tlog-binding.md#writepreparedevent) | Implemented: packages/log-c2sp-tlog/src/writer.ts:239 | Revalidates the complete entry, requires authoritative chain validation for non-genesis public events, submits exact bytes, and returns the final indexed reference. |
 | Split ISSUANCE flow | [11: Split ISSUANCE Flow](../11-c2sp-tlog-binding.md#split-issuance-flow) | Implemented for the SDK boundary: packages/sdk/src/managed-issuance.ts:51, packages/sdk/src/managed-issuance.ts:110, packages/sdk/src/managed-issuance.ts:144, packages/sdk/src/managed-issuance.ts:206, packages/sdk/src/managed-issuance.ts:312, packages/registry/src/index.ts:666 | Requires a registry-prepared entity signature, adds only the operational countersignature, atomically creates one durable intent, persists exact bytes and their hash before submission, records indeterminate/terminal outcomes, verifies accepted binding, and resumes from authoritative storage before idempotent activation. |

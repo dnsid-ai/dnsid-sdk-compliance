@@ -14,36 +14,11 @@
 | Analysis date | 2026-11-24 |
 | Prior reviewed SDK baseline | `2248785d1170e1a2dfcfaef7b14851453435ea98` |
 | Prior reviewed design baseline | `a9940979e6df63315b6eb49b2b487b485d0133cd` |
-| Review scope | Incremental registry compatibility review: all SDK commit subjects/name-status and aggregate diffs since the recorded baseline, design/conformance/root-fixture changes, and affected issuance/rotation callers. Baselines resolve and are ancestors. Unrelated rows and open findings retain prior review evidence; changed-file citations are refreshed. |
+| Review scope | Registry compatibility delta and issuance/rotation callers; other coverage retains prior review evidence. |
 | Native validation | `.venv/bin/python -m pytest -q tests/test_registry_client.py tests/test_async_registry_client.py tests/test_managed_issuance.py tests/test_key_rotation.py tests/test_foundry_registry_contract.py` — 348 passed; `.venv/bin/ruff check dnsid/registry_client.py dnsid/models.py dnsid/interfaces.py tests/test_registry_client.py tests/test_async_registry_client.py` — passed |
-| Shared validation | Not rerun. The 1,791/1,791 expectation result and shared matrix below belong to the prior full review, not the current SDK commit. |
+| Shared validation | Not rerun; previous results below are historical. |
 
-### Registry Compatibility Review
-
-All three SDKs now use GET for issuance preparation with the caller's
-`Idempotency-Key` and recognize `submission_busy` and `TLOG_SUBMISSION_BUSY`
-as retryable with identical signed bytes. The result model now accepts `submitting`;
-issuance and rotation callers retain incomplete state and activate only after
-acceptance and existing verification gates. Python also removes the release workflow's uv version pin; that CI-only change does not alter SDK runtime coverage.
-
-The design delta is limited to those registry contracts in documents 05 and 11.
-No conformance vectors or root fixtures changed. The recorded native checks
-were run at the merged SDK commit above. The earlier direct busy-code and
-submission-state probes ran on the pre-merge compatibility branches; they were
-not rerun for this tracker update. No new regression tests were added.
-
-Other coverage and findings below retain the prior full review's evidence.
-References to shared compliance, race tests, full TypeScript/Python suites or
-hosted behavior do not imply new validation at this commit. No live registry,
-release artifact, or broader alternate-registry compatibility was tested.
-Foundry and registry transport findings remain unchanged.
-
-### Prior Full Review and Validation Notes (Historical)
-
-Full-review SDK baseline: `2248785d1170e1a2dfcfaef7b14851453435ea98`; design baseline:
-`a9940979e6df63315b6eb49b2b487b485d0133cd`.
-
-Historical native validation: `.venv/bin/python -m pytest -q`, `.venv/bin/ruff check .`, `.venv/bin/mypy dnsid` — passed; 3,271 tests.
+### Prior Review Notes (Historical)
 
 The design delta replaces WBA draft 00 with draft 01: parameterless direct
 directory URLs, no emitted JWK alg, and optional received JOSE Ed25519.
@@ -277,7 +252,7 @@ These are Python binding capabilities, not new language-agnostic design requirem
 | Lifecycle signer roles and signature verification | [11: Lifecycle Signatures](../11-c2sp-tlog-binding.md#lifecycle-signatures) | Implemented: roles `dnsid/c2sp_tlog/prepared.py:37`; signature requirements `dnsid/c2sp_tlog/event_codec.py:326`; lifecycle verification `dnsid/c2sp_tlog/stream_verifier.py:454`. | Includes binding-owned `NewOperational` proof. |
 | Prepared event parse/sign/serialize/write surface | [11: Prepared Event Model](../11-c2sp-tlog-binding.md#prepared-event-model) | Implemented: prepare/parse and signing-context checks (`dnsid/c2sp_tlog/prepared.py:129`, `:155`, `:207`, `:497`), complete bytes/write (`:287`, `:323`), and locally derived signature-independent `event_id` (`:114`). Regression `tests/test_c2sp_tlog.py:876`. | Unknown signed fields remain preserved. Non-ISSUANCE entity signing requires expected FQDN; MIGRATION also pins new_lr. |
 | Registry preparation reference binding | [05: RegistryClient](../05-transport-and-registry.md#registryclient), [11: ParsePreparedEvent](../11-c2sp-tlog-binding.md#parsepreparedevent) | Implemented at the binding/transport boundary: response type carries exact bytes only (`dnsid/models.py:2002`, `dnsid/registry_client.py:1332`, `:1388`); issuance derives strict signed lr via parse_prepared_issuance (`dnsid/c2sp_tlog/prepared.py:184`), while manager rotation parses against its verified reference (`dnsid/manager.py:836`). | GET preparation retains the caller's Idempotency-Key; no DNSID-Log-Reference response-header dependency remains. Expected identity/key checks precede operational countersigning; durable initial-issuance coordination is covered by the split ISSUANCE flow below. |
-| Registry compatibility: GET, busy codes and incomplete submission states | [05: RegistryClient](../05-transport-and-registry.md#registryclient), [05: RegistrySubmissionError](../05-transport-and-registry.md#registrysubmissionerror), [11: Submission and Idempotency](../11-c2sp-tlog-binding.md#submission-and-idempotency) | Implemented for the SDK boundary: shared sync/async GET preparation (`dnsid/registry_client.py:1332`, `:1343`, `:1366`); both busy codes (`:1579`); submitting state (`dnsid/models.py:2046`); issuance/rotation acceptance gates (`dnsid/c2sp_tlog/managed_issuance.py:191`, `dnsid/manager.py:1103`). | Pending/submitting outcomes preserve exact signed bytes and the idempotency key without activation. Accepted receipts still require hash binding. Live interoperability and server replay guarantees were not established. |
+| Registry compatibility: GET, busy codes and incomplete submission states | [05: RegistryClient](../05-transport-and-registry.md#registryclient), [05: RegistrySubmissionError](../05-transport-and-registry.md#registrysubmissionerror), [11: Submission and Idempotency](../11-c2sp-tlog-binding.md#submission-and-idempotency) | Implemented for the SDK boundary: shared sync/async GET preparation (`dnsid/registry_client.py:1332`, `:1343`, `:1366`); both busy codes (`:1579`); submitting state (`dnsid/models.py:2046`); issuance/rotation acceptance gates (`dnsid/c2sp_tlog/managed_issuance.py:191`, `dnsid/manager.py:1103`). | Incomplete results retain exact bytes without activation. Accepted receipts require hash binding. Live interoperability untested. |
 | Submission adapter, durable idempotency, managed rotation, and stale-preparation behavior | [11: Submission and Idempotency](../11-c2sp-tlog-binding.md#submission-and-idempotency) | Implemented for the SDK contract: raw transport type `dnsid/models.py:2002`; abstract prepare/submit methods `dnsid/interfaces.py:728`, `:738`, `:751`; registry prepare/submit `dnsid/registry_client.py:1332`, `:1386`, `:1480`; durable manager recovery `dnsid/manager.py:735`, `:907`, `:1024`, `:1110`. | Registry preparation remains untrusted until binding parsing; exact bytes and idempotency keys survive retries. |
 | Portable checkpoint/tile/entry read surface and source abstraction | [11: Read Surface](../11-c2sp-tlog-binding.md#read-surface) | Implemented: source/evidence interfaces `dnsid/c2sp_tlog/stream_source.py:72`, `:82`, `:97`; bounded scanner `:141`; consistency source `:131`; tile bundle parser `dnsid/c2sp_tlog/tiles.py:48`; portable bundle verifier `dnsid/c2sp_tlog/stream_bundle.py:100`, `:123`, `:354`; `ReadEvent` discovery and bundle-backed authorization `dnsid/c2sp_tlog/reader.py:660`, `:764`. | Standard entry-bundle geometry is fixed at 256. With bundle trust configured, `ReadEvent` verifies the exact requested occurrence under historical authority rather than substituting an earlier copy. |
 | Global-log candidate selection and authenticated contradictions | [11: Read Surface](../11-c2sp-tlog-binding.md#read-surface), [11: Stream Completeness and Logged State](../11-c2sp-tlog-binding.md#stream-completeness-and-logged-state) | Implemented: selection/deduplication/authenticated failure `dnsid/c2sp_tlog/stream_verifier.py:91`, `:187`, `:217`, `:333`; stable categories `dnsid/c2sp_tlog/errors.py:12`; tests `tests/test_c2sp_tlog.py:521`, `:1117`, `:1140`. | Unauthenticated noise is ignored; authenticated chain, transition, and post-terminal contradictions are fatal. |
