@@ -341,6 +341,7 @@ def build_vectors() -> dict:
     for name, metadata in (
         ("wrong-use", {"use": "enc"}),
         ("wrong-alg", {"alg": "ed25519"}),
+        ("legacy-jose-alg", {"alg": "EdDSA"}),
         ("jose-alg", {"alg": "Ed25519"}),
         ("omitted-metadata", {}),
     ):

@@ -1097,6 +1097,22 @@
       "signatureValid": true,
       "digestValid": true
     },
+    "legacy-jose-alg": {
+      "message": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/http-message-signatures-directory+json",
+          "cache-control": "max-age=300",
+          "content-digest": "sha-256=:QaowTyIiTksU4QkSJV0kU0dYrMAk78uF6wNL5KG+1H8=:",
+          "signature-input": "sig1=(\"@authority\";req \"content-type\" \"cache-control\" \"content-digest\");created=1700000000;expires=1700000300;keyid=\"1IG2tMH7J2wbJZnOf8LJzQitKf7LMvoAElsuDMVM54Y\";alg=\"ed25519\";nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-Pw\";tag=\"http-message-signatures-directory\"",
+          "signature": "sig1=:yEjIrkw38FFKQpweO9THN4jYK4z/KzqVGs+g3pKyG1Ny0cr5+wbp/K9JGkqwyY+qiZvYi55ZkxFRFWQ3l9xEAg==:"
+        },
+        "bodyBase64": "eyJrZXlzIjpbeyJrdHkiOiJPS1AiLCJjcnYiOiJFZDI1NTE5IiwieCI6IkE2RUh2X1BPRUw0ZGNOMFk1MHZBbVdmazFqQ2JwUTFmSGR5R1pCSlZNYmciLCJraWQiOiIxSUcydE1IN0oyd2JKWm5PZjhMSnpRaXRLZjdMTXZvQUVsc3VETVZNNTRZIiwiYWxnIjoiRWREU0EifV19"
+      },
+      "signatureBase": "\"@authority\";req: agent.example\n\"content-type\": application/http-message-signatures-directory+json\n\"cache-control\": max-age=300\n\"content-digest\": sha-256=:QaowTyIiTksU4QkSJV0kU0dYrMAk78uF6wNL5KG+1H8=:\n\"@signature-params\": (\"@authority\";req \"content-type\" \"cache-control\" \"content-digest\");created=1700000000;expires=1700000300;keyid=\"1IG2tMH7J2wbJZnOf8LJzQitKf7LMvoAElsuDMVM54Y\";alg=\"ed25519\";nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-Pw\";tag=\"http-message-signatures-directory\"",
+      "signatureValid": true,
+      "digestValid": true
+    },
     "jose-alg": {
       "message": {
         "status": 200,
@@ -2482,6 +2498,20 @@
       "input": {
         "request": "valid",
         "directory": "wrong-alg",
+        "verification": {}
+      },
+      "expect": {
+        "ok": false,
+        "error": "ConformanceError"
+      }
+    },
+    {
+      "id": "wba-verify-directory-legacy-jose-alg",
+      "description": "directory legacy jose alg",
+      "spec_ref": "SDK design 10: request/directory verification; RFC 9421; RFC 9530; draft-ietf-webbotauth-httpsig-protocol-01",
+      "input": {
+        "request": "valid",
+        "directory": "legacy-jose-alg",
         "verification": {}
       },
       "expect": {

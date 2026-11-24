@@ -11,7 +11,9 @@ and 8037. `dnsid-draft-01` names the DNSid key-role profile, not a WBA revision.
 Revision `01` is not wire-compatible with `00`. Replace origin-based settings
 with the full directory URL and remove the discovery type. A `01` verifier
 ignores parameterized members, including `00` members with `type=directory` or
-`type=jwks_uri`. Coordinate the upgrade with deployed peers.
+`type=jwks_uri`. A `01` verifier also rejects directory keys carrying
+`alg="ed25519"`. Reissue DNSid directories without JWK `alg`; received keys may
+instead use JOSE `alg="Ed25519"`. Coordinate the upgrade with deployed peers.
 
 Bindings MUST provide request signing, signed-directory serving, and request
 verification including directory verification. These requirements, identity
