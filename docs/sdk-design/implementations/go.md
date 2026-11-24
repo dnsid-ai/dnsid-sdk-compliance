@@ -5,20 +5,45 @@
 | Field | Value |
 | --- | --- |
 | SDK repository | [dnsid-go](https://github.com/dnsid-ai/dnsid-go) |
-| SDK branch | `main` (clean reviewed checkout) |
-| SDK commit | `4c08b87eb11bff12e82aaefb320f410b81367de0` |
-| Tested SDK commit | `4c08b87eb11bff12e82aaefb320f410b81367de0` |
+| SDK branch | `origin/main` (clean detached checkout at the commit below) |
+| SDK commit | `7a0f3f34b0a0ede47620caaa1b9f523df7466804` |
+| Tested SDK commit | `7a0f3f34b0a0ede47620caaa1b9f523df7466804` |
 | SDK package version | `v0.48.0` |
 | Release / availability | Main after the release tag; published artifacts were not inspected. Foundry availability restrictions are unchanged. |
-| dnsid design docs commit | `a9940979e6df63315b6eb49b2b487b485d0133cd` (`main`, before this tracker update) |
+| dnsid design docs commit | `a3e81f0f0deb4379324aa5fa05b2aa3f34c3f937` (`docs/registry-compatibility`, before this tracker update) |
 | Analysis date | 2026-11-24 |
-| Prior reviewed SDK baseline | `fa1bd014d3b9f31d982f484011f1bd803481ba7c` |
-| Prior reviewed design baseline | `8a5139751b08371cd608ea7ab263540a0ed86394` |
-| Review scope | Incremental review of all SDK commit subjects/name-status and aggregate diffs, design/conformance/root-fixture changes, and affected callers. Both baselines resolve and are ancestors. Reviewed checkouts were clean. Unaffected rows retain baseline evidence; changed-file citations were refreshed. |
-| Native validation | `go vet ./...`, `go test -count=1 ./...`, `go test -race ./...`, `go test -tags dnsid_foundry ./foundry`, `go test -race -tags dnsid_foundry ./foundry`, `(cd key/aws && go test ./...)`, `(cd key/gcp && go test ./...)` — passed |
-| Shared validation | 1,791/1,791 expectations matched per SDK: 1,780 PASS, 11 fail-closed REJ, zero FAIL/XFAIL/MISSING. All 153 WBA cases passed. 63 harness unit tests, both fixture reproducibility checks, 33 event-identity checks and the three-SDK writer/verifier matrix passed. |
+| Prior reviewed SDK baseline | `4c08b87eb11bff12e82aaefb320f410b81367de0` |
+| Prior reviewed design baseline | `a9940979e6df63315b6eb49b2b487b485d0133cd` |
+| Review scope | Incremental registry compatibility review: all SDK commit subjects/name-status and aggregate diffs since the recorded baseline, design/conformance/root-fixture changes, and affected issuance/rotation callers. Baselines resolve and are ancestors. Unrelated rows and open findings retain prior review evidence; changed-file citations are refreshed. |
+| Native validation | `go test ./...` — passed (cached results reused); race, vet, tagged Foundry and cloud-module suites not rerun |
+| Shared validation | Not rerun. The 1,791/1,791 expectation result and shared matrix below belong to the prior full review, not the current SDK commit. |
 
-### Review and Validation Notes
+### Registry Compatibility Review
+
+All three SDKs now use GET for issuance preparation with the caller's
+`Idempotency-Key` and recognize `submission_busy` and `TLOG_SUBMISSION_BUSY`
+as retryable with identical signed bytes. Go already accepted `submitting`;
+issuance and rotation callers retain incomplete state and activate only after
+acceptance and existing verification gates.
+
+The design delta is limited to those registry contracts in documents 05 and 11.
+No conformance vectors or root fixtures changed. The recorded native checks
+were run at the merged SDK commit above. The earlier direct busy-code and
+submission-state probes ran on the pre-merge compatibility branches; they were
+not rerun for this tracker update. No new regression tests were added.
+
+Other coverage and findings below retain the prior full review's evidence.
+References to shared compliance, race tests, full TypeScript/Python suites or
+hosted behavior do not imply new validation at this commit. No live registry,
+release artifact, or broader alternate-registry compatibility was tested.
+Foundry and registry transport findings remain unchanged.
+
+### Prior Full Review and Validation Notes (Historical)
+
+Full-review SDK baseline: `4c08b87eb11bff12e82aaefb320f410b81367de0`; design baseline:
+`a9940979e6df63315b6eb49b2b487b485d0133cd`.
+
+Historical native validation: `go vet ./...`, `go test -count=1 ./...`, `go test -race ./...`, `go test -tags dnsid_foundry ./foundry`, `go test -race -tags dnsid_foundry ./foundry`, `(cd key/aws && go test ./...)`, `(cd key/gcp && go test ./...)` — passed.
 
 The design delta replaces WBA draft 00 with draft 01: parameterless direct
 directory URLs, no emitted JWK alg, and optional received JOSE Ed25519.
@@ -223,6 +248,7 @@ was performed. Checkpoint durability remains caller-owned.
 | Shared kid labels across distinct role keys | [11: Lifecycle Signatures](../11-c2sp-tlog-binding.md#lifecycle-signatures) | Partial: reader selection accepts distinct role keys sharing a `kid` (`log/c2sptlog/event.go:591`), and the shared selection vector passes. Prepared-key resolution still rejects that case (`log/c2sptlog/event.go:595`, `log/c2sptlog/prepared.go:487`), including `ParsePreparedIssuance` (`:149`, `:167`). | A focused probe using the valid shared-kid ISSUANCE vector reproduced rejection before countersigning. |
 | Safe exact-byte prepared append | [11: WritePreparedEvent](../11-c2sp-tlog-binding.md#writepreparedevent), [11: Submission and Idempotency](../11-c2sp-tlog-binding.md#submission-and-idempotency) | Implemented: complete-byte verification and authoritative prior-state revalidation at `log/c2sptlog/prepared.go:369`, `log/c2sptlog/prepared.go:401`, `log/c2sptlog/prepared.go:568`; registry preparation/submission at `registry.go:1233`, `registry.go:1253`, `registry.go:1283`; durable issuance/rotation submission at `log/c2sptlog/managed_issuance.go:310`, `log/c2sptlog/managed_rotation.go:300`. | Portable registry contract correctly limits prepared APIs to ISSUANCE and key rotation. |
 | Registry preparation reference binding | [05: RegistryClient](../05-transport-and-registry.md#registryclient), [11: ParsePreparedEvent](../11-c2sp-tlog-binding.md#parsepreparedevent) | Implemented: transport returns exact bytes only (`registry.go:58`, `:1221`, `:1241`); issuance derives strict signed lr and verifies existing signatures (`log/c2sptlog/prepared.go:149`), while managed issuance checks local expectations (`log/c2sptlog/managed_issuance.go:280`) and rotation uses the bound client reference (`log/c2sptlog/managed_rotation.go:204`). Tests `log/c2sptlog/prepared_issuance_test.go:12`, `:40`, `:61`. | No DNSID-Log-Reference response-header dependency remains; shared-kid prepared signing is a separate limitation above. |
+| Registry compatibility: GET, busy codes and incomplete submission states | [05: RegistryClient](../05-transport-and-registry.md#registryclient), [05: RegistrySubmissionError](../05-transport-and-registry.md#registrysubmissionerror), [11: Submission and Idempotency](../11-c2sp-tlog-binding.md#submission-and-idempotency) | Implemented for the SDK boundary: GET transport (`registry.go:1221`, `:1225`); both busy codes map to pending/exact-byte retry (`:1468`, `:1486`); pending/submitting parsing (`:1289`); issuance/rotation acceptance gates (`log/c2sptlog/managed_issuance.go:239`, `log/c2sptlog/managed_rotation.go:322`). | Pending/submitting outcomes preserve exact signed bytes and the idempotency key without activation. Accepted receipts still require hash binding. Live interoperability and server replay guarantees were not established. |
 | Standard C2SP read resources and source abstraction | [11: Read Surface](../11-c2sp-tlog-binding.md#read-surface) | Implemented: source/complete/global abstractions at `log/c2sptlog/client.go:45`, `log/c2sptlog/client.go:69`, `log/c2sptlog/client.go:79`; bounded authenticated scanner at `log/c2sptlog/scan_source.go:37`, `log/c2sptlog/scan_source.go:252`; portable bundle source at `log/c2sptlog/bundle.go:76`, `log/c2sptlog/bundle.go:267`. |  |
 | Checkpoint, inclusion-proof, policy, witness, and time verification | [11: Checkpoint, Proof, and Policy Verification](../11-c2sp-tlog-binding.md#checkpoint-proof-and-policy-verification) | Implemented: policy/proof/witness checks (`log/c2sptlog/proof.go:69`, `:109`), atomic checkpoint advancement (`log/c2sptlog/checkpoint_store.go:260`), and preserved public-boundary classifications (`log/c2sptlog/client.go:1239`). | The default protects only the lifetime of the same store instance. All factories permit explicit durable-store injection; no built-in durable adapter ships at these heads. |
 | Hash-tile checkpoint consistency and evidence selection | [11: Checkpoint Consistency Evidence Selection](../11-c2sp-tlog-binding.md#checkpoint-consistency-evidence-selection) | Implemented: verified scan reuse precedes explicit proof and built-in tiles (`log/c2sptlog/checkpoint_store.go:325`); candidate and prefix roots, non-edge authentication, exact widths, partial-404 full retry, tree/budget limits (`log/c2sptlog/hash_tiles.go:47`, `:77`, `:110`, `:170`); required bundles retain tiles (`:188`); empty roots are validated (`log/c2sptlog/proof.go:135`, `log/c2sptlog/checkpoint_store.go:416`). | Native boundary, power-of-two classification, per-level read bounds, no-fallback and CAS-winner tests passed (`log/c2sptlog/hash_tiles_test.go:64`, `:108`, `:143`, `:279`; `log/c2sptlog/hash_tile_reader_test.go:30`, `:96`, `:278`). No persistent tile cache is claimed. |
@@ -336,7 +362,7 @@ was performed. Checkpoint durability remains caller-owned.
 - **Partial — Foundry acceptance:** implementation is build-gated (`foundry/foundry.go:1`). Native tests do not establish permanent server replay, hosted daily scenarios, supported server revision, external CLI or portable cross-binding recovery.
 - **Partial — conformance metadata:** KnownDeviations is empty (`conformance.go:29`) despite the gaps above.
 
-Resolved since the baseline: configured operational signer binding
+Resolved in earlier reviews: configured operational signer binding
 (`config/config.go:445`, `:456`) and setup-owned onboarding checks
 (`foundry/foundry.go:390`). The revised design assigns established-identity
 continuity to setup/recovery; ordinary construction alone is not continuity proof.
