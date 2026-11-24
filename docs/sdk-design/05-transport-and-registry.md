@@ -457,7 +457,7 @@ RegistryClient.PublishSignature(domain: string, sig: string) -> PublishedRecord
 
 RegistryClient.PrepareIssuance(domain: string,
                                idempotencyKey: string) -> PreparedRegistryEvent
-  // POST {baseUrl}/api/v1/agent/{domain}/tlog/issuance/prepare with an empty
+  // GET {baseUrl}/api/v1/agent/{domain}/tlog/issuance/prepare with no
   // request body. Send idempotencyKey as the Idempotency-Key header.
   // The registry uses the authenticated identity's previously registered
   // operational public key and returns the exact partially signed canonical JCS
@@ -861,9 +861,10 @@ Typed failure from prepared-event submission. A binding may instead normalize a
 structured non-2xx response to the equivalent typed indeterminate or rejected
 `SubmissionResult`; both surfaces preserve the registry's stable `errorCode`
 and retry classification. An error object additionally carries the HTTP status
-and a `retrySameEntry` flag. For the current product adapter,
-`TLOG_SUBMISSION_BUSY` and `TLOG_SUBMISSION_INDETERMINATE` retry the identical
-`entryBytes` with the same idempotency key. `IDEMPOTENCY_MISMATCH`,
+and a `retrySameEntry` flag. Registry adapters recognize both
+`TLOG_SUBMISSION_BUSY` and `submission_busy` as busy submissions. Either code,
+or `TLOG_SUBMISSION_INDETERMINATE`, requires retrying the identical `entryBytes`
+with the same idempotency key. `IDEMPOTENCY_MISMATCH`,
 `TLOG_PREPARATION_MISMATCH`, and `TLOG_INVALID_ENTRY` are terminal for those
 prepared bytes. Foundry create MUST perform [issuance recovery](13-known-foundry.md#issuance-recovery)
 before making the operation failure final. Unknown transport failures remain

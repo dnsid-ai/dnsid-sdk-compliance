@@ -560,7 +560,9 @@ from stream state. Only the resulting validated
 authenticated registry response from being mistaken for a binding-validated
 event.
 
-For the current registry adapter, `PrepareIssuance` sends an empty request body.
+For the current registry adapter, `PrepareIssuance` uses
+`GET {baseUrl}/api/v1/agent/{domain}/tlog/issuance/prepare` with no request body
+and sends the supplied idempotency key as the `Idempotency-Key` header.
 The service derives the operational public key from the authenticated identity's
 previously registered key and returns exact partially signed canonical entry
 bytes. The SDK treats that response as
@@ -611,7 +613,7 @@ entry.
 
 ```
 TYPE SubmissionResult
-  state: prepared | submitting | indeterminate | accepted | rejected
+  state: prepared | pending | submitting | indeterminate | accepted | rejected
   entryHash: string
   index?: integer
   logRef?: LogRef
@@ -622,8 +624,11 @@ END
 The current product returns `SubmissionResult` for successful accepted or
 replayed submissions and uses structured non-2xx errors for busy, rejected, and
 indeterminate outcomes. Other adapters may return the full state union directly,
-but callers apply the same retry rules in either representation. On every
-accepted response, including the first attempt, the SDK verifies `entryHash`
+but callers apply the same retry rules in either representation. A successful
+HTTP response with `pending` or `submitting` is incomplete, not acceptance.
+The SDK preserves the exact signed entry bytes and idempotency key for retries
+and MUST NOT activate a new key or advance local state as accepted on that basis.
+On every accepted response, including the first attempt, the SDK verifies `entryHash`
 against the exact submitted bytes before activating a new key or advancing local
 state.
 
