@@ -470,6 +470,23 @@
       "signatureValid": true,
       "digestValid": true
     },
+    "origin-only": {
+      "message": {
+        "method": "POST",
+        "url": "https://api.example/v1/items?limit=10",
+        "headers": {
+          "authorization": "Bearer application-token",
+          "content-digest": "sha-256=:k6I5cakU5erL8KjSUVTNownDwccvu5kU1Hxg88toFYg=:",
+          "signature-agent": "sig1=\"https://agent.example\"",
+          "signature-input": "sig1=(\"@authority\" \"content-digest\" \"signature-agent\";key=\"sig1\");created=1700000000;expires=1700000060;keyid=\"1IG2tMH7J2wbJZnOf8LJzQitKf7LMvoAElsuDMVM54Y\";alg=\"ed25519\";nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-Pw\";tag=\"web-bot-auth\"",
+          "signature": "sig1=:gMHacwV6VeZeor80zK/MNH3IbJIAnE+RU+gjYWDvfoDqCjhAE8uMPhB1cRy1/pLRpE9BaIoPeEx5zS3A64HKDA==:"
+        },
+        "bodyBase64": "eyJoZWxsbyI6IndvcmxkIn0="
+      },
+      "signatureBase": "\"@authority\": api.example\n\"content-digest\": sha-256=:k6I5cakU5erL8KjSUVTNownDwccvu5kU1Hxg88toFYg=:\n\"signature-agent\";key=\"sig1\": \"https://agent.example\"\n\"@signature-params\": (\"@authority\" \"content-digest\" \"signature-agent\";key=\"sig1\");created=1700000000;expires=1700000060;keyid=\"1IG2tMH7J2wbJZnOf8LJzQitKf7LMvoAElsuDMVM54Y\";alg=\"ed25519\";nonce=\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-Pw\";tag=\"web-bot-auth\"",
+      "signatureValid": true,
+      "digestValid": true
+    },
     "directory-fragment": {
       "message": {
         "method": "POST",
@@ -1680,6 +1697,22 @@
         "directory": "valid",
         "verification": {
           "trustedDiscoveryUri": "https://agent.example/custom?keys=1"
+        }
+      },
+      "expect": {
+        "ok": true,
+        "signerDomain": "agent.example"
+      }
+    },
+    {
+      "id": "wba-verify-origin-only",
+      "description": "origin only",
+      "spec_ref": "SDK design 10: request/directory verification; RFC 9421; RFC 9530; draft-ietf-webbotauth-httpsig-protocol-01",
+      "input": {
+        "request": "origin-only",
+        "directory": "valid",
+        "verification": {
+          "trustedDiscoveryUri": "https://agent.example"
         }
       },
       "expect": {

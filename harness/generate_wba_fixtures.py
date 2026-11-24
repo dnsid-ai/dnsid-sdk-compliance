@@ -208,6 +208,7 @@ def build_vectors() -> dict:
             '"@query-param";name="q"',
         ])
     requests["direct-endpoint"] = request_fixture(agent_uri=f"https://{DOMAIN}/custom?keys=1")
+    requests["origin-only"] = request_fixture(agent_uri=f"https://{DOMAIN}")
     requests["directory-fragment"] = request_fixture(agent_uri=DIRECTORY_URL + "#keys")
     requests["legacy-typed-agent"] = request_fixture(
         agent_uri=f"https://{DOMAIN}", agent_parameters=";type=directory",
@@ -541,6 +542,10 @@ def build_vectors() -> dict:
     verify_case(
         "direct-endpoint", req="direct-endpoint", accepted=True,
         policy={"trustedDiscoveryUri": f"https://{DOMAIN}/custom?keys=1"},
+    )
+    verify_case(
+        "origin-only", req="origin-only", accepted=True,
+        policy={"trustedDiscoveryUri": f"https://{DOMAIN}"},
     )
     verify_case("non-default-label", req="non-default-label", accepted=True)
     verify_case("empty-supplied-body", req="empty-body", accepted=True)

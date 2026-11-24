@@ -150,6 +150,10 @@ recomputed unpadded RFC 7638 thumbprint. Directory issuers omit the optional JWK
 `alg`. When present in a received JWK, `alg` is the JOSE name `Ed25519`, not the
 HTTP signature name `ed25519`. Hash only the required public members: `crv`,
 `kty`, and `x` for Ed25519; exclude metadata, private material, and extensions.
+For WBA directory keys, these rules replace the JWK algorithm mapping in
+[section 02](02-rfc9421-http-message-signatures.md#algorithm-mapping): only
+JOSE `Ed25519` maps to HTTP signature `ed25519` when JWK `alg` is present;
+JOSE `EdDSA` is rejected. The generic HTTP signature mapping is unchanged.
 
 Set SHA-256 `Content-Digest` over exact JSON bytes and
 `Cache-Control: max-age=N, must-revalidate`, with `N` no greater than remaining
