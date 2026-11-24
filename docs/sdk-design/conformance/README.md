@@ -82,7 +82,7 @@ provider behavior where needed; a scenario flag must not supply the verdict.
 
 [`web-bot-auth.json`](web-bot-auth.json) targets the DNSid WBA profile in
 [10](../10-web-bot-auth.md), targeting published
-`draft-ietf-webbotauth-httpsig-protocol-00`, including its directory requirements.
+`draft-ietf-webbotauth-httpsig-protocol-01`, including its directory requirements.
 It contains fixed Ed25519 test keys, exact request/directory bytes, signature bases,
 signatures, and SHA-256 content digests. All private material is disposable test
 data; the private-directory-key case intentionally tests prohibited disclosure.
@@ -105,9 +105,9 @@ The corpus separates three kinds of expectation:
   Regressions include query form encoding (`~`, `*`, spaces, and empty values),
   network `Age`/`Date` staleness even without local caching, and local `ku`
   empty-path aliases.
-  WG revision `00` cases require a covered `Signature-Agent` even with trusted
-  caller discovery, reject non-origin `directory` values before discovery,
-  reject same-host public redirects without following them, and reject future
+  WG revision `01` cases require a covered parameterless `Signature-Agent`
+  even with trusted caller discovery, fetch direct directory URLs, reject legacy
+  typed members before discovery, reject same-host public redirects, and reject future
   directory `created` values even within configured request clock skew. A
   relabeled signature retains its original covered discovery member.
 

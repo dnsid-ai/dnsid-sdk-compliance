@@ -42,7 +42,9 @@ NEXT_KEY = {
 }
 THUMB = thumbprint(PUBLIC)
 NONCE = b64url(bytes(range(64)))
-REF = "SDK design 10: request/directory verification; RFC 9421; RFC 9530; draft-ietf-webbotauth-httpsig-protocol-00"
+DRAFT = "draft-ietf-webbotauth-httpsig-protocol-01"
+DIRECTORY_URL = f"https://{DOMAIN}/.well-known/http-message-signatures-directory"
+REF = f"SDK design 10: request/directory verification; RFC 9421; RFC 9530; {DRAFT}"
 
 
 def digest(body: bytes) -> str:
@@ -98,7 +100,8 @@ def request_fixture(
     label="sig1",
     body=b'{"hello":"world"}',
     agent=True,
-    agent_uri=f"https://{DOMAIN}",
+    agent_uri=DIRECTORY_URL,
+    agent_parameters="",
     components=None,
     **params,
 ) -> dict:
@@ -114,7 +117,7 @@ def request_fixture(
         headers["content-digest"] = digest(body)
         covered.append('"content-digest"')
     if agent:
-        headers["signature-agent"] = f'{label}="{agent_uri}";type=directory'
+        headers["signature-agent"] = f'{label}="{agent_uri}"{agent_parameters}'
         covered.append('"signature-agent";key="' + label + '"')
     return sign(
         message,
@@ -153,7 +156,7 @@ def build_vectors() -> dict:
     }
     directory_request = {
         "method": "GET",
-        "url": f"https://{DOMAIN}/.well-known/http-message-signatures-directory",
+        "url": DIRECTORY_URL,
         "headers": {},
     }
     requests = {
@@ -204,12 +207,13 @@ def build_vectors() -> dict:
             '"@authority"', '"content-digest"', '"signature-agent";key="sig1"',
             '"@query-param";name="q"',
         ])
-    for name, uri in (
-        ("directory-path", f"https://{DOMAIN}/custom"),
-        ("directory-query", f"https://{DOMAIN}?keys=1"),
-        ("directory-fragment", f"https://{DOMAIN}#keys"),
-    ):
-        requests[name] = request_fixture(agent_uri=uri)
+    requests["direct-endpoint"] = request_fixture(agent_uri=f"https://{DOMAIN}/custom?keys=1")
+    requests["origin-only"] = request_fixture(agent_uri=f"https://{DOMAIN}")
+    requests["directory-fragment"] = request_fixture(agent_uri=DIRECTORY_URL + "#keys")
+    requests["legacy-typed-agent"] = request_fixture(
+        agent_uri=f"https://{DOMAIN}", agent_parameters=";type=directory",
+    )
+    requests["parameterized-agent"] = request_fixture(agent_parameters=";extension")
     requests["relabeled"] = copy.deepcopy(requests["valid"])
     headers = requests["relabeled"]["message"]["headers"]
     for field in ("signature-input", "signature"):
@@ -262,7 +266,7 @@ def build_vectors() -> dict:
         '"cache-control"',
         '"content-digest"',
     ]
-    directory_key = {**PUBLIC, "kid": THUMB, "alg": "ed25519", "use": "sig"}
+    directory_key = {**PUBLIC, "kid": THUMB, "use": "sig"}
 
     def directory_fixture(
         *, keys=None, components=None, cache_age=300, headers=None, **params
@@ -337,7 +341,9 @@ def build_vectors() -> dict:
         )
     for name, metadata in (
         ("wrong-use", {"use": "enc"}),
-        ("wrong-alg", {"alg": "EdDSA"}),
+        ("wrong-alg", {"alg": "ed25519"}),
+        ("legacy-jose-alg", {"alg": "EdDSA"}),
+        ("jose-alg", {"alg": "Ed25519"}),
         ("omitted-metadata", {}),
     ):
         key = {
@@ -357,7 +363,6 @@ def build_vectors() -> dict:
     other_directory_key = {
         **other_public,
         "kid": thumbprint(other_public),
-        "alg": "ed25519",
         "use": "sig",
     }
     directories["distinct-key-candidates"] = directory_fixture(
@@ -429,7 +434,7 @@ def build_vectors() -> dict:
 
     signing_case(
         "configuration-snapshot-discovery",
-        config={"signatureAgent": {"uri": f"https://{DOMAIN}", "type": "directory"}},
+        config={"signatureAgent": {"uri": DIRECTORY_URL}},
         mutation={"signatureAgent": {"uri": "https://other.example"}},
     )
     signing_case("default-get", message=get)
@@ -448,8 +453,7 @@ def build_vectors() -> dict:
         "direct-jwks-uri",
         config={
             "signatureAgent": {
-                "uri": "https://agent.example/custom/keys",
-                "type": "jwks_uri",
+                "uri": "https://agent.example/custom/keys?keys=1",
             }
         },
     )
@@ -460,12 +464,12 @@ def build_vectors() -> dict:
         )
     signing_case(
         "reject-local-ku-empty-path", accepted=False,
-        config={"signatureAgent": {"uri": f"https://{DOMAIN}/", "type": "jwks_uri"}},
+        config={"signatureAgent": {"uri": f"https://{DOMAIN}/"}},
         local_ku=f"https://{DOMAIN}",
     )
     signing_case(
         "separate-local-ku",
-        config={"signatureAgent": {"uri": f"https://{DOMAIN}/directory", "type": "jwks_uri"}},
+        config={"signatureAgent": {"uri": f"https://{DOMAIN}/directory"}},
         local_ku=f"https://{DOMAIN}/ku",
     )
     signing_case("directory", operation="directory", message=directory_request)
@@ -487,24 +491,11 @@ def build_vectors() -> dict:
     signing_case(
         "reject-http-discovery",
         accepted=False,
-        config={"signatureAgent": {"uri": "http://agent.example", "type": "directory"}},
+        config={"signatureAgent": {"uri": "http://agent.example"}},
     )
-    for name, uri in (
-        ("path", f"https://{DOMAIN}/custom"),
-        ("query", f"https://{DOMAIN}?keys=1"),
-        ("fragment", f"https://{DOMAIN}#keys"),
-    ):
-        signing_case(
-            "reject-directory-" + name,
-            accepted=False,
-            config={"signatureAgent": {"uri": uri, "type": "directory"}},
-        )
     signing_case(
-        "reject-discovery-type",
-        accepted=False,
-        config={
-            "signatureAgent": {"uri": "https://agent.example", "type": "unsupported"}
-        },
+        "reject-directory-fragment", accepted=False,
+        config={"signatureAgent": {"uri": DIRECTORY_URL + "#keys"}},
     )
 
     verification = []
@@ -548,6 +539,14 @@ def build_vectors() -> dict:
             }
 
     verify_case("valid", accepted=True)
+    verify_case(
+        "direct-endpoint", req="direct-endpoint", accepted=True,
+        policy={"trustedDiscoveryUri": f"https://{DOMAIN}/custom?keys=1"},
+    )
+    verify_case(
+        "origin-only", req="origin-only", accepted=True,
+        policy={"trustedDiscoveryUri": f"https://{DOMAIN}"},
+    )
     verify_case("non-default-label", req="non-default-label", accepted=True)
     verify_case("empty-supplied-body", req="empty-body", accepted=True)
     verify_case("relabeled", req="relabeled", accepted=True)
@@ -577,8 +576,8 @@ def build_vectors() -> dict:
         "tampered-body",
         "missing-authority",
         "uncovered-agent",
-        "directory-path",
-        "directory-query",
+        "legacy-typed-agent",
+        "parameterized-agent",
         "directory-fragment",
         "uncovered-body",
         "wrong-tag",
@@ -601,6 +600,7 @@ def build_vectors() -> dict:
         "key-ops-verify-only",
         "key-ops-sign-verify",
         "omitted-metadata",
+        "jose-alg",
         "distinct-key-candidates",
     }
     for name in directories:
@@ -656,8 +656,8 @@ def build_vectors() -> dict:
         if case["id"] in {
             "wba-verify-missing-signature-agent",
             "wba-verify-uncovered-agent",
-            "wba-verify-directory-path",
-            "wba-verify-directory-query",
+            "wba-verify-legacy-typed-agent",
+            "wba-verify-parameterized-agent",
             "wba-verify-directory-fragment",
             "wba-verify-keyed-digest-without-content",
             "wba-verify-required-operation-coverage",
@@ -751,7 +751,7 @@ def build_vectors() -> dict:
     verify_case("expires-during-discovery", policy={"finishedAt": NOW + 66})
     return {
         "schemaVersion": 1,
-        "drafts": ["draft-ietf-webbotauth-httpsig-protocol-00"],
+        "drafts": [DRAFT],
         "domain": DOMAIN,
         "key": KEY,
         "directoryRequest": directory_request,
@@ -760,7 +760,7 @@ def build_vectors() -> dict:
             "finishedAt": NOW,
             "clockSkew": 5,
             "signerDomain": DOMAIN,
-            "trustedDiscoveryUri": "https://agent.example",
+            "trustedDiscoveryUri": DIRECTORY_URL,
             "dnsidExists": True,
             "acceptanceAllowed": True,
             "currentKu": [PUBLIC],

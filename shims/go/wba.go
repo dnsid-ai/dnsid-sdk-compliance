@@ -15,7 +15,7 @@ import (
 )
 
 type wbaConfig struct {
-	SignatureAgent                      struct{ URI, Type string }
+	SignatureAgent                      struct{ URI string }
 	SignatureTTL, DirectorySignatureTTL *int
 	IncludeSignatureAgent               *bool
 }
@@ -62,7 +62,6 @@ func handleWBA(req request) map[string]any {
 	}
 	cfg := webbotauth.Config{
 		DirectoryURL:          req.WebBotAuth.SignatureAgent.URI,
-		SignatureAgentType:    req.WebBotAuth.SignatureAgent.Type,
 		IncludeSignatureAgent: req.WebBotAuth.IncludeSignatureAgent,
 	}
 	if req.WebBotAuth.SignatureTTL != nil {

@@ -14,6 +14,8 @@ export async function verifyWba(req, sdk, wba, sdkDir) {
   const { ArgumentError, DNSSECState, DnsIdTxtRecord, JWKS, NoopLogReader, VerificationCode, VerificationError, VerifiedDomain, jwkThumbprint } = sdk;
   const s = req.verification;
   const domain = s.signerDomain;
+  const directoryUrl = new URL(s.trustedDiscoveryUri);
+  const directoryTarget = directoryUrl.pathname + directoryUrl.search;
   const publicKey = { kty: 'OKP', crv: 'Ed25519', x: req.key.x };
   let clock = s.now;
   let discoveries = 0;
@@ -26,11 +28,16 @@ export async function verifyWba(req, sdk, wba, sdkDir) {
   const server = createServer({
     cert: readFileSync(new URL('wba-cert.pem', fixtures)),
     key: readFileSync(new URL('wba-key.pem', fixtures)),
-  }, (_request, response) => {
+  }, (request, response) => {
     discoveries++;
     clock = s.finishedAt;
     response.sendDate = false;
     response.setHeader('Connection', 'close');
+    if (request.url !== directoryTarget) {
+      response.writeHead(404);
+      response.end('unexpected directory request target');
+      return;
+    }
     if (s.directoryTimeout) return;
     if (s.redirects.length) {
       response.writeHead(302, { Location: s.redirects[0].url });
@@ -90,7 +97,7 @@ export async function verifyWba(req, sdk, wba, sdkDir) {
     const verifier = new wba.WebBotAuthProfile({ identityResolver: resolver, discoveryFetch, webBotAuth: config });
     Object.assign(config, s.configMutation ?? {});
     const opts = {
-      signerDomain: domain, discovery: { uri: s.trustedDiscoveryUri, type: 'directory' },
+      signerDomain: domain, discovery: { uri: s.trustedDiscoveryUri },
       requiredComponents: s.requiredComponents,
       timeoutMs: s.timeoutMs,
       consumeNonce: s.replayEnabled ? async ({ signerDomain, keyid, nonce }) => {

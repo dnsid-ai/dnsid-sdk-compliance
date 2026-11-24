@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import patch
+from urllib.parse import urlsplit, urlunsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 TLS_FIXTURES = ROOT / "shims/testdata"
@@ -43,6 +44,8 @@ def verify_python(req: dict) -> dict:
     phase = 0
     seen = set()
     public = {"kty": "OKP", "crv": "Ed25519", "x": req["key"]["x"]}
+    directory_url = urlsplit(scenario["trustedDiscoveryUri"])
+    directory_target = urlunsplit(("", "", directory_url.path or "/", directory_url.query, ""))
 
     class Resolver:
         def refresh_domain(self, signer, peer_cert=None):
@@ -89,6 +92,9 @@ def verify_python(req: dict) -> dict:
             nonlocal clock, discoveries
             discoveries += 1
             clock = scenario["finishedAt"]
+            if self.path != directory_target:
+                self.send_error(404, "unexpected directory request target")
+                return
             if scenario.get("directoryTimeout"):
                 self.connection.settimeout(2)
                 self.connection.recv(1)

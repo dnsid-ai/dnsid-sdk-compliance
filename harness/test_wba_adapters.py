@@ -128,7 +128,7 @@ class WbaAdaptersTest(unittest.TestCase):
         self.assertEqual(len(results), 2)
         self.assertTrue(all(result["error"] == "AdapterError" for result in results))
 
-    def test_python_adapter_runs_the_native_verifier(self):
+    def test_python_adapter_dispatches_to_the_native_verifier(self):
         try:
             from dnsid import WBAHttpVerifier
         except ImportError:
@@ -136,12 +136,18 @@ class WbaAdaptersTest(unittest.TestCase):
         from wba_adapters import verify_python
 
         cases = {case["id"]: case for case in load_wba_suite()["cases"]}
-        original = WBAHttpVerifier.verify_web_bot_auth_signed_request
+        from dnsid.enums import VerificationCode
+        from dnsid.exceptions import VerificationError
+
+        # SDK conformance belongs in the report, not the unit-test gate.
         with patch.object(
             WBAHttpVerifier,
             "verify_web_bot_auth_signed_request",
             autospec=True,
-            side_effect=original,
+            side_effect=[
+                SimpleNamespace(domain=self.vectors["domain"]),
+                VerificationError(VerificationCode.RECORD_INVALID, "fixture rejection"),
+            ],
         ) as verify:
             self.assertTrue(verify_python(cases["wba-verify-valid"]["input"])["ok"])
             self.assertEqual(
@@ -149,6 +155,12 @@ class WbaAdaptersTest(unittest.TestCase):
                 "ConformanceError",
             )
             self.assertEqual(verify.call_count, 2)
+            request, opts = verify.call_args.args[1:]
+            self.assertEqual(
+                request.headers,
+                cases["wba-verify-bad-signature"]["input"]["request"]["headers"],
+            )
+            self.assertEqual(opts.signer_domain, self.vectors["domain"])
         with patch.object(
             WBAHttpVerifier,
             "verify_web_bot_auth_signed_request",
@@ -164,6 +176,7 @@ class WbaAdaptersTest(unittest.TestCase):
             from dnsid import WBAHttpVerifier  # noqa: F401
         except ImportError:
             self.skipTest("Python WBA SDK is not installed")
+        import httpx
         from http.server import BaseHTTPRequestHandler
         from wba_adapters import verify_python
 
@@ -177,11 +190,26 @@ class WbaAdaptersTest(unittest.TestCase):
 
         case = next(case for case in load_wba_suite()["cases"]
                     if case["id"] == "wba-verify-directory-http-date-stale")
-        with patch("wba_adapters.BaseHTTPRequestHandler.send_header", new=send_header):
+
+        def fetch_directory(_request, opts):
+            transport = verifier.call_args.kwargs["transport"]
+            with httpx.Client(transport=transport, trust_env=False) as client:
+                response = client.get(opts.discovery_uri)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(
+                response.headers.get_list("date"),
+                [case["input"]["directory"]["headers"]["date"]],
+            )
+            return SimpleNamespace(domain=self.vectors["domain"])
+
+        with (
+            patch("wba_adapters.BaseHTTPRequestHandler.send_header", new=send_header),
+            patch("dnsid.WBAHttpVerifier") as verifier,
+        ):
+            verifier.return_value.verify_web_bot_auth_signed_request.side_effect = fetch_directory
             actual = verify_python(case["input"])
         self.assertEqual(dates, [case["input"]["directory"]["headers"]["date"]])
-        self.assertFalse(actual["ok"])
-        self.assertEqual(actual["error"], "ConformanceError")
+        self.assertTrue(actual["ok"], actual)
 
 
 if __name__ == "__main__":

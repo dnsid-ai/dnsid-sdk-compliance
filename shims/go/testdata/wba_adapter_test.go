@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sync/atomic"
@@ -129,14 +130,22 @@ func TestComplianceWBAAdapter(t *testing.T) {
 				cfg.ClockSkew = time.Duration(*s.ConfigMutation.ClockSkew) * time.Second
 			}
 			f.opts.SignerDomain = s.SignerDomain
-			f.opts.DirectoryURL = s.TrustedDiscoveryURI + DirectoryPath
+			f.opts.DirectoryURL = s.TrustedDiscoveryURI
 			for _, c := range s.RequiredComponents {
 				f.opts.RequiredComponents = append(f.opts.RequiredComponents, httpsig.ComponentIdentifier{Name: c})
+			}
+			directoryURL, err := url.Parse(s.TrustedDiscoveryURI)
+			if err != nil {
+				t.Fatal(err)
 			}
 			var discoveries atomic.Int64
 			server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				discoveries.Add(1)
 				clock.Store(s.FinishedAt)
+				if r.RequestURI != directoryURL.RequestURI() {
+					http.Error(w, "unexpected directory request target", http.StatusNotFound)
+					return
+				}
 				if s.DirectoryTimeout {
 					<-r.Context().Done()
 					return
